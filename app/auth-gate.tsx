@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import CRMClient from "./crm-client";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 import { apiFetch, supabaseSessionKey } from "@/lib/api-client";
 
 type AuthConfig = { configured: boolean; url?: string; anonKey?: string };
@@ -15,6 +16,11 @@ export default function AuthGate() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoverySent, setRecoverySent] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/config")
@@ -89,23 +95,28 @@ export default function AuthGate() {
     }
   }
 
-  async function recoverPassword() {
-    if (!config?.url || !config.anonKey || !email.trim()) {
-      setMessage("Skriv inn e-postadressen din først.");
+  async function recoverPassword(event: FormEvent) {
+    event.preventDefault();
+    if (recoveryBusy) return;
+    setRecoveryMessage("");
+    if (!config?.url || !config.anonKey) {
+      setRecoveryMessage("Passordgjenoppretting er midlertidig utilgjengelig. Prøv igjen senere.");
       return;
     }
-    setBusy(true);
-    const response = await fetch(`${config.url}/auth/v1/recover`, {
-      method: "POST",
-      headers: { apikey: config.anonKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
-    });
-    setMessage(
-      response.ok
-        ? "Hvis adressen finnes, mottar du straks en e-post for å tilbakestille passordet."
-        : "Kunne ikke sende e-post akkurat nå.",
-    );
-    setBusy(false);
+    setRecoveryBusy(true);
+    try {
+      const response = await fetch(`${config.url}/auth/v1/recover`, {
+        method: "POST",
+        headers: { apikey: config.anonKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ email: recoveryEmail.trim().toLowerCase() }),
+      });
+      if (!response.ok) throw new Error("Kunne ikke sende lenken. Prøv igjen om litt.");
+      setRecoverySent(true);
+    } catch {
+      setRecoveryMessage("Kunne ikke sende lenken. Prøv igjen om litt.");
+    } finally {
+      setRecoveryBusy(false);
+    }
   }
 
   async function updatePassword(event: FormEvent) {
@@ -196,7 +207,43 @@ export default function AuthGate() {
           </button>
         )}
         {mode === "login" && (
-          <button className="login-link" type="button" onClick={recoverPassword}>Glemt passord?</button>
+          <Dialog open={recoveryOpen} onOpenChange={(open) => {
+            if (recoveryBusy) return;
+            setRecoveryOpen(open);
+            if (open) {
+              setRecoveryEmail(email);
+              setRecoveryMessage("");
+              setRecoverySent(false);
+            }
+          }}>
+            <DialogTrigger asChild>
+              <button className="login-link" type="button">Glemt passord?</button>
+            </DialogTrigger>
+            <DialogContent showCloseButton={false} style={{ background: "#fff", color: "#073b3d", borderRadius: "20px", padding: "28px", maxWidth: "440px", width: "calc(100% - 32px)" }}>
+              <DialogHeader>
+                <DialogTitle style={{ fontSize: "1.5rem" }}>{recoverySent ? "Sjekk e-posten din" : "Glemt passord?"}</DialogTitle>
+                <DialogDescription style={{ fontSize: "1rem", lineHeight: 1.6 }}>
+                  {recoverySent
+                    ? "Hvis e-postadressen er registrert, får du en lenke for å velge et nytt passord. Sjekk også søppelpost."
+                    : "Skriv inn e-postadressen din, så sender vi deg en lenke for å velge et nytt passord."}
+                </DialogDescription>
+              </DialogHeader>
+              {!recoverySent && (
+                <form className="login-form" onSubmit={recoverPassword}>
+                  <label htmlFor="recovery-email">E-post
+                    <input id="recovery-email" type="email" autoComplete="email" placeholder="navn@bedrift.no" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} required disabled={recoveryBusy} autoFocus />
+                  </label>
+                  {recoveryMessage && <p className="login-message" role="alert">{recoveryMessage}</p>}
+                  <button className="login-button" type="submit" disabled={recoveryBusy}>
+                    {recoveryBusy ? "Sender …" : "Send lenke"}
+                  </button>
+                </form>
+              )}
+              <DialogClose asChild>
+                <button className="login-link" type="button" disabled={recoveryBusy}>{recoverySent ? "Tilbake til innlogging" : "Avbryt"}</button>
+              </DialogClose>
+            </DialogContent>
+          </Dialog>
         )}
       </section>
     </main>
