@@ -201,11 +201,6 @@ export default function AuthGate() {
         {!config?.configured && config !== null && (
           <p className="login-message">Innloggingen klargjøres. Prøv igjen litt senere.</p>
         )}
-        {mode !== "reset" && (
-          <button className="login-link" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
-            {mode === "login" ? "Første gang? Opprett konto" : "Har du allerede konto? Logg inn"}
-          </button>
-        )}
         {mode === "login" && (
           <Dialog open={recoveryOpen} onOpenChange={(open) => {
             if (recoveryBusy) return;
@@ -217,7 +212,7 @@ export default function AuthGate() {
             }
           }}>
             <DialogTrigger asChild>
-              <button className="login-link" type="button">Glemt passord?</button>
+              <button className="login-link" type="button">Glemt passord</button>
             </DialogTrigger>
             <DialogContent showCloseButton={false} style={{ background: "#fff", color: "#073b3d", borderRadius: "20px", padding: "28px", maxWidth: "440px", width: "calc(100% - 32px)" }}>
               <DialogHeader>
@@ -244,6 +239,11 @@ export default function AuthGate() {
               </DialogClose>
             </DialogContent>
           </Dialog>
+        )}
+        {mode !== "reset" && (
+          <button className="login-link" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+            {mode === "login" ? "Opprett konto" : "Har du allerede konto? Logg inn"}
+          </button>
         )}
       </section>
     </main>
