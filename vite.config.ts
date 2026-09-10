@@ -14,8 +14,11 @@ const localBindingConfig = {
   name: "noracre-crm",
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  keep_vars: true,
   vars: {
     APP_URL: "https://crm.noracre.no",
+    SUPABASE_URL: "https://elxxbhelzlpevdvxlxba.supabase.co",
+    SUPABASE_ANON_KEY: "sb_publishable_lFjFqfL2IFPo_ZqQVSzIGA_QXjtNiCp",
   },
   d1_databases: d1
     ? [
