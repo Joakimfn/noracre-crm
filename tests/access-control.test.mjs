@@ -65,4 +65,9 @@ test('reminder starts 15 minutes before and ignores completed, late and dateless
  assert.equal(app.reminderIsDue({...task,completedAt:'done'},due-900000),false);
  assert.equal(app.reminderIsDue({...task,dueAt:'2026-09-10'},due-900000),false);
 });
+test('inactive superadmin membership does not expose organization directory',async()=>{
+ add('memberships',{id:50,organization_id:2,user_id:'4',email:'4@test.no',name:'User 4',role:'Superadmin',active:0,created_at:'2026-01-01'});
+ const response=await route('session').GET(request(4));
+ assert.deepEqual((await response.json()).organizations.map(x=>x.id),[1]);
+});
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});

@@ -9,7 +9,7 @@ export async function GET(request: Request) {
       db = getDb();
     const mine = ctx.memberships;
     const current = mine.find((m) => m.organizationId === ctx.organizationId);
-    let all = mine.some((m) => m.role === "Superadmin")
+    let all = ctx.isSuperadmin
       ? await db.select().from(organizations)
       : await db
           .select()
@@ -72,3 +72,4 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+
