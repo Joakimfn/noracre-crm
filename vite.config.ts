@@ -26,7 +26,7 @@ const localBindingConfig = {
           binding: d1,
           database_name: "noracre-crm-db",
           database_id: NORACRE_DATABASE_ID,
-          migrations_dir: "../../drizzle",
+          migrations_dir: "drizzle",
         },
       ]
     : [],
