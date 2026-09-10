@@ -1,0 +1,1 @@
+ALTER TABLE `memberships` ADD `accepted_terms_version` text DEFAULT '' NOT NULL;
