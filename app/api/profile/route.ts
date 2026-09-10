@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { userProfiles } from "@/db/schema";
 import { accessResponse, requireTenant } from "@/lib/tenant";
+import { safeImageType, validateImage } from "@/lib/safe-image";
 
 const bucket = () => env.BUCKET as R2Bucket;
 
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
     const [profile] = await getDb().select().from(userProfiles).where(eq(userProfiles.userId, ctx.user.id)).limit(1);
     if (params.get("avatar") === "1") {
       if (!profile?.avatarKey) return new Response(null, { status: 404 });
+      if (!safeImageType(profile.avatarType)) return new Response(null, { status: 415 });
       const object = await bucket().get(profile.avatarKey);
       return object ? new Response(object.body, { headers: { "content-type": profile.avatarType, "cache-control": "private, max-age=300" } }) : new Response(null, { status: 404 });
     }
@@ -30,13 +32,13 @@ export async function POST(request: Request) {
     if (!displayName || !/^\S+@\S+\.\S+$/.test(contactEmail)) return Response.json({ error: "Fyll inn gyldig navn og e-post." }, { status: 400 });
     let avatarKey = existing?.avatarKey ?? "", avatarType = existing?.avatarType ?? "";
     if (avatar instanceof File && avatar.size) {
-      if (!avatar.type.startsWith("image/") || avatar.size > 2 * 1024 * 1024) return Response.json({ error: "Profilbildet må være et bilde på maks 2 MB." }, { status: 400 });
-      if (avatarKey) await bucket().delete(avatarKey);
+      await validateImage(avatar, 2 * 1024 * 1024);
       avatarKey = `profiles/${ctx.user.id}/${crypto.randomUUID()}`; avatarType = avatar.type;
       await bucket().put(avatarKey, await avatar.arrayBuffer(), { httpMetadata: { contentType: avatarType } });
     }
     const values = { userId: ctx.user.id, displayName, contactEmail, theme, avatarKey, avatarType, avatarX, avatarY, avatarZoom, browserNotifications, updatedAt: now };
     if (existing) await db.update(userProfiles).set(values).where(eq(userProfiles.userId, ctx.user.id)); else await db.insert(userProfiles).values(values);
+    if (existing?.avatarKey && existing.avatarKey !== avatarKey) await bucket().delete(existing.avatarKey);
     return Response.json({ profile: values });
   } catch (error) { return accessResponse(error); }
 }

@@ -26,6 +26,13 @@ export async function apiFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ) {
+  // Never forward a session token to another origin or follow API redirects.
+  if (typeof window !== "undefined") {
+    const destination = new URL(input instanceof Request ? input.url : String(input), window.location.origin);
+    if (destination.origin !== window.location.origin)
+      throw new Error("API-kall må bruke CRM-ets egen adresse.");
+  }
+  init = { ...init, redirect: "error" };
   const token = getStoredAccessToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);

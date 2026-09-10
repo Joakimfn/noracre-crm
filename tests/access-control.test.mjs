@@ -11,8 +11,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session'];
-await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin'];
+await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
  b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
  b.onResolve({filter:/^next\//},args=>({path:args.path,namespace:'test'}));
@@ -69,5 +69,95 @@ test('inactive superadmin membership does not expose organization directory',asy
  add('memberships',{id:50,organization_id:2,user_id:'4',email:'4@test.no',name:'User 4',role:'Superadmin',active:0,created_at:'2026-01-01'});
  const response=await route('session').GET(request(4));
  assert.deepEqual((await response.json()).organizations.map(x=>x.id),[1]);
+});
+
+test('ordinary users cannot enable or revoke support',async()=>{
+ for(const enabled of [true,false])assert.equal((await route('admin').POST(request(3,1,{type:'support',enabled}))).status,403);
+});
+test('support consent must reference a pending request in the same tenant',async()=>{
+ add('support_requests',{id:1,organization_id:2,requested_by:'Support',status:'Venter',created_at:'2026-01-01'});
+ assert.equal((await route('admin').POST(request(1,1,{type:'supportApproval',requestId:1}))).status,404);
+ assert.equal(sql.prepare('select count(*) n from support_sessions').get().n,0);
+});
+test('consented support expires, is revocable, and cannot renew itself',async()=>{
+ const enable=await route('admin').POST(request(2,2,{type:'support',enabled:true}));
+ assert.equal(enable.status,200);
+ assert.equal((await route('companies').GET(request('owner',2))).status,200);
+ assert.equal((await route('admin').POST(request('owner',2,{type:'support',enabled:true}))).status,403);
+ sql.exec("UPDATE support_sessions SET expires_at='2000-01-01'");
+ assert.equal((await route('companies').GET(request('owner',2))).status,403);
+ assert.equal((await route('admin').POST(request(2,2,{type:'support',enabled:true}))).status,200);
+ assert.equal((await route('admin').POST(request(2,2,{type:'support',enabled:false}))).status,200);
+ assert.equal((await route('companies').GET(request('owner',2))).status,403);
+});
+test('role escalation and unknown roles are rejected',async()=>{
+ for(const [role,status] of [['Superadmin',403],['root',400]])assert.equal((await route('admin').POST(request(1,1,{type:'member',role,name:'Test',email:'new@test.no'}))).status,status);
+});
+test('SQL injection strings remain data, never executable SQL',async()=>{
+ const name="'; DROP TABLE companies; --";
+ assert.equal((await route('companies').POST(request(1,1,{name}))).status,201);
+ assert.equal(sql.prepare('select name from companies where name=?').get(name).name,name);
+ assert.equal(sql.prepare('select name from companies where id=2').get().name,'Customer 2');
+});
+test('SVG, spoofed images and oversized files are rejected',async()=>{
+ for(const file of [new File(['<svg onload="alert(1)"/>'],'x.svg',{type:'image/svg+xml'}),new File(['<html>bad</html>'],'x.png',{type:'image/png'}),new File([new Uint8Array(100)],'x.jpg',{type:'image/jpeg'})])
+   await assert.rejects(app.validateImage(file,50),error=>error.status===400);
+ const png=new File([new Uint8Array([137,80,78,71,13,10,26,10])],'x.png',{type:'image/png'});
+ await app.validateImage(png,100);
+ assert.equal(app.safeImageType('image/svg+xml'),false);
+});
+test('anonymous APIs blocked; public auth configuration remains accessible',async()=>{
+ assert.equal((await app.guardRequest(new Request('https://crm.test/api/companies'))).status,401);
+ assert.ok(await app.guardRequest(new Request('https://crm.test/api/auth/config')) instanceof Request);
+});
+test('cross-origin writes blocked and same-origin writes preserved',async()=>{
+ const make=origin=>new Request('https://crm.test/api/activities',{method:'POST',headers:{authorization:'Bearer test',origin},body:'{}'});
+ assert.equal((await app.guardRequest(make('https://evil.test'))).status,403);
+ const allowed=await app.guardRequest(make('https://crm.test'));
+ assert.ok(allowed instanceof Request);assert.equal(await allowed.text(),'{}');
+});
+test('oversized bodies blocked even without Content-Length',async()=>{
+ const r=new Request('https://crm.test/api/activities',{method:'POST',headers:{authorization:'Bearer test','content-type':'application/json'},body:'x'.repeat(1024*1024+1)});
+ assert.equal((await app.guardRequest(r)).status,413);
+});
+test('API responses disable caching and embedding',()=>{
+ const response=app.secureResponse(new Request('https://crm.test/api/companies'),Response.json({ok:true}));
+ assert.equal(response.headers.get('cache-control'),'private, no-store');
+ assert.equal(response.headers.get('x-frame-options'),'DENY');
+ assert.match(response.headers.get('content-security-policy'),/object-src 'none'/);
+});
+
+test('non-API POST cannot invoke unused Server Actions',async()=>{
+ const r=new Request('https://crm.test/',{method:'POST',headers:{'next-action':'arbitrary'},body:'[]'});
+ assert.equal((await app.guardRequest(r)).status,405);
+});
+test('unused public image proxies are disabled',async()=>{
+ for (const path of ['/_vinext/image','/_next/image'])
+   assert.equal((await app.guardRequest(new Request('https://crm.test'+path+'?url=https://example.invalid'))).status,404);
+});
+test('disabled users are denied even with a valid identity token',async()=>{
+ sql.exec('UPDATE memberships SET active=0 WHERE id=3');
+ assert.equal((await route('companies').GET(request(3))).status,403);
+ sql.exec('UPDATE memberships SET active=1 WHERE id=3');
+});
+test('disabled organizations are denied',async()=>{
+ sql.exec("UPDATE organizations SET status='Deaktivert' WHERE id=1");
+ assert.equal((await route('companies').GET(request(1))).status,403);
+ sql.exec("UPDATE organizations SET status='Aktiv' WHERE id=1");
+});
+test('foreign activity deletion leaves the other organization unchanged',async()=>{
+ assert.equal((await route('activities').DELETE(request(1,1,undefined,'?id=2'))).status,404);
+ assert.equal(sql.prepare('SELECT count(*) n FROM activities WHERE id=2').get().n,1);
+});
+test('API client never sends session tokens to external URLs',async()=>{
+ const saved=globalThis.fetch;
+ globalThis.window={location:{origin:'https://crm.test'}};
+ let calls=0;
+ globalThis.fetch=async()=>{calls++;return Response.json({})};
+ try {
+   await assert.rejects(app.apiFetch('https://evil.test/api'),/egen adresse/);
+   await assert.rejects(app.apiFetch('//evil.test/api'),/egen adresse/);
+   assert.equal(calls,0);
+ } finally {globalThis.fetch=saved;delete globalThis.window;}
 });
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});

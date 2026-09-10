@@ -1,5 +1,6 @@
 import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
+import { safeImageType } from "@/lib/safe-image";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { marketingPostImages, moduleLicenses } from "@/db/schema";
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
       .limit(1);
     if (!image)
       return Response.json({ error: "Bildet finnes ikke." }, { status: 404 });
+    if (!safeImageType(image.contentType)) return new Response(null, { status: 415 });
     const object = await bucket().get(image.objectKey);
     if (!object)
       return Response.json({ error: "Bildet finnes ikke." }, { status: 404 });
@@ -43,4 +45,3 @@ export async function GET(request: Request) {
     return accessResponse(error);
   }
 }
-

@@ -190,6 +190,8 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       const requestedRole = String(data.role ?? "Bruker");
+      if (!["Bruker", "Administrator", "Superadmin"].includes(requestedRole))
+        throw new AccessError(400, "Ugyldig rolle.");
       if (requestedRole === "Superadmin" && !isOwner)
         throw new AccessError(403, "Bare en eierkonto kan gi superadmintilgang.");
       const role = requestedRole;
@@ -430,12 +432,18 @@ export async function POST(request: Request) {
       });
     }
     if (data.type === "supportApproval") {
-      if (ctx.role !== "Administrator" && !ctx.isSuperadmin)
+      if (!canManageModules(ctx.role))
         throw new AccessError(
           403,
           "Bare administrator kan godkjenne supporttilgang.",
         );
       const requestId = Number(data.requestId);
+      const [pending] = await db.select().from(supportRequests).where(and(
+        eq(supportRequests.id, requestId),
+        eq(supportRequests.organizationId, ctx.organizationId),
+        eq(supportRequests.status, "Venter"),
+      )).limit(1);
+      if (!pending) throw new AccessError(404, "Tilgangsforespørselen finnes ikke eller er allerede behandlet.");
       await db.insert(supportSessions).values({
         organizationId: ctx.organizationId,
         supportUserId: "*",
@@ -462,6 +470,8 @@ export async function POST(request: Request) {
       return Response.json({ ok: true });
     }
     if (data.type === "support") {
+      if (!canManageModules(ctx.role))
+        throw new AccessError(403, "Bare administratorer kan endre supporttilgang.");
       const enabled = data.enabled === true;
       let session = null;
       if (enabled)
@@ -512,4 +522,3 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
-

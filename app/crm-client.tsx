@@ -1083,8 +1083,9 @@ export default function Home() {
   async function readExcel(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     if (!f) return;
+    if (f.size > 5 * 1024 * 1024) return toast.error("Importfilen kan være maks 5 MB.");
     setImportName(f.name);
-    const b = XLSX.read(await f.arrayBuffer()),
+    const b = XLSX.read(await f.arrayBuffer(), { sheetRows: 501, sheets: 0 }),
       raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
         b.Sheets[b.SheetNames[0]],
         { defval: "" },
@@ -3966,7 +3967,8 @@ function CallLists({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const book = XLSX.read(await file.arrayBuffer()),
+    if (file.size > 5 * 1024 * 1024) return toast.error("Importfilen kan være maks 5 MB.");
+    const book = XLSX.read(await file.arrayBuffer(), { sheetRows: 501, sheets: 0 }),
       raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
         book.Sheets[book.SheetNames[0]],
         { defval: "" },
@@ -4954,10 +4956,12 @@ function Marketing({
     if (!selected.length) return;
     if (images.length + selected.length > 6)
       return toast.error("Du kan legge til opptil seks bilder per innlegg");
-    if (selected.some((file) => !file.type.startsWith("image/")))
-      return toast.error("Du kan bare laste opp bildefiler");
+    if (selected.some((file) => !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)))
+      return toast.error("Bruk PNG, JPEG, GIF eller WebP.");
     if (selected.some((file) => file.size > 10 * 1024 * 1024))
       return toast.error("Hvert bilde kan være maks 10 MB");
+    if ([...images, ...selected].reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024)
+      return toast.error("Bildene kan være maks 20 MB samlet.");
     setImages((current) => [...current, ...selected]);
   }
   const chooser = (
@@ -5122,7 +5126,7 @@ function Marketing({
               ))}
             </div>
           )}
-          <small>Maks seks bilder, 10 MB per bilde.</small>
+          <small>Maks seks bilder, 10 MB per bilde og 20 MB samlet. PNG, JPEG, GIF eller WebP.</small>
         </div>
         <div className="channel-picks">
           {channels.map((channel) => (
@@ -5947,4 +5951,3 @@ function AvatarCropDialog({
     </Dialog>
   );
 }
-

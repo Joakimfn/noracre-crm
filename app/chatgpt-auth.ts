@@ -25,6 +25,7 @@ export async function getChatGPTUser(
     const runtime = env as unknown as RuntimeEnv;
     if (!runtime.SUPABASE_URL || !runtime.SUPABASE_ANON_KEY) return null;
     const response = await fetch(`${runtime.SUPABASE_URL}/auth/v1/user`, {
+      signal: AbortSignal.timeout(10_000),
       headers: {
         Authorization: authorization,
         apikey: runtime.SUPABASE_ANON_KEY,
@@ -103,4 +104,3 @@ function safeDecodeURIComponent(value: string): string | null {
     return null;
   }
 }
-

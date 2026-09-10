@@ -1,5 +1,6 @@
 import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
+import { validateImage } from "@/lib/safe-image";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -102,6 +103,9 @@ export async function POST(request: Request) {
         { status: 400 },
       );
 
+    if (images.reduce((sum, image) => sum + image.size, 0) > 20 * 1024 * 1024)
+      throw new AccessError(400, "Bildene kan være maks 20 MB samlet.");
+    for (const image of images) await validateImage(image, 10 * 1024 * 1024);
     const now = new Date().toISOString();
     const [post] = await getDb()
       .insert(marketingPosts)
@@ -175,4 +179,3 @@ export async function POST(request: Request) {
     return accessResponse(error);
   }
 }
-
