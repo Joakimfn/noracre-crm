@@ -43,6 +43,10 @@ export default function AuthGate() {
 
   async function authenticate(event: FormEvent) {
     event.preventDefault();
+    if (mode === "signup" && password.length < 8) {
+      setMessage("Passordet må inneholde minst 8 tegn.");
+      return;
+    }
     if (!config?.url || !config.anonKey) return;
     setBusy(true);
     setMessage("");
@@ -106,6 +110,10 @@ export default function AuthGate() {
 
   async function updatePassword(event: FormEvent) {
     event.preventDefault();
+    if (password.length < 8) {
+      setMessage("Passordet må inneholde minst 8 tegn.");
+      return;
+    }
     if (!config?.url || !config.anonKey) return;
     setBusy(true);
     setMessage("");
@@ -161,8 +169,13 @@ export default function AuthGate() {
           )}
           <label>
             Passord
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required />
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={mode === "login" ? undefined : 8} aria-describedby={mode === "login" ? undefined : "password-requirement"} autoComplete={mode === "login" ? "current-password" : "new-password"} required />
           </label>
+          {mode !== "login" && (
+            <p id="password-requirement" style={{ fontSize: "0.875rem", margin: 0 }}>
+              Passordet må inneholde minst 8 tegn.
+            </p>
+          )}
           <button className="login-button" type="submit" disabled={busy || !config?.configured}>
             {busy
               ? "Vent litt …"
