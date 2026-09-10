@@ -39,7 +39,7 @@ export async function requireTenant(request: Request) {
     .limit(20);
   if (ownerAccount) {
     const existingOwner = member.filter(
-      (item) => item.email === ownerAccount.email,
+      (item) => item.email === ownerAccount.email && item.role === "Superadmin",
     );
     let ownerOrganizationId: number;
     if (existingOwner.length) {
@@ -73,7 +73,11 @@ export async function requireTenant(request: Request) {
         );
       }
     } else {
-      let org = (await db.select().from(organizations).limit(1))[0];
+      const [ownerMembership] = await db.select().from(memberships).where(and(
+        eq(memberships.role, "Superadmin"),
+        or(...ownerAccounts.map(account => eq(memberships.email, account.email))),
+      )).limit(1);
+      let org = ownerMembership ? (await db.select().from(organizations).where(eq(organizations.id, ownerMembership.organizationId)).limit(1))[0] : undefined;
       const now = new Date().toISOString();
       if (!org)
         org = (
@@ -153,14 +157,12 @@ export async function requireTenant(request: Request) {
     );
   const direct = anyDirect?.active ? anyDirect : undefined;
   if (direct) {
-    const [organization] = superadmin
-      ? []
-      : await db
+    const [organization] = await db
           .select()
           .from(organizations)
           .where(eq(organizations.id, requested))
           .limit(1);
-    if (organization && organization.status !== "Aktiv")
+    if (!organization || organization.status !== "Aktiv")
       throw new AccessError(
         403,
         "Bedriften er deaktivert. Kontakt support dersom dette ikke skulle ha skjedd.",
@@ -203,7 +205,7 @@ export async function requireTenant(request: Request) {
     .from(organizations)
     .where(eq(organizations.id, requested))
     .limit(1);
-  if (organization && organization.status !== "Aktiv")
+  if (!organization || organization.status !== "Aktiv")
     throw new AccessError(
       403,
       "Bedriften er deaktivert. Kontakt support dersom dette ikke skulle ha skjedd.",
@@ -228,3 +230,4 @@ export function accessResponse(error: unknown) {
       )
     : Response.json({ error: "Noe gikk galt." }, { status: 500 });
 }
+

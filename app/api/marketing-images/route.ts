@@ -1,3 +1,4 @@
+import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -6,26 +7,7 @@ import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
 
 const bucket = () => env.BUCKET as R2Bucket;
 
-async function requireMarketing(organizationId: number, membershipId: number) {
-  const rows = await getDb()
-    .select({ id: moduleLicenses.id })
-    .from(moduleLicenses)
-    .where(
-      and(
-        eq(moduleLicenses.organizationId, organizationId),
-        eq(moduleLicenses.membershipId, membershipId),
-        eq(moduleLicenses.moduleKey, "markedsforing"),
-        eq(moduleLicenses.active, true),
-      ),
-    )
-    .limit(1);
-  if (!rows.length)
-    throw new AccessError(
-      403,
-      "Markedsføringsmodulen er ikke aktivert.",
-      "MODULE_REQUIRED",
-    );
-}
+const requireMarketing = (organizationId: number, membershipId: number) => requireModuleAccess(organizationId, membershipId, "markedsforing");
 
 export async function GET(request: Request) {
   try {
@@ -53,7 +35,7 @@ export async function GET(request: Request) {
       headers: {
         "content-type": image.contentType,
         "content-length": String(image.size),
-        "cache-control": "private, max-age=3600",
+        "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",
       },
     });
@@ -61,3 +43,4 @@ export async function GET(request: Request) {
     return accessResponse(error);
   }
 }
+

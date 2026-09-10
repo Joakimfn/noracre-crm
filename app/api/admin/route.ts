@@ -1,3 +1,4 @@
+import { canManageModules } from "@/lib/module-access";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -43,6 +44,13 @@ export async function GET(request: Request) {
         .from(moduleLicenses)
         .where(eq(moduleLicenses.organizationId, ctx.organizationId)),
     ]);
+    if (!canManageModules(ctx.role)) return Response.json({
+      members: [], audit: [], supportRequests: [], activeSupport: false,
+      modules: Object.fromEntries(modules.filter(item => item.active && licenses.some(license =>
+        license.moduleKey === item.moduleKey && license.active && license.membershipId === ctx.membershipId
+      )).map(item => [item.moduleKey, { currentUserActive: true }])),
+      role: ctx.role, membershipId: ctx.membershipId,
+    });
     return Response.json({
       members: await db
         .select()
@@ -81,7 +89,7 @@ export async function GET(request: Request) {
                   license.moduleKey === item.moduleKey && license.active,
               )
               .map((license) => license.membershipId),
-            currentUserActive: licenses.some(
+            currentUserActive: item.active && licenses.some(
               (license) =>
                 license.moduleKey === item.moduleKey &&
                 license.active &&
@@ -308,8 +316,8 @@ export async function POST(request: Request) {
       return Response.json({ member });
     }
     if (data.type === "moduleStatus") {
-      if (!ctx.isSuperadmin && ctx.role !== "Administrator")
-        throw new AccessError(403, "Bare administrator kan kjøpe moduler.");
+      if (!canManageModules(ctx.role))
+        throw new AccessError(403, "Bare administratorer og superadministratorer kan kjøpe moduler.");
       const moduleKey = String(data.moduleKey),
         requestedIds = Array.isArray(data.membershipIds)
           ? [...new Set(data.membershipIds.map(Number).filter(Number.isFinite))]
@@ -504,3 +512,4 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+

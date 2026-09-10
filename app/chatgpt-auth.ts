@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 export type ChatGPTUser = {
@@ -8,12 +7,6 @@ export type ChatGPTUser = {
   fullName: string | null;
 };
 
-const USER_EMAIL_HEADER = "oai-authenticated-user-email";
-const USER_ID_HEADER = "oai-authenticated-user-id";
-const USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
-const USER_FULL_NAME_ENCODING_HEADER =
-  "oai-authenticated-user-full-name-encoding";
-const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
 const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
@@ -41,10 +34,11 @@ export async function getChatGPTUser(
     const account = (await response.json()) as {
       id?: string;
       email?: string;
+      email_confirmed_at?: string;
       user_metadata?: Record<string, unknown>;
     };
     const email = String(account.email ?? "").trim().toLowerCase();
-    if (!account.id || !email) return null;
+    if (!account.id || !email || !account.email_confirmed_at) return null;
     const fullName = String(
       account.user_metadata?.full_name ?? account.user_metadata?.name ?? "",
     ).trim();
@@ -56,31 +50,8 @@ export async function getChatGPTUser(
     };
   }
 
-  const requestHeaders = await headers();
-  const rawEmail = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!rawEmail) return null;
-  const email = rawEmail.trim().toLowerCase();
+  return null;
 
-  // The hosted site always forwards the verified ChatGPT email, but regular
-  // browser sessions do not currently include the separate user-id header.
-  // Use the verified, normalized email as a stable tenant key in that case.
-  const id =
-    requestHeaders.get(USER_ID_HEADER) ??
-    `email:${email.trim().toLowerCase()}`;
-
-  const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get(USER_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
-      ? safeDecodeURIComponent(encodedFullName)
-      : null;
-
-  return {
-    id,
-    displayName: fullName ?? email,
-    email,
-    fullName,
-  };
 }
 
 export async function requireChatGPTUser(
@@ -132,3 +103,4 @@ function safeDecodeURIComponent(value: string): string | null {
     return null;
   }
 }
+

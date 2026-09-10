@@ -1,3 +1,4 @@
+import { canManageModules, requireModuleAccess } from "@/lib/module-access";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -46,26 +47,7 @@ const shuffle = <T>(rows: T[]) => {
   }
   return copy;
 };
-async function requireModule(organizationId: number, membershipId: number) {
-  const rows = await getDb()
-    .select()
-    .from(moduleLicenses)
-    .where(
-      and(
-        eq(moduleLicenses.organizationId, organizationId),
-        eq(moduleLicenses.membershipId, membershipId),
-        eq(moduleLicenses.moduleKey, "ringelister"),
-        eq(moduleLicenses.active, true),
-      ),
-    )
-    .limit(1);
-  if (!rows.length)
-    throw new AccessError(
-      403,
-      "Ringelistemodulen er ikke aktivert.",
-      "MODULE_REQUIRED",
-    );
-}
+const requireModule = (organizationId: number, membershipId: number) => requireModuleAccess(organizationId, membershipId, "ringelister");
 function values(
   row: Record<string, unknown>,
   organizationId: number,
@@ -132,8 +114,10 @@ export async function GET(request: Request) {
         )
         .limit(1),
     ]);
-    if (!module?.active || !license.length)
+    if (!module?.active || !license.length) {
+      if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
       return Response.json({ active: false, pricePerUser: 49, entries: [] });
+    }
     const condition =
       view === "history"
         ? and(
@@ -547,3 +531,4 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+

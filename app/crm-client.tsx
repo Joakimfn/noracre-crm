@@ -1,5 +1,7 @@
 "use client";
 
+import { reminderIsDue } from "@/lib/followup-reminder";
+
 import {
   ChangeEvent,
   Component,
@@ -603,6 +605,7 @@ export default function Home() {
     ]);
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
+    setRolePreview(ad.role ?? "Bruker");
     setCompanies(c.companies ?? []);
     setActivities(a.activities ?? []);
     setMembers(ad.members ?? []);
@@ -752,21 +755,26 @@ export default function Home() {
       Notification.permission !== "granted"
     )
       return;
-    const count = overdue.length + dueToday.length,
-      key = `enkel-notification-${today}-${activeOrgId}`;
-    if (count > 0 && localStorage.getItem(key) !== "sent") {
-      new Notification("Oppfølginger i Noracre CRM", {
-        body: `Du har ${count} oppfølginger som krever oppmerksomhet.`,
-      });
-      localStorage.setItem(key, "sent");
-    }
-  }, [
-    sessionReady,
-    profile.browserNotifications,
-    overdue.length,
-    dueToday.length,
-    activeOrgId,
-  ]);
+    const check = () => {
+      const now = Date.now();
+      for (const activity of activities) {
+        if (!reminderIsDue(activity, now)) continue;
+        const due = new Date(activity.dueAt).getTime();
+        const key = `noracre-reminder:${user.id}:${activeOrgId}:${activity.id}:${activity.dueAt}`;
+        if (localStorage.getItem(key)) continue;
+        const notification = new Notification("Kommende oppfølging", {
+          body: `${activity.companyName}: ${activity.note || "Følg opp"} – kl. ${new Date(due).toLocaleTimeString("nb-NO", {hour: "2-digit", minute: "2-digit"})}`,
+          tag: key,
+        });
+        notification.onclick = () => { window.focus(); setView("followup"); notification.close(); };
+        localStorage.setItem(key, "sent");
+      }
+    };
+    check();
+    const timer = window.setInterval(check, 15_000);
+    window.addEventListener("focus", check);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", check); };
+  }, [sessionReady, profile.browserNotifications, activities, activeOrgId, user.id]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
@@ -1231,6 +1239,7 @@ export default function Home() {
     try {
       await loadOrganization(id);
       setActiveOrgId(id);
+      setView("overview");
       toast.success("Organisasjonen er byttet");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Du har ikke tilgang");
@@ -1428,18 +1437,22 @@ export default function Home() {
             ico={<BarChart3 size={20} />}
             text="Rapporter"
           />
+          {(["Administrator", "Superadmin"].includes(rolePreview) || ringModuleActive) && (
           <Nav
             a={view === "calllists"}
             click={() => setView("calllists")}
             ico={<Phone size={20} />}
             text="Ringelister"
           />
+          )}
+          {(["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
           <Nav
             a={view === "marketing"}
             click={() => setView("marketing")}
             ico={<Megaphone size={20} />}
             text="Markedsføring"
           />
+          )}
           {rolePreview !== "Bruker" && (
             <Nav
               a={view === "admin"}
@@ -1626,7 +1639,7 @@ export default function Home() {
             <div className="setting-row">
               <div>
                 <strong>Nettleservarsler</strong>
-                <span>Vis varsler om oppfølginger på denne enheten.</span>
+                <span>Varsle 15 minutter før oppfølgingen. CRM-et må være åpent og nettleservarsler tillatt.</span>
               </div>
               <Switch
                 checked={profile.browserNotifications}
@@ -1785,7 +1798,7 @@ export default function Home() {
             currentUser={user.displayName}
           />
         )}{" "}
-        {view === "calllists" && (
+        {view === "calllists" && (["Administrator", "Superadmin"].includes(rolePreview) || ringModuleActive) && (
           <CallListBoundary>
             <CallLists
               active={ringModuleActive}
@@ -1806,7 +1819,7 @@ export default function Home() {
             />
           </CallListBoundary>
         )}{" "}
-        {view === "marketing" && (
+        {view === "marketing" && (["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
           <Marketing
             active={marketingModuleActive}
             role={rolePreview}
@@ -5934,3 +5947,4 @@ function AvatarCropDialog({
     </Dialog>
   );
 }
+
