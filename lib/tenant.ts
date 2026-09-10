@@ -24,7 +24,7 @@ export class AccessError extends Error {
 }
 
 export async function requireTenant(request: Request) {
-  const user = await getChatGPTUser();
+  const user = await getChatGPTUser(request);
   if (!user) throw new AccessError(401, "Du må være logget inn.");
   const db = getDb();
   const ownerAccount = ownerAccounts.find(

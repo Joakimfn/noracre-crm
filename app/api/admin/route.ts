@@ -16,6 +16,7 @@ import {
   isOwnerEmail,
   requireTenant,
 } from "@/lib/tenant";
+import { sendInvitation } from "@/lib/resend";
 
 export async function GET(request: Request) {
   try {
@@ -157,7 +158,16 @@ export async function POST(request: Request) {
         active: true,
         createdAt: now,
       });
-      return Response.json({ organization: org }, { status: 201 });
+      const invitation = await sendInvitation({
+        to: email,
+        name: String(data.adminName ?? "Administrator"),
+        organization: org.name,
+        role,
+      }).catch(() => ({ sent: false, reason: "provider_error" as const }));
+      return Response.json(
+        { organization: org, invitationSent: invitation.sent },
+        { status: 201 },
+      );
     }
     if (data.type === "member") {
       if (!ctx.isSuperadmin && ctx.role !== "Administrator")
@@ -220,7 +230,21 @@ export async function POST(request: Request) {
         detail: `${name} · 399 kr per måned`,
         createdAt: now,
       });
-      return Response.json({ member, monthlyPrice: 399 }, { status: 201 });
+      const [organization] = await db
+        .select({ name: organizations.name })
+        .from(organizations)
+        .where(eq(organizations.id, ctx.organizationId))
+        .limit(1);
+      const invitation = await sendInvitation({
+        to: email,
+        name,
+        organization: organization?.name || "din organisasjon",
+        role,
+      }).catch(() => ({ sent: false, reason: "provider_error" as const }));
+      return Response.json(
+        { member, monthlyPrice: 399, invitationSent: invitation.sent },
+        { status: 201 },
+      );
     }
     if (data.type === "memberStatus") {
       if (!ctx.isSuperadmin && ctx.role !== "Administrator")

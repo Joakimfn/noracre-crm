@@ -103,6 +103,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { apiFetch, clearStoredSession, getStoredAccessToken } from "@/lib/api-client";
 
 type View =
   | "overview"
@@ -353,13 +354,13 @@ function loadCallListInitial(organizationId: number, force = false) {
   if (!force && running) return running;
   const headers = { "x-organization-id": String(organizationId) };
   const promise = Promise.allSettled([
-    fetch("/api/call-lists", { headers }).then(async (response) => {
+    apiFetch("/api/call-lists", { headers }).then(async (response) => {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Kunne ikke hente ringelisten");
       return data.entries ?? [];
     }),
-    fetch("/api/call-list-options", { headers }).then(async (response) => {
+    apiFetch("/api/call-list-options", { headers }).then(async (response) => {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Kunne ikke hente filtrene");
@@ -591,14 +592,14 @@ export default function Home() {
   const api = (url: string, init: RequestInit = {}) => {
     const h = new Headers(init.headers);
     h.set("x-organization-id", String(activeOrgId));
-    return fetch(url, { ...init, headers: h });
+    return apiFetch(url, { ...init, headers: h });
   };
   async function loadOrganization(orgId: number) {
     const h = { "x-organization-id": String(orgId) };
     const [c, a, ad] = await Promise.all([
-      fetch("/api/companies", { headers: h }).then((r) => r.json()),
-      fetch("/api/activities", { headers: h }).then((r) => r.json()),
-      fetch("/api/admin", { headers: h }).then((r) => r.json()),
+      apiFetch("/api/companies", { headers: h }).then((r) => r.json()),
+      apiFetch("/api/activities", { headers: h }).then((r) => r.json()),
+      apiFetch("/api/admin", { headers: h }).then((r) => r.json()),
     ]);
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
@@ -619,14 +620,14 @@ export default function Home() {
   async function refreshCrmData() {
     const h = { "x-organization-id": String(activeOrgId) },
       [c, a] = await Promise.all([
-        fetch("/api/companies", { headers: h }).then((r) => r.json()),
-        fetch("/api/activities", { headers: h }).then((r) => r.json()),
+        apiFetch("/api/companies", { headers: h }).then((r) => r.json()),
+        apiFetch("/api/activities", { headers: h }).then((r) => r.json()),
       ]);
     if (!c.error) setCompanies(c.companies ?? []);
     if (!a.error) setActivities(a.activities ?? []);
   }
   useEffect(() => {
-    fetch("/api/session")
+    apiFetch("/api/session")
       .then(async (r) => {
         const s = await r.json();
         if (!r.ok)
@@ -642,7 +643,7 @@ export default function Home() {
         setRolePreview(s.role ?? "Bruker");
         if (s.role === "Superadmin") setView("operations");
         setUser(s.user ?? { displayName: "Min konto", email: "" });
-        fetch("/api/profile", { headers: { "x-organization-id": String(id) } })
+        apiFetch("/api/profile", { headers: { "x-organization-id": String(id) } })
           .then((r) => r.json())
           .then((d) => {
             const next = d.profile ?? {};
@@ -857,7 +858,7 @@ export default function Home() {
     if (!lookupQuery.trim()) return;
     setLookupBusy(true);
     try {
-      const r = await fetch(
+      const r = await apiFetch(
           `/api/company-lookup?q=${encodeURIComponent(lookupQuery)}`,
         ),
         d = await r.json();
@@ -1054,7 +1055,7 @@ export default function Home() {
   async function refresh(c: Company) {
     if (!c.orgNumber) return toast.error("Organisasjonsnummer mangler");
     const d = await (
-        await fetch(`/api/company-lookup?q=${encodeURIComponent(c.orgNumber)}`)
+        await apiFetch(`/api/company-lookup?q=${encodeURIComponent(c.orgNumber)}`)
       ).json(),
       f = d.companies?.[0];
     if (!f) return toast.error("Fant ikke bedriften");
@@ -1341,7 +1342,7 @@ export default function Home() {
     localStorage.setItem("noracre-tutorial-2026-09-09-v2", "seen");
     setOnboardingOpen(false);
     toast.success("Du er klar til å bruke Noracre CRM");
-    const r = await fetch("/api/session", {
+    const r = await apiFetch("/api/session", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ acceptedTerms: true, completedOnboarding: true }),
@@ -1512,9 +1513,13 @@ export default function Home() {
               Innstillinger
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() =>
-                window.location.assign("/signout-with-chatgpt?return_to=/")
-              }
+              onClick={() => {
+                const usesSupabase = Boolean(getStoredAccessToken());
+                clearStoredSession();
+                window.location.assign(
+                  usesSupabase ? "/" : "/signout-with-chatgpt?return_to=/",
+                );
+              }}
             >
               <LogOut />
               Logg ut
@@ -2373,7 +2378,7 @@ function OfferComposer({
       `Hei,\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`,
     );
   useEffect(() => {
-    fetch("/api/offers", {
+    apiFetch("/api/offers", {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
@@ -3512,7 +3517,7 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
   const [templates, setTemplates] = useState<OfferTemplate[]>([]),
     [draft, setDraft] = useState(blank);
   useEffect(() => {
-    fetch("/api/offers", {
+    apiFetch("/api/offers", {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
@@ -3521,7 +3526,7 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
   }, [organizationId]);
   async function save() {
     if (!draft.name.trim()) return toast.error("Gi malen et navn");
-    const r = await fetch("/api/offers", {
+    const r = await apiFetch("/api/offers", {
         method: draft.id ? "PATCH" : "POST",
         headers: {
           "content-type": "application/json",
@@ -3540,7 +3545,7 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
     toast.success("Tilbudsmalen er lagret");
   }
   async function remove(id: number) {
-    const r = await fetch(`/api/offers?id=${id}`, {
+    const r = await apiFetch(`/api/offers?id=${id}`, {
       method: "DELETE",
       headers: { "x-organization-id": String(organizationId) },
     });
@@ -3872,7 +3877,7 @@ function CallLists({
   }, [active, entries, loadingEntries, options, organizationId]);
   useEffect(() => {
     if (!purchaseOpen || role === "Bruker") return;
-    fetch("/api/admin", {
+    apiFetch("/api/admin", {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
@@ -3891,7 +3896,7 @@ function CallLists({
     setPurchaseOpen(false);
     onActivated(optimisticActive);
     toast.success("Ringelistemodulen er oppdatert");
-    const r = await fetch("/api/admin", {
+    const r = await apiFetch("/api/admin", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -3914,7 +3919,7 @@ function CallLists({
   async function generate() {
     setBusy(true);
     try {
-      const r = await fetch("/api/call-lists", {
+      const r = await apiFetch("/api/call-lists", {
           method: "POST",
           headers: {
             "content-type": "application/json",
@@ -3972,7 +3977,7 @@ function CallLists({
           website: pick(row, "nettside", "website"),
         }))
         .filter((row) => row.name);
-    const r = await fetch("/api/call-lists", {
+    const r = await apiFetch("/api/call-lists", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -3988,7 +3993,7 @@ function CallLists({
   }
   async function loadHistory() {
     if (historyLoaded) return;
-    const d = await fetch("/api/call-lists?view=history", {
+    const d = await apiFetch("/api/call-lists?view=history", {
       headers: { "x-organization-id": String(organizationId) },
     }).then((r) => r.json());
     setHistory(d.entries ?? []);
@@ -3999,7 +4004,7 @@ function CallLists({
     status: string,
     extra: Record<string, string> = {},
   ) {
-    const r = await fetch("/api/call-lists", {
+    const r = await apiFetch("/api/call-lists", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -4062,7 +4067,7 @@ function CallLists({
       saving: true,
       goWhenReady: false,
     });
-    const r = await fetch("/api/call-lists", {
+    const r = await apiFetch("/api/call-lists", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -4669,7 +4674,7 @@ function Prospects() {
     [requirePhone, setRequirePhone] = useState(false),
     [requireEmail, setRequireEmail] = useState(false);
   useEffect(() => {
-    fetch("/api/prospects")
+    apiFetch("/api/prospects")
       .then((r) => r.json())
       .then((d) => setRows(d.prospects ?? []))
       .finally(() => setLoading(false));
@@ -4677,7 +4682,7 @@ function Prospects() {
   async function generate() {
     setBusy(true);
     try {
-      const r = await fetch("/api/prospects", {
+      const r = await apiFetch("/api/prospects", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -4702,7 +4707,7 @@ function Prospects() {
     setRows((items) =>
       items.map((item) => (item.id === row.id ? { ...item, status } : item)),
     );
-    const r = await fetch("/api/prospects", {
+    const r = await apiFetch("/api/prospects", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "status", id: row.id, status }),
@@ -4773,7 +4778,7 @@ function MarketingPostImage({
   useEffect(() => {
     let objectUrl = "";
     let cancelled = false;
-    fetch(`/api/marketing-images?id=${id}`, {
+    apiFetch(`/api/marketing-images?id=${id}`, {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((response) => {
@@ -4854,7 +4859,7 @@ function Marketing({
   ];
   useEffect(() => {
     if (active)
-      fetch("/api/marketing", {
+      apiFetch("/api/marketing", {
         headers: { "x-organization-id": String(organizationId) },
       })
         .then((r) => r.json())
@@ -4863,7 +4868,7 @@ function Marketing({
   }, [active, organizationId]);
   useEffect(() => {
     if (!purchaseOpen || role === "Bruker") return;
-    fetch("/api/admin", {
+    apiFetch("/api/admin", {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
@@ -4879,7 +4884,7 @@ function Marketing({
     setPurchaseOpen(false);
     onActivated(optimisticActive);
     toast.success("Markedsføringsmodulen er oppdatert");
-    const r = await fetch("/api/admin", {
+    const r = await apiFetch("/api/admin", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -4908,7 +4913,7 @@ function Marketing({
     images.forEach((image) => form.append("images", image));
     setSavingPost(true);
     try {
-      const r = await fetch("/api/marketing", {
+      const r = await apiFetch("/api/marketing", {
         method: "POST",
         headers: {
           "x-organization-id": String(organizationId),
@@ -5197,7 +5202,7 @@ function SuperadminSettings(p: {
     setCompanySearchBusy(true);
     setCompanySearched(false);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/company-lookup?q=${encodeURIComponent(companyQuery)}&includeEnk=1`,
       );
       const data = await response.json();

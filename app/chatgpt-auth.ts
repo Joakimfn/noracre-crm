@@ -18,7 +18,44 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
-export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+type RuntimeEnv = {
+  SUPABASE_URL?: string;
+  SUPABASE_ANON_KEY?: string;
+};
+
+export async function getChatGPTUser(
+  request?: Request,
+): Promise<ChatGPTUser | null> {
+  const authorization = request?.headers.get("authorization") ?? "";
+  if (authorization.toLowerCase().startsWith("bearer ")) {
+    const { env } = await import("cloudflare:workers");
+    const runtime = env as unknown as RuntimeEnv;
+    if (!runtime.SUPABASE_URL || !runtime.SUPABASE_ANON_KEY) return null;
+    const response = await fetch(`${runtime.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        Authorization: authorization,
+        apikey: runtime.SUPABASE_ANON_KEY,
+      },
+    });
+    if (!response.ok) return null;
+    const account = (await response.json()) as {
+      id?: string;
+      email?: string;
+      user_metadata?: Record<string, unknown>;
+    };
+    const email = String(account.email ?? "").trim().toLowerCase();
+    if (!account.id || !email) return null;
+    const fullName = String(
+      account.user_metadata?.full_name ?? account.user_metadata?.name ?? "",
+    ).trim();
+    return {
+      id: account.id,
+      displayName: fullName || email,
+      email,
+      fullName: fullName || null,
+    };
+  }
+
   const requestHeaders = await headers();
   const rawEmail = requestHeaders.get(USER_EMAIL_HEADER);
   if (!rawEmail) return null;

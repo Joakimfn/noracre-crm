@@ -1421,6 +1421,60 @@ textarea {
   font-weight: 750;
   margin: 24px 0 14px;
 }
+.login-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+.login-form label {
+  display: grid;
+  gap: 7px;
+  color: #294039;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.login-form input {
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 0 13px;
+  color: #132f27;
+  background: #fbfdfc;
+}
+.login-form .login-button {
+  border: 0;
+  margin: 6px 0 0;
+  cursor: pointer;
+}
+.login-form .login-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.login-link {
+  display: block;
+  margin: 9px auto 0;
+  border: 0;
+  padding: 2px;
+  background: transparent;
+  color: #12664f;
+  cursor: pointer;
+  font-weight: 700;
+}
+.login-message {
+  margin: 14px 0 0;
+  color: #8b351f !important;
+  font-size: 0.88rem;
+  text-align: center;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-gutter-stable {
+  scrollbar-gutter: stable;
+}
 .login-card small {
   display: block;
   color: #75827e;
