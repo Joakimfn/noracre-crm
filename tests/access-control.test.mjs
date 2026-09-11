@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
  b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
@@ -172,4 +172,40 @@ test('marketing drafts retain channel choices but never claim scheduled delivery
  }
  for(const channels of [['Google Ads'],['unknown'],[]])assert.equal((await send(channels)).status,400);
 });
+
+test('operations data is unavailable to ordinary users and administrators',async()=>{
+ for(const id of [1,3])assert.equal((await route('operations').GET(request(id))).status,403);
+});
+test('two followups survive unrelated customer edits and completing one preserves the other',async()=>{
+ const create=async(id,note,dueAt)=>{const r=await route('activities').POST(request(id,1,{companyId:1,companyName:'Customer 1',contactId:1,isTask:true,note,dueAt}));assert.equal(r.status,201);return (await r.json()).activity;};
+ const first=await create(1,'Meeting with contact A','2027-01-02T09:00');
+ const second=await create(3,'Meeting with contact B','2027-01-03T10:00');
+ assert.equal(first.createdBy,'1@test.no');assert.equal(second.createdBy,'3@test.no');
+ const save=await route('companies').PATCH(request(1,1,{id:1,name:'Customer 1',note:'New note',nextActionDate:''}));assert.equal(save.status,200);
+ assert.equal(sql.prepare('SELECT count(*) n FROM activities WHERE id IN (?,?) AND completed_at=\'\'').get(first.id,second.id).n,2);
+ const done=await route('activities').PATCH(request(1,1,{id:first.id,completedAt:new Date().toISOString()}));assert.equal(done.status,200);
+ assert.equal(sql.prepare('SELECT completed_at FROM activities WHERE id=?').get(second.id).completed_at,'');
+ assert.equal(sql.prepare('SELECT due_at FROM activities WHERE id=?').get(first.id).due_at,first.dueAt);
+ assert.equal(sql.prepare('SELECT next_action_date FROM companies WHERE id=1').get().next_action_date,second.dueAt);
+ const edit=await route('activities').PATCH(request(3,1,{id:second.id,note:'Changed'}));assert.equal(edit.status,200);
+ assert.equal((await edit.json()).activity.createdBy,'3@test.no');
+ const foreign=await route('activities').PATCH(request(2,2,{id:second.id,note:'Foreign'}));assert.equal(foreign.status,404);
+});
+test('scheduled member deactivation keeps access until due and can be cancelled',async()=>{
+ const future=new Date(Date.now()+86400000).toISOString();
+ const planned=await route('admin').POST(request(1,1,{type:'memberStatus',id:3,active:false,effectiveAt:future}));assert.equal(planned.status,200);const {member}=await planned.json();assert.equal(member.active,true);assert.equal(member.scheduledDisableAt,future);
+ assert.equal((await route('companies').GET(request(3))).status,200);
+ const cancelled=await route('admin').POST(request(1,1,{type:'memberStatus',id:3,active:true}));assert.equal(cancelled.status,200);assert.equal((await cancelled.json()).member.scheduledDisableAt,'');
+ sql.prepare('UPDATE memberships SET scheduled_disable_at=? WHERE id=3').run('2020-01-01T00:00:00.000Z');
+ assert.equal((await route('companies').GET(request(3))).status,403);
+ sql.exec("UPDATE memberships SET scheduled_disable_at='' WHERE id=3");
+ assert.equal((await route('admin').POST(request(3,1,{type:'memberStatus',id:4,active:false,effectiveAt:future}))).status,403);
+ assert.equal((await route('admin').POST(request(1,1,{type:'memberStatus',id:3,active:false,effectiveAt:'invalid'}))).status,400);
+});
+test('scheduled organization cutoff denies access before cron executes',async()=>{
+ sql.prepare('UPDATE organizations SET scheduled_disable_at=? WHERE id=1').run('2020-01-01T00:00:00.000Z');
+ assert.equal((await route('companies').GET(request(1))).status,403);
+ sql.exec("UPDATE organizations SET scheduled_disable_at='' WHERE id=1");
+});
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});
+

@@ -1,6 +1,8 @@
 "use client";
 
 import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
+import { DeactivationDialog } from "@/components/deactivation-dialog";
+import { CustomerFollowups } from "@/components/customer-followups";
 import { DateTimePicker } from "@/components/date-time-picker";
 import { SocialConnections, type SocialState } from "@/components/social-connections";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
@@ -162,6 +164,7 @@ type Activity = {
   createdAt: string;
 };
 type Member = {
+  scheduledDisableAt?: string;
   id: number;
   name: string;
   email: string;
@@ -224,6 +227,7 @@ type SupportRequest = {
   createdAt: string;
 };
 type OperationOrganization = {
+  scheduledDisableAt?: string;
   id: number;
   name: string;
   orgNumber: string;
@@ -596,6 +600,15 @@ export default function Home() {
       confirm: () => void;
     } | null>(null),
     [sessionReady, setSessionReady] = useState(false);
+  const [deactivation,setDeactivation] = useState<{id:number;name:string;kind:"member"|"organization"}|null>(null);
+  async function scheduleDeactivation(effectiveAt:string){
+    if(!deactivation)return;
+    const r=await api(deactivation.kind==='member'?'/api/admin':'/api/superadmin',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(deactivation.kind==='member'?{type:'memberStatus',id:deactivation.id,active:false,effectiveAt}:{type:'organizationStatus',organizationId:deactivation.id,status:'Deaktivert',effectiveAt})});
+    const data=await r.json();if(!r.ok)throw Error(data.error||'Kunne ikke deaktivere');
+    if(deactivation.kind==='member')setMembers(rows=>rows.map(m=>m.id===data.member.id?{...m,...data.member}:m));
+    else setOperations(await api('/api/superadmin').then(r=>r.json()));
+    setDeactivation(null);toast.success(effectiveAt?'Deaktivering er planlagt':'Deaktivert');
+  }
   const avatarIdentity = JSON.stringify([user.email, activeOrgId, profile.avatarKey, avatarVersion]);
   const [savedAvatar, setSavedAvatar] = useState({ identity: "", url: "" });
   const avatarSrc = profilePreview || (savedAvatar.identity === avatarIdentity ? savedAvatar.url : "");
@@ -1054,6 +1067,7 @@ export default function Home() {
       });
       if (!r.ok) throw new Error();
       const d = await r.json();
+      await refreshCrmData();
       setActivities((x) =>
         x.map((item) =>
           item.id === tempId
@@ -1076,18 +1090,11 @@ export default function Home() {
     setActivities((x) =>
       x.map((y) => (y.id === a.id ? { ...y, completedAt: done } : y)),
     );
-    const company = companies.find((c) => c.id === a.companyId);
-    if (company) {
-      const updated = { ...company, nextAction: "", nextActionDate: "" };
-      setCompanies((x) => x.map((c) => (c.id === company.id ? updated : c)));
-      await persist(updated);
-    }
-    if (a.id > 0)
-      await api("/api/activities", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: a.id, completedAt: done }),
-      });
+    try {
+      const response = await api("/api/activities", {method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({id:a.id,completedAt:done})});
+      if (!response.ok) throw new Error();
+      await refreshCrmData();
+    } catch { await reloadActivities(); toast.error("Kunne ikke fullføre oppfølgingen"); return; }
     toast.success("Markert som utført");
   }
   async function deleteHistory(a: Activity) {
@@ -1200,6 +1207,7 @@ export default function Home() {
     active: boolean,
     confirmed = false,
   ) {
+    if(!active&&!confirmed)return setDeactivation({id:member.id,name:member.name,kind:'member'});
     if (!confirmed)
       return setConfirmation({
         title: active ? "Aktiver bruker?" : "Deaktiver bruker?",
@@ -1219,7 +1227,7 @@ export default function Home() {
     const d = await r.json();
     if (!r.ok) return toast.error(d.error ?? "Kunne ikke endre brukeren");
     setMembers((rows) =>
-      rows.map((row) => (row.id === member.id ? { ...row, active } : row)),
+      rows.map((row) => (row.id === member.id ? { ...row, ...d.member } : row)),
     );
     toast.success(active ? "Brukeren er aktivert" : "Brukeren er deaktivert");
   }
@@ -1306,16 +1314,7 @@ export default function Home() {
     status: string,
     confirmed = false,
   ) {
-    if (status === "Deaktivert" && !confirmed)
-      return setConfirmation({
-        title: "Deaktiver hele bedriften?",
-        description:
-          "Alle brukerne mister tilgangen umiddelbart. Dataene beholdes i minst 90 dager.",
-        confirm: () => {
-          setConfirmation(null);
-          void setOrganizationStatus(id, status, true);
-        },
-      });
+    if(status==='Deaktivert'&&!confirmed)return setDeactivation({id,name:operations?.organizations.find(o=>o.id===id)?.name||'Bedriften',kind:'organization'});
     const r = await api("/api/superadmin", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1705,6 +1704,7 @@ export default function Home() {
         zoom={profile.avatarZoom}
         change={(next) => setProfile({ ...profile, ...next })}
       />
+      <DeactivationDialog target={deactivation} onClose={()=>setDeactivation(null)} onConfirm={scheduleDeactivation}/>
       <AlertDialog
         open={Boolean(confirmation)}
         onOpenChange={(open) => {
@@ -1787,6 +1787,8 @@ export default function Home() {
                 setContactOpen(true);
               }}
               refresh={refresh}
+              onFollowupsChanged={refreshCrmData}
+              activityRevision={activities}
               contacts={contacts}
               selectedContactId={selectedContactId}
               selectContact={setSelectedContactId}
@@ -1858,6 +1860,7 @@ export default function Home() {
             members={members}
             organizationId={activeOrgId}
             currentMembershipId={currentMembershipId}
+            companies={companies}
             onActivated={setMarketingModuleActive}
           />
         )}{" "}
@@ -2617,6 +2620,8 @@ function Customers(p: {
   removeAttachment: (a: Attachment) => void;
   organizationId: number;
   add: () => void;
+  onFollowupsChanged: () => Promise<void>;
+  activityRevision: Activity[];
 }) {
   const [openHistory, setOpenHistory] = useState<Activity | null>(null);
   const c = p.selected,
@@ -2756,45 +2761,7 @@ function Customers(p: {
             <strong>{person?.email || c.email || "Ikke oppgitt"}</strong>
           </div>
         </div>
-        <details className="compact-section">
-          <summary>
-            <span>
-              <CalendarCheck2 size={18} />
-              Neste oppfølging
-            </span>
-            <strong>{followUpLabel(c.nextActionDate)}</strong>
-          </summary>
-          <div className="compact-body">
-            <Label>Hva skal gjøres?</Label>
-            <Input
-              value={c.nextAction}
-              onChange={(e) => p.update({ nextAction: e.target.value })}
-              placeholder="For eksempel: Ring angående tilbud"
-            />
-            <Label>Hvem skal kontaktes?</Label>
-            <Select
-              value={c.nextContactId ? String(c.nextContactId) : "none"}
-              onValueChange={(v) =>
-                p.update({ nextContactId: v === "none" ? null : Number(v) })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Ingen valgt kontakt</SelectItem>
-                {currentContacts.map((x) => (
-                  <SelectItem key={x.id} value={String(x.id)}>
-                    {x.name}
-                    {x.title ? ` · ${x.title}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Label>Dato og tid</Label>
-            <DateTimePicker label="Dato og tid" value={c.nextActionDate?.slice(0, 16)} onChange={value => p.update({ nextActionDate: value })}/>
-          </div>
-        </details>
+        <CustomerFollowups company={c} contacts={currentContacts} organizationId={p.organizationId} onChanged={p.onFollowupsChanged} revision={p.activityRevision}/>
         {!isPerson && (
           <details className="compact-section">
             <summary>
@@ -2836,16 +2803,10 @@ function Customers(p: {
           upload={p.upload}
           uploading={p.uploading}
         />
-        <section>
-          <div className="section-label">
-            <span>NOTATER</span>
-          </div>
-          <Textarea
-            value={c.note}
-            onChange={(e) => p.update({ note: e.target.value })}
-            rows={3}
-          />
-        </section>
+        <details className="compact-section">
+          <summary><span>Notater</span></summary>
+          <div className="compact-body"><Textarea aria-label="Notater" value={c.note} onChange={(e) => p.update({ note: e.target.value })} rows={3}/></div>
+        </details>
         <details className="compact-section">
           <summary>
             <span>
@@ -3320,7 +3281,7 @@ function Admin(p: {
 }) {
   return (
     <div className="page-pad admin-grid">
-      {p.role !== "Bruker" && <BulkEmail companies={p.companies} />}
+
       {p.role !== "Bruker" && (
         <OfferTemplateManager organizationId={p.activeOrgId} />
       )}
@@ -3371,13 +3332,13 @@ function Admin(p: {
                 <strong>{m.name}</strong>
                 <small>{m.email}</small>
               </span>
-              <em>{m.active ? m.role : "Deaktivert"}</em>
+              {m.scheduledDisableAt && <small>Deaktiveres {date(m.scheduledDisableAt,true)}</small>}
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => p.setMemberStatus(m, !m.active)}
+                onClick={() => p.setMemberStatus(m, m.scheduledDisableAt ? true : !m.active)}
               >
-                {m.active ? "Deaktiver" : "Aktiver"}
+                {m.scheduledDisableAt ? "Avbryt deaktivering" : m.active ? "Deaktiver" : "Aktiver"}
               </Button>
             </div>
           ))}
@@ -3411,28 +3372,6 @@ function Admin(p: {
           </Select>
           <Button onClick={p.addMember}>Aktiver</Button>
         </div>
-      </AdminCard>
-      <AdminCard
-        eye="AUTOMATISK OPPDATERING"
-        title="Bedriftsdata fra Brønnøysundregistrene"
-        ico={<RefreshCw />}
-      >
-        <p>
-          Oppdater offentlige data uten å overskrive notater eller
-          kontaktpersoner.
-        </p>
-        <Button
-          variant="outline"
-          onClick={async () => {
-            for (const c of p.companies
-              .filter((c) => c.id > 0 && c.orgNumber)
-              .slice(0, 10))
-              await p.refresh(c);
-          }}
-        >
-          <RefreshCw />
-          Oppdater alle kunder
-        </Button>
       </AdminCard>
       <AdminCard
         eye="SUPPORT"
@@ -4217,7 +4156,6 @@ function CallLists({
     );
   return (
     <div className="page-pad call-lists">
-      <OperationsInsights/>
       <section className="surface">
         <div className="operations-head">
           <div>
@@ -4838,6 +4776,7 @@ function MarketingPostImage({
 }
 
 function Marketing({
+  companies,
   active,
   role,
   members,
@@ -4851,6 +4790,7 @@ function Marketing({
   organizationId: number;
   currentMembershipId: number;
   onActivated: (active: boolean) => void;
+  companies: Company[];
 }) {
   const [purchaseOpen, setPurchaseOpen] = useState(false),
     [licensed, setLicensed] = useState<number[]>([]),
@@ -5082,6 +5022,7 @@ function Marketing({
     );
   return (
     <div className="page-pad marketing-page">
+      {role !== "Bruker" && <BulkEmail companies={companies} />}
       <div className="operations-head">
         <div>
           <p className="eyebrow">MARKEDSFØRING</p>
@@ -5650,6 +5591,7 @@ function Operations(p: {
                     <SelectItem value="Deaktivert">Deaktivert</SelectItem>
                   </SelectContent>
                 </Select>
+                {o.scheduledDisableAt && <><small>Deaktiveres {date(o.scheduledDisableAt,true)}</small><Button variant="outline" onClick={()=>p.setStatus(o.id,"Aktiv")}>Avbryt deaktivering</Button></>}
                 {o.status === "Deaktivert" && o.retainUntil && (
                   <small>Data beholdes til {date(o.retainUntil)}</small>
                 )}
@@ -5959,3 +5901,4 @@ function AvatarCropDialog({
     </Dialog>
   );
 }
+

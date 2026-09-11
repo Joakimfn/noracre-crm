@@ -15,6 +15,7 @@ const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   keep_vars: true,
+  triggers: { crons: ["* * * * *"] },
   vars: {
     APP_URL: "https://crm.noracre.no",
     SUPABASE_URL: "https://elxxbhelzlpevdvxlxba.supabase.co",
@@ -69,3 +70,4 @@ export default defineConfig(async () => {
     ],
   };
 });
+

@@ -1,3 +1,4 @@
+import {applyScheduledDeactivations,refreshBrregBatch} from "./maintenance";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import handler from "vinext/server/app-router-entry";
 import { guardRequest, secureResponse } from "../lib/request-security";
@@ -14,6 +15,9 @@ interface ExecutionContext {
 }
 
 const worker = {
+  async scheduled(_event: unknown, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil((async()=>{await applyScheduledDeactivations(env.DB);await refreshBrregBatch(env.DB);})());
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
       const guarded = await guardRequest(request);
@@ -26,3 +30,4 @@ const worker = {
 };
 
 export default worker;
+

@@ -94,6 +94,7 @@ export const organizations = sqliteTable("organizations", {
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
   status: text("status").notNull().default("Aktiv"),
+  scheduledDisableAt: text("scheduled_disable_at").notNull().default(""),
   deactivatedAt: text("deactivated_at").notNull().default(""),
   retainUntil: text("retain_until").notNull().default(""),
   createdAt: text("created_at").notNull(),
@@ -108,6 +109,7 @@ export const memberships = sqliteTable(
     phone: text("phone").notNull().default(""),
     name: text("name").notNull(),
     role: text("role").notNull().default("Bruker"),
+    scheduledDisableAt: text("scheduled_disable_at").notNull().default(""),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     acceptedTermsAt: text("accepted_terms_at").notNull().default(""),
     acceptedTermsVersion: text("accepted_terms_version").notNull().default(""),
@@ -392,4 +394,14 @@ export const billingEvents = sqliteTable("billing_events", {
  label: text("label").notNull(), active: integer("active",{mode:"boolean"}).notNull(),
  monthlyPrice: integer("monthly_price").notNull().default(0), eventKind: text("event_kind").notNull(),
  occurredAt: text("occurred_at").notNull(), referenceAt: text("reference_at").notNull().default(""),
+});
+
+
+export const backgroundJobs = sqliteTable("background_jobs", {
+ key: text("key").primaryKey(),
+ day: text("day").notNull().default(""),
+ cursor: integer("cursor").notNull().default(0),
+ completedAt: text("completed_at").notNull().default(""),
+ leaseUntil: text("lease_until").notNull().default(""),
+ failures: integer("failures").notNull().default(0),
 });
