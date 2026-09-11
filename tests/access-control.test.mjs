@@ -160,4 +160,16 @@ test('API client never sends session tokens to external URLs',async()=>{
    assert.equal(calls,0);
  } finally {globalThis.fetch=saved;delete globalThis.window;}
 });
+test('marketing drafts retain channel choices but never claim scheduled delivery',async()=>{
+ sql.exec("UPDATE organization_modules SET active=1 WHERE module_key='markedsforing'");
+ const send=async(platforms)=>{
+   const form=new FormData();form.set('content','Test draft');form.set('platforms',JSON.stringify(platforms));form.set('scheduledAt','2026-12-01T12:00');
+   return route('marketing').POST(new Request('https://crm.test/api/marketing',{method:'POST',headers:{authorization:'Bearer 3','x-organization-id':'1'},body:form}));
+ };
+ for(const channel of ['Facebook','Instagram','LinkedIn','X','Snapchat']){
+   const response=await send([channel]);assert.equal(response.status,201);
+   const {post}=await response.json();assert.equal(post.status,'Kladd');assert.deepEqual(JSON.parse(post.platforms),[channel]);
+ }
+ for(const channels of [['Google Ads'],['unknown'],[]])assert.equal((await send(channels)).status,400);
+});
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});

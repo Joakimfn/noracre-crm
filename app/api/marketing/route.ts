@@ -1,3 +1,4 @@
+import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
 import { validateImage } from "@/lib/safe-image";
@@ -83,6 +84,9 @@ export async function POST(request: Request) {
         { error: "Skriv innholdet som skal publiseres." },
         { status: 400 },
       );
+    if (platforms.some((platform) => !SOCIAL_CHANNELS.includes(platform as typeof SOCIAL_CHANNELS[number])))
+      return Response.json({ error: "Velg en av de tilgjengelige kanalene." }, { status: 400 });
+    platforms = [...new Set(platforms)];
     if (!platforms.length)
       return Response.json({ error: "Velg minst én kanal." }, { status: 400 });
     if (images.length > 6)
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
         content,
         platforms: JSON.stringify(platforms),
         scheduledAt,
-        status: scheduledAt ? "Planlagt" : "Kladd",
+        status: "Kladd",
         createdBy: ctx.user.displayName,
         createdAt: now,
         updatedAt: now,

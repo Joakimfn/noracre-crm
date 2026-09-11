@@ -1,5 +1,8 @@
 "use client";
 
+import { SOCIAL_CHANNELS } from "@/lib/social-channels";
+import { SocialChannelIcon } from "@/components/social-channel-icon";
+
 import { reminderIsDue } from "@/lib/followup-reminder";
 
 import {
@@ -4864,14 +4867,7 @@ function Marketing({
       imagePreviews.forEach((image) => URL.revokeObjectURL(image.url)),
     [imagePreviews],
   );
-  const channels = [
-    "Facebook",
-    "Instagram",
-    "LinkedIn",
-    "X",
-    "Snapchat",
-    "Google Ads",
-  ];
+  const channels = SOCIAL_CHANNELS;
   useEffect(() => {
     if (active)
       apiFetch("/api/marketing", {
@@ -4942,7 +4938,7 @@ function Marketing({
       setScheduledAt("");
       setImages([]);
       toast.success(
-        scheduledAt ? "Innlegget er planlagt" : "Kladden er lagret",
+        "Kladden er lagret",
       );
     } catch {
       toast.error("Kunne ikke lagre innlegget. Prøv igjen.");
@@ -5070,22 +5066,13 @@ function Marketing({
             <h3>Koble til kontoer</h3>
           </div>
         </div>
-        <div className="channel-grid">
+        <p className="form-hint">Kontotilkobling er ikke tilgjengelig ennå. Du kan foreløpig lagre kladder for kanalene nedenfor.</p>
+        <div className="channel-grid social-connections">
           {channels.map((channel) => (
             <div key={channel}>
+              <SocialChannelIcon channel={channel} />
               <strong>{channel}</strong>
-              <span>Ikke tilkoblet</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  toast.info(
-                    `${channel} kan kobles til når appgodkjenningen og domenet er klart.`,
-                  )
-                }
-              >
-                Koble til
-              </Button>
+              <span>Kommer senere</span>
             </div>
           ))}
         </div>
@@ -5128,40 +5115,38 @@ function Marketing({
           )}
           <small>Maks seks bilder, 10 MB per bilde og 20 MB samlet. PNG, JPEG, GIF eller WebP.</small>
         </div>
-        <div className="channel-picks">
-          {channels.map((channel) => (
-            <label key={channel}>
-              <input
-                type="checkbox"
-                checked={platforms.includes(channel)}
-                onChange={(e) =>
-                  setPlatforms((items) =>
-                    e.target.checked
-                      ? [...items, channel]
-                      : items.filter((item) => item !== channel),
-                  )
-                }
-              />
-              {channel}
-            </label>
-          ))}
-        </div>
-        <Label>Planlagt tidspunkt</Label>
+        <fieldset className="social-channel-fieldset">
+          <legend>Velg kanaler</legend>
+          <div className="channel-picks social-channel-picks">
+            {channels.map((channel) => (
+              <label key={channel} className="social-channel-choice">
+                <input
+                  type="checkbox"
+                  className="social-channel-input"
+                  checked={platforms.includes(channel)}
+                  onChange={(e) => setPlatforms((items) => e.target.checked
+                    ? [...items, channel] : items.filter((item) => item !== channel))}
+                />
+                <span className="social-channel-art">
+                  <SocialChannelIcon channel={channel} />
+                  <span className="social-channel-check" aria-hidden="true"><Check size={13} strokeWidth={3} /></span>
+                </span>
+                <span className="social-channel-name">{channel}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <Label>Ønsket publiseringstidspunkt</Label>
         <Input
           type="datetime-local"
           value={scheduledAt}
           onChange={(e) => setScheduledAt(e.target.value)}
         />
         <Button onClick={savePost} disabled={savingPost}>
-          {savingPost
-            ? "Lagrer …"
-            : scheduledAt
-              ? "Planlegg innlegg"
-              : "Lagre kladd"}
+          {savingPost ? "Lagrer …" : "Lagre kladd"}
         </Button>
         <p className="form-hint">
-          Publisering og statistikk aktiveres per kanal når bedriftens egne
-          kontoer er koblet til.
+          Innlegget lagres som kladd. Det publiseres ikke automatisk, heller ikke når du velger et tidspunkt.
         </p>
       </section>
       <section className="surface">
@@ -5172,7 +5157,7 @@ function Marketing({
         {posts.length ? (
           posts.map((post) => (
             <div className="marketing-post" key={post.id}>
-              <strong>{post.status}</strong>
+              <strong>{post.status === "Planlagt" ? "Kladd" : post.status}</strong>
               <span>{post.content}</span>
               {post.images?.length ? (
                 <div className="marketing-post-images">
