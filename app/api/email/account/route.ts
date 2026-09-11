@@ -1,0 +1,4 @@
+import {accessResponse,requireTenant} from "@/lib/tenant";
+import {getMailAccount,mailDb,mailReady} from "@/lib/user-mail";
+export async function GET(request:Request){try{const ctx=await requireTenant(request),account=await getMailAccount(ctx.organizationId,ctx.membershipId);return Response.json({account:account?{email:account.email,provider:account.provider}:null,providers:{google:mailReady('google'),microsoft:mailReady('microsoft')}});}catch(e){return accessResponse(e);}}
+export async function DELETE(request:Request){try{const ctx=await requireTenant(request);await mailDb().batch([mailDb().prepare("DELETE FROM mail_accounts WHERE organization_id=? AND membership_id=?").bind(ctx.organizationId,ctx.membershipId),mailDb().prepare("DELETE FROM mail_oauth WHERE organization_id=? AND membership_id=?").bind(ctx.organizationId,ctx.membershipId)]);return Response.json({ok:true});}catch(e){return accessResponse(e);}}

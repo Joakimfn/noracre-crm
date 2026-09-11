@@ -1,3 +1,4 @@
+import {getMailAccount,sendFromMailbox} from "@/lib/user-mail";
 import { env } from "cloudflare:workers";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -6,8 +7,7 @@ import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
 import { requireModuleAccess } from "@/lib/module-access";
 import { Buffer } from "node:buffer";
 
-const sender = "Noracre CRM <varsler@mail.noracre.no>";
-const runtime = env as unknown as { RESEND_API_KEY?: string; BUCKET: R2Bucket };
+const runtime = env as unknown as { BUCKET: R2Bucket };
 const maxBytes = 10 * 1024 * 1024;
 const validEmail = (value: string) => /^[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+$/.test(value);
 function ids(value: FormDataEntryValue | null): number[] {
@@ -17,7 +17,7 @@ function ids(value: FormDataEntryValue | null): number[] {
   return [...new Set(parsed as number[])];
 }
 export async function GET(request: Request) {
-  try { const ctx = await requireTenant(request); return Response.json({ configured: Boolean(runtime.RESEND_API_KEY), from: sender, replyTo: ctx.user.email }); }
+  try { const ctx = await requireTenant(request); const account=await getMailAccount(ctx.organizationId,ctx.membershipId); return Response.json({configured:Boolean(account),from:account?.email||"",replyTo:account?.email||""}); }
   catch (e) { return accessResponse(e); }
 }
 export async function POST(request: Request) {
@@ -44,7 +44,8 @@ export async function POST(request: Request) {
     recipients = [...new Set(recipients)];
     if (recipients.some(email => !validEmail(email))) throw new AccessError(400, "En mottaker mangler en gyldig e-postadresse. Rett adressen før sending.");
     if (recipients.length > (bulk ? 49 : 1)) throw new AccessError(400, "Maks 49 mottakere per utsending. Velg en mindre kundegruppe.");
-    if (!runtime.RESEND_API_KEY) throw new AccessError(503, "E-posttjenesten mangler oppsett. Kontakt Noracre for å aktivere sending.");
+    const account=await getMailAccount(ctx.organizationId,ctx.membershipId);
+    if(!account)throw new AccessError(409,"Koble til din egen Google- eller Microsoft-konto før du sender.");
     if (bulk && attachmentIds.length) throw new AccessError(400, "Last opp vedlegg til denne utsendingen.");
     const files = form.getAll("files").filter((value): value is File => value instanceof File);
     if (files.length + attachmentIds.length > 10) throw new AccessError(400, "Maks 10 vedlegg per e-post.");
@@ -58,12 +59,7 @@ export async function POST(request: Request) {
     const addFile = (name: string, data: ArrayBuffer) => payloadFiles.push({filename: name.replace(/[\r\n\x00/\\]/g, "_").slice(0,180) || "vedlegg", content: Buffer.from(data).toString("base64")});
     for (const file of files) addFile(file.name, await file.arrayBuffer());
     for (const file of stored) { const object = await runtime.BUCKET.get(file.objectKey); if (!object) throw new AccessError(404, "Et vedlegg er utilgjengelig."); addFile(file.filename, await object.arrayBuffer()); }
-    const payload = JSON.stringify({from: sender, to: bulk ? [ctx.user.email] : recipients, ...(bulk ? {bcc: recipients} : {}), reply_to: ctx.user.email, subject, text: message, ...(payloadFiles.length ? {attachments: payloadFiles} : {})});
-    // A retry uses the same key and exact payload; different messages get different keys.
-    const digest = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload))).toString("hex");
-    const response = await fetch("https://api.resend.com/emails", {method:"POST", headers:{Authorization:`Bearer ${runtime.RESEND_API_KEY}`, "Content-Type":"application/json", "Idempotency-Key":`${ctx.organizationId}-${ctx.membershipId}-${key}-${digest}`}, body:payload, signal:AbortSignal.timeout(25000)});
-    const result = await response.json() as {id?: string; name?: string};
-    if (!response.ok || !result.id) return Response.json({error: response.status === 429 ? "E-posttjenesten er opptatt. Vent litt og prøv igjen." : "E-posttjenesten avviste sendingen. Kontroller avsenderoppsettet hos Noracre og filtypene i vedleggene."}, {status:502});
-    return Response.json({accepted:true, count:recipients.length, id:result.id});
+    await sendFromMailbox(account,{to:bulk?[account.email]:recipients,bcc:bulk?recipients:[],subject,message,files:payloadFiles,key});
+    return Response.json({accepted:true,count:recipients.length});
   } catch(e) { return accessResponse(e); }
 }

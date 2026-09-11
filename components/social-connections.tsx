@@ -78,7 +78,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   }
   const chosen=pages.find(p=>p.id===pageId);
   return <section className="surface">
-    <div className="surface-head"><div><p className="eyebrow">KANALER</p></div></div>
+    <div className="surface-head"><h3>Kanaler</h3></div>
     <p className="form-hint">{loading?"Henter kontotilkoblinger …":error||(!data.ready?"Facebook og Instagram venter på at Noracre fullfører Meta-oppsettet.":"Koble til bedriftens Facebook-side og tilknyttede profesjonelle Instagram-konto. Kun administratorer kan endre tilkoblingene.")}</p>
     {connectionError&&<p role="alert" className="form-hint" style={{color:"var(--destructive)"}}>{connectionError}</p>}
     {busy&&!pending&&<Button variant="ghost" onClick={()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();setBusy(false);}}>Avbryt venting</Button>}
@@ -108,3 +108,4 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
 
   </section>;
 }
+

@@ -8,7 +8,7 @@ export async function guardRequest(request: Request): Promise<Request | Response
       return new Response(null, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     return request;
   }
-  const publicGet = request.method === "GET" && ["/api/social/meta/callback", "/api/social/media"].includes(url.pathname);
+  const publicGet = request.method === "GET" && ["/api/social/meta/callback", "/api/social/media", "/api/email/callback"].includes(url.pathname);
   if (!publicGet && url.pathname !== "/api/auth/config" && !/^Bearer \S+$/i.test(request.headers.get("authorization") ?? ""))
     return Response.json({ error: "Du må være logget inn." }, { status: 401 });
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return request;
@@ -42,7 +42,7 @@ export function secureResponse(request: Request, upstream: Response) {
   const response = new Response(upstream.body, upstream);
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
-  response.headers.set("Referrer-Policy", new URL(request.url).pathname.startsWith("/api/social/") ? "no-referrer" : "strict-origin-when-cross-origin");
+  response.headers.set("Referrer-Policy", (new URL(request.url).pathname.startsWith("/api/social/") || new URL(request.url).pathname.startsWith("/api/email/")) ? "no-referrer" : "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   // These directives do not interfere with vinext's inline hydration scripts.
@@ -50,3 +50,4 @@ export function secureResponse(request: Request, upstream: Response) {
   if (new URL(request.url).pathname.startsWith("/api/")) response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
+

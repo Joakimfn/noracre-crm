@@ -1,6 +1,7 @@
 "use client";
 
 import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
+import { MailAccount } from "@/components/mail-account";
 import { EmailSend } from "@/components/email-send";
 import { DeactivationDialog } from "@/components/deactivation-dialog";
 import { CustomerFollowups } from "@/components/customer-followups";
@@ -1583,6 +1584,7 @@ export default function Home() {
               Profilen og utseendet gjelder bare brukeren din.
             </DialogDescription>
           </DialogHeader>
+          <MailAccount organizationId={activeOrgId}/>
           <div className="profile-settings">
             <Label>Profilbilde</Label>
             <div className="profile-photo-row">
