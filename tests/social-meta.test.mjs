@@ -39,7 +39,7 @@ const original=globalThis.fetch;let calls=[],failure=false;
 const permissions=['pages_show_list','pages_read_engagement','pages_manage_posts','instagram_basic','instagram_content_publish'];
 globalThis.fetch=async(input,init)=>{
  const url=new URL(String(input));if(url.origin==='https://auth.test'){const id=init.headers.Authorization.slice(7);return Response.json({id,email:`${id}@test.no`,email_confirmed_at:'now'});}
- assert.equal(url.origin,'https://graph.facebook.com');calls.push({url,init});
+ assert.equal(init.redirect,'manual');assert.equal(url.origin,'https://graph.facebook.com');calls.push({url,init});
  const p=url.pathname.replace('/v24.0/','');
  if(p==='oauth/access_token')return Response.json({access_token:'private-user-token',expires_in:5000000});
  if(p==='me/permissions')return Response.json({data:permissions.map(permission=>({permission,status:'granted'}))});
@@ -67,6 +67,11 @@ test('ordinary users and foreign tenants cannot manage connections',async()=>{
 test('unconfigured Meta fails closed',async()=>{
  const secret=testEnv.META_APP_SECRET;delete testEnv.META_APP_SECRET;
  assert.equal((await route('meta/start').POST(req('meta/start',1,1,{}))).status,503);testEnv.META_APP_SECRET=secret;
+});
+test('Meta redirects are rejected without forwarding credentials',async()=>{
+ const normal=globalThis.fetch;let count=0;
+ globalThis.fetch=async(input,init)=>{count++;assert.equal(new URL(String(input)).origin,'https://graph.facebook.com');assert.equal(init.redirect,'manual');return new Response(null,{status:302,headers:{location:'https://untrusted.test/'}});};
+ try {await assert.rejects(app.meta.graph('me/accounts','private-token'),app.meta.MetaError);assert.equal(count,1);}finally{globalThis.fetch=normal;}
 });
 test('OAuth diagnostics identify the failing stage without exposing provider secrets',async()=>{
  const normal=globalThis.fetch;

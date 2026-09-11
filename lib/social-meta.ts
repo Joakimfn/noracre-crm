@@ -71,9 +71,11 @@ export async function graph<T>(path: string, token?: string, values: Record<stri
   const url = new URL(`https://graph.facebook.com/${c.version}/${path}`);
   if (method === "GET") url.search = params.toString();
   let response: Response;
-  try { response = await fetch(url, {method, redirect: "error", signal: AbortSignal.timeout(20000),
+  try { response = await fetch(url, {method, redirect: "manual", signal: AbortSignal.timeout(20000),
     headers: token ? {Authorization: `Bearer ${token}`} : {}, ...(method === "POST" ? {body: params} : {})}); }
   catch { throw new MetaError(method === "POST"); }
+  // Workers supports manual/follow only. Never follow redirects carrying credentials.
+  if (response.status >= 300 && response.status < 400) throw new MetaError(false);
   let data: {error?: {code?: number}};
   try { data = await response.json(); } catch { throw new MetaError(method === "POST"); }
   if (!response.ok || data.error) throw new MetaError(response.status >= 500 && method === "POST", data.error?.code === 190, Number.isSafeInteger(data.error?.code) ? data.error?.code : undefined);
