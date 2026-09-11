@@ -1,6 +1,7 @@
 "use client";
 
 import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
+import { EmailSend } from "@/components/email-send";
 import { DeactivationDialog } from "@/components/deactivation-dialog";
 import { CustomerFollowups } from "@/components/customer-followups";
 import { DateTimePicker } from "@/components/date-time-picker";
@@ -2435,9 +2436,7 @@ function OfferComposer({
       (item) => String(item.id) === contactId,
     )
       ? contactId
-      : contacts[0]
-        ? String(contacts[0].id)
-        : "none",
+      : "none",
     contact = contacts.find((item) => String(item.id) === effectiveContactId),
     contactName = contact?.name || company.contactName || "der",
     email = contact?.email || company.email,
@@ -2570,22 +2569,7 @@ function OfferComposer({
             <input type="file" disabled={uploading} onChange={upload} />
           </label>
         </div>
-        <div className="offer-actions">
-          <Button
-            onClick={() =>
-              toast.info(
-                "Koble din egen Google- eller Microsoft-jobbkonto i innstillinger når domenet er klart.",
-              )
-            }
-          >
-            <Mail />
-            Koble til e-post for å sende
-          </Button>
-        </div>
-        <p className="form-hint">
-          Tilbud sendes fra den innloggede brukerens egen Google- eller
-          Microsoft-jobbkonto. Tilkoblingen aktiveres når domenet er klart.
-        </p>
+        <EmailSend organizationId={organizationId} companyIds={[company.id]} contactId={contact?.id} attachmentIds={selectedAttachmentIds} subject={renderedSubject} message={renderedBody} recipientLabel={email || "Mottakeren mangler e-postadresse"} />
       </div>
     </details>
   );
@@ -2624,6 +2608,19 @@ function Customers(p: {
   activityRevision: Activity[];
 }) {
   const [openHistory, setOpenHistory] = useState<Activity | null>(null);
+  const [historyDraft, setHistoryDraft] = useState("");
+  const [savingHistory, setSavingHistory] = useState(false);
+  async function saveHistoryNote() {
+    if (!openHistory || savingHistory) return;
+    setSavingHistory(true);
+    try {
+      const response = await apiFetch("/api/activities", {method:"PATCH", headers:{"Content-Type":"application/json","x-organization-id":String(p.organizationId)}, body:JSON.stringify({id:openHistory.id,note:historyDraft})});
+      const data=await response.json(); if(!response.ok)throw new Error(data.error||"Notatet kunne ikke lagres.");
+      setOpenHistory(data.activity);setHistoryDraft(data.activity.note);toast.success("Notatet er lagret");
+      await p.onFollowupsChanged();
+    } catch(error) { toast.error(error instanceof Error?error.message:"Notatet kunne ikke lagres."); }
+    finally { setSavingHistory(false); }
+  }
   const c = p.selected,
     currentContacts = p.contacts.filter((x) => x.companyId === c.id),
     person =
@@ -2875,7 +2872,7 @@ function Customers(p: {
                   <button
                     className="history-row"
                     key={a.id}
-                    onClick={() => setOpenHistory(a)}
+                    onClick={() => {setOpenHistory(a);setHistoryDraft(a.note || "");}}
                   >
                     <div className="task-kind">{icon(a.kind)}</div>
                     <div>
@@ -2920,7 +2917,8 @@ function Customers(p: {
               </div>
               <div>
                 <span>Notat</span>
-                <p>{openHistory?.note || "Ingen notat"}</p>
+                <Textarea aria-label="Rediger notat" rows={8} value={historyDraft} disabled={savingHistory} onChange={event=>setHistoryDraft(event.target.value)} />
+                <div className="history-note-actions"><Button disabled={savingHistory || historyDraft === (openHistory?.note || "")} onClick={saveHistoryNote}>{savingHistory?"Lagrer …":"Lagre notat"}</Button><Button variant="outline" disabled={savingHistory} onClick={()=>{setHistoryDraft(openHistory?.note||"");setOpenHistory(null);}}>Avbryt</Button></div>
               </div>
             </div>
             {openHistory && (
@@ -3408,7 +3406,8 @@ function Admin(p: {
     </div>
   );
 }
-function BulkEmail({ companies }: { companies: Company[] }) {
+function BulkEmail({ companies, organizationId }: { companies: Company[]; organizationId: number }) {
+  const [files,setFiles]=useState<File[]>([]);
   const [segment, setSegment] = useState("all"),
     [subject, setSubject] = useState(""),
     [message, setMessage] = useState(""),
@@ -3424,15 +3423,9 @@ function BulkEmail({ companies }: { companies: Company[] }) {
         targets.map((c) => c.email.trim().toLowerCase()).filter(Boolean),
       ),
     ];
-  function openEmail() {
-    if (!emails.length)
-      return toast.error("Ingen kunder i utvalget har e-postadresse");
-    const url = `mailto:?bcc=${encodeURIComponent(emails.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
-    window.location.href = url;
-  }
   return (
     <AdminCard
-      eye="KUN FOR ADMINISTRATOR"
+      eye="E-POST"
       title="Send e-post til kunder"
       ico={<Mail />}
     >
@@ -3469,18 +3462,18 @@ function BulkEmail({ companies }: { companies: Company[] }) {
             placeholder="Skriv meldingen …"
           />
         </div>
+        <div className="full email-attachments">
+          <Label htmlFor="bulk-email-files">Vedlegg</Label>
+          <Input id="bulk-email-files" type="file" multiple onChange={event=>{const next=[...files,...Array.from(event.target.files??[])];event.target.value="";if(next.length>10||next.reduce((sum,f)=>sum+f.size,0)>10*1024*1024)return toast.error("Maks 10 vedlegg og 10 MB samlet.");setFiles(next);}} />
+          {files.map((file,index)=><div className="offer-file" key={`${file.name}-${index}`}><span>{file.name} · {fileSize(file.size)}</span><Button size="sm" variant="ghost" onClick={()=>setFiles(current=>current.filter((_,i)=>i!==index))}><X/>Fjern</Button></div>)}
+          <p className="form-hint">Maks 10 vedlegg, 10 MB samlet og 49 mottakere per utsending.</p>
+        </div>
         <div className="bulk-email-foot">
           <span>{emails.length} mottakere med e-postadresse</span>
-          <Button onClick={openEmail}>
-            <Mail />
-            Åpne e-postutkast
-          </Button>
+          <EmailSend organizationId={organizationId} companyIds={targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk recipientLabel={`${emails.length} mottakere · ${segment === "all"?"Alle kunder":segment}`} />
         </div>
       </div>
-      <p className="form-hint">
-        Åpner e-postprogrammet ditt med mottakerne som blindkopi. Du godkjenner
-        meldingen før den sendes.
-      </p>
+
     </AdminCard>
   );
 }
@@ -5022,7 +5015,6 @@ function Marketing({
     );
   return (
     <div className="page-pad marketing-page">
-      {role !== "Bruker" && <BulkEmail companies={companies} />}
       <div className="operations-head">
         <div>
           <p className="eyebrow">MARKEDSFØRING</p>
@@ -5152,6 +5144,7 @@ function Marketing({
           <Button disabled={publishing} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
         </DialogContent>
       </Dialog>
+      <BulkEmail companies={companies} organizationId={organizationId} />
       {chooser}
     </div>
   );

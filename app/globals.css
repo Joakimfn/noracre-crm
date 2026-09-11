@@ -3164,3 +3164,39 @@ textarea {
 
 .dark .operations-banner p:not(.eyebrow){color:var(--muted-foreground)}
 .dark .operations-banner .eyebrow{color:var(--foreground)}
+
+/* One theme surface per control, including search fields and portalled dialogs. */
+.dark { --control-background: #1d2c27; }
+.dark :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea, select, [data-slot="select-trigger"]) {
+  background-color: var(--control-background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.dark .app-shell :is(input,textarea,select) { background-color: var(--control-background); }
+.dark .app-shell .search-box { background:var(--control-background); color:var(--muted-foreground); box-shadow:none; }
+.dark .app-shell .search-box input { background:transparent; border:0; box-shadow:none; }
+.search-box:focus-within { outline:2px solid var(--ring); outline-offset:2px; }
+.dark .search-box button { color:var(--muted-foreground); }
+.dark .search-box button:hover { color:var(--foreground); }
+.dark .app-shell .operations-banner { background:transparent; }
+.dark .operations-banner > div > p:last-child { color:var(--muted-foreground); }
+.dark :is(.server-health,.offer-preview,.operations-note) { background:var(--card); color:var(--foreground); border-color:var(--border); }
+.dark :is(.offer-preview p,.operations-note p,.task-row span,.task-row time,.plain-row>span,.performance-row span,.integration-row span,.organization-list small,.history-sheet-body span,.operations-table-head,.operations-head p,.operations-row small,.contact-picker>label,.contact-requirements label,.disabled-support,.next-date,.list-heading,.empty-list,.detail-head p,.page-actions p,.manual-entry p,.form-grid label span) { color:var(--muted-foreground); }
+.dark :is(.company-icon,.large-company-icon,.task-kind,.section-label small,.surface-head>span,.integration-row em,.module-lock>svg,.empty-state svg) { background:var(--secondary); color:var(--secondary-foreground); }
+.dark :is(.attachment-name,.prospect-contact a,.operations-contact a,.operations-note svg,.legal-page a,.terms-check a) { color:#9edbc5; }
+.dark :is(.attachment-delete,.history-delete,.save-state.error,.noracre-date-error,.metric.red strong) { color:#ffaaa2; }
+.dark .metric.green strong { color:#9edbc5; }
+.dark .bar-track { background:var(--muted); }
+.dark :is(.history-row,.customer-row,.organization-list button):hover { background:var(--accent); }
+.dark .customer-row.selected,.dark .organization-list button.active { background:var(--accent); }
+.dark :is(.customer-type button.active,.status-buttons button.active,.contact-kind-row button.active) { background:var(--primary);color:var(--primary-foreground);border-color:var(--ring); }
+.dark .manual-result { background:var(--secondary)!important; color:var(--foreground); }
+.dark [data-slot="command-input-wrapper"] input { background:transparent; }
+.dark :is(input,textarea):disabled { opacity:.6; }
+.member-list + .member-form { border-top:1px solid var(--border); margin-top:18px; padding-top:18px; }
+.history-note-actions { display:flex;flex-wrap:wrap;gap:10px;margin-top:14px; }
+.email-send { display:grid;gap:10px;justify-items:start; }
+.email-send .form-hint { margin:0; }
+.email-confirm-body { white-space:pre-wrap;overflow-wrap:anywhere;max-height:35vh;overflow-y:auto; }
+.email-attachments { display:grid;gap:10px; }
+.bulk-email-foot { align-items:start;gap:16px;flex-wrap:wrap; }

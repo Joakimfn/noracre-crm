@@ -11,12 +11,12 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
  b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
  b.onResolve({filter:/^next\//},args=>({path:args.path,namespace:'test'}));
- b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
+ b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
 }}],nodePaths:[path.join(root,'node_modules')]});
 // External packages resolve from the repository, not the temporary directory.
 const {symlink}=await import('node:fs/promises');await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'));
@@ -206,6 +206,45 @@ test('scheduled organization cutoff denies access before cron executes',async()=
  sql.prepare('UPDATE organizations SET scheduled_disable_at=? WHERE id=1').run('2020-01-01T00:00:00.000Z');
  assert.equal((await route('companies').GET(request(1))).status,403);
  sql.exec("UPDATE organizations SET scheduled_disable_at='' WHERE id=1");
+});
+const mailRequest=(user=3,overrides={},files=[])=>{
+ const form=new FormData();const fields={companyIds:[1],attachmentIds:[],subject:'Hei',message:'Melding',mode:'offer',...overrides};
+ for(const [key,value] of Object.entries(fields))form.set(key,Array.isArray(value)?JSON.stringify(value):String(value));
+ for(const file of files)form.append('files',file);
+ return new Request('https://crm.test/api/email',{method:'POST',headers:{authorization:`Bearer ${user}`,'x-organization-id':'1','idempotency-key':'12345678-1234-1234-1234-123456789012'},body:form});
+};
+test('history note can be changed without changing original author, date or completion',async()=>{
+ const before=sql.prepare('SELECT * FROM activities WHERE id=1').get();
+ assert.equal((await route('activities').PATCH(request(3,1,{id:1,note:'Oppdatert notat'}))).status,200);
+ const after=sql.prepare('SELECT * FROM activities WHERE id=1').get();assert.equal(after.note,'Oppdatert notat');
+ for(const key of ['created_by','created_at','completed_at','company_id'])assert.equal(after[key],before[key]);
+});
+test('email validates tenant, contacts, module license, file ownership and size before sending',async()=>{
+ globalThis.testMailKey='fake-key';
+ sql.exec("UPDATE organization_modules SET active=0 WHERE module_key='markedsforing'");
+ sql.exec("UPDATE companies SET email='customer@example.test' WHERE id=1");
+ assert.equal((await route('email').POST(mailRequest(3,{companyIds:[2]}))).status,404);
+ assert.equal((await route('email').POST(mailRequest(3,{contactId:2}))).status,404);
+ assert.equal((await route('email').POST(mailRequest(3,{mode:'bulk'}))).status,403);
+ assert.equal((await route('email').POST(mailRequest(3,{attachmentIds:[999]}))).status,404);
+ assert.equal((await route('email').POST(mailRequest(3,{},[new File([new Uint8Array(10*1024*1024+1)],'large.pdf')]))).status,413);
+ globalThis.testMailKey=undefined;
+ assert.equal((await route('email').POST(mailRequest())).status,503);
+});
+test('email sends attachments and reply-to; retries reuse provider key; rejection is not success',async()=>{
+ globalThis.testMailKey='fake-key';const authFetch=globalThis.fetch;const sent=[];
+ globalThis.fetch=async(url,init)=>{if(String(url)==='https://api.resend.com/emails'){sent.push({headers:init.headers,payload:JSON.parse(init.body)});return Response.json({id:'mail-1'});}return authFetch(url,init);};
+ const files=[new File(['PDF test bytes'],'tilbud.pdf',{type:'application/pdf'})];
+ for(let i=0;i<2;i++)assert.equal((await route('email').POST(mailRequest(3,{},files))).status,200);
+ assert.deepEqual(sent[0].payload.to,['customer@example.test']);assert.equal(sent[0].payload.reply_to,'3@test.no');
+ assert.equal(sent[0].payload.attachments[0].filename,'tilbud.pdf');assert.equal(Buffer.from(sent[0].payload.attachments[0].content,'base64').toString(),'PDF test bytes');
+ assert.equal(sent[0].headers['Idempotency-Key'],sent[1].headers['Idempotency-Key']);
+ sql.exec("UPDATE organization_modules SET active=1 WHERE module_key='markedsforing'");
+ assert.equal((await route('email').POST(mailRequest(3,{mode:'bulk'}))).status,200);
+ assert.deepEqual(sent.at(-1).payload.bcc,['customer@example.test']);assert.deepEqual(sent.at(-1).payload.to,['3@test.no']);
+ globalThis.fetch=async(url,init)=>String(url)==='https://api.resend.com/emails'?Response.json({name:'validation_error'},{status:422}):authFetch(url,init);
+ assert.equal((await route('email').POST(mailRequest())).status,502);
+ globalThis.fetch=authFetch;globalThis.testMailKey=undefined;
 });
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});
 
