@@ -1584,7 +1584,6 @@ export default function Home() {
               Profilen og utseendet gjelder bare brukeren din.
             </DialogDescription>
           </DialogHeader>
-          <MailAccount organizationId={activeOrgId}/>
           <div className="profile-settings">
             <Label>Profilbilde</Label>
             <div className="profile-photo-row">
@@ -1696,6 +1695,7 @@ export default function Home() {
             </p>
             <Button onClick={saveProfile}>Lagre innstillinger</Button>
           </div>
+          <MailAccount organizationId={activeOrgId}/>
         </DialogContent>
       </Dialog>
       <AvatarCropDialog
@@ -3427,7 +3427,6 @@ function BulkEmail({ companies, organizationId }: { companies: Company[]; organi
     ];
   return (
     <AdminCard
-      eye="E-POST"
       title="Send e-post til kunder"
       ico={<Mail />}
     >
@@ -5767,7 +5766,7 @@ function Card(p: {
   );
 }
 function AdminCard(p: {
-  eye: string;
+  eye?: string;
   title: string;
   ico: React.ReactNode;
   children: React.ReactNode;
@@ -5776,7 +5775,7 @@ function AdminCard(p: {
     <details className="surface admin-card">
       <summary>
         <div>
-          <p className="eyebrow">{p.eye}</p>
+          {p.eye && <p className="eyebrow">{p.eye}</p>}
           <h3>{p.title}</h3>
         </div>
         <span>
