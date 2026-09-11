@@ -3025,3 +3025,38 @@ textarea {
 
 .social-account-options { display:grid; gap:16px; }
 .social-account-options label {display:flex;align-items:start;gap:10px;font-size:.9375rem;}
+
+.social-profile-link { display: inline-flex; border-radius: 18px; transition: transform 150ms ease; }
+.social-profile-link:hover { transform: translateY(-2px); }
+.social-profile-link:focus-visible { outline: 3px solid #146e59; outline-offset: 5px; }
+.channel-grid.social-connections > div { align-content: start; grid-template-rows: 64px auto auto; }
+
+/* Shared, quiet motion for everyday CRM interactions. */
+.app-shell { --motion-ease: cubic-bezier(.2,.8,.2,1); }
+.app-shell :is([data-slot="button"], .sidebar nav button, .customer-row, .metric, .surface, .account-trigger) {
+  transition: transform 180ms var(--motion-ease), box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+.app-shell :is(.sidebar nav button, [data-slot="button"], .customer-row) > svg,
+.app-shell .company-icon { transition: transform 200ms var(--motion-ease); }
+.app-shell :is(input, textarea, [data-slot="select-trigger"]) {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-shell [data-slot="button"]:not(:disabled):not([aria-disabled="true"]):hover { transform: translateY(-2px); box-shadow: 0 5px 12px #073e3e12; }
+  .app-shell .sidebar nav button:hover { background-color: #ffffff14; color: white; transform: translateX(3px); }
+  .app-shell .sidebar nav button:hover > svg { transform: rotate(-6deg) scale(1.08); }
+  .app-shell .customer-row:hover .company-icon { transform: scale(1.06) rotate(-3deg); }
+  .app-shell .metric:hover { transform: translateY(-3px); box-shadow: 0 8px 22px #073e3e14; border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); }
+  .app-shell .surface:hover { border-color: color-mix(in srgb, var(--primary) 22%, var(--border)); }
+  .app-shell .account-trigger:hover .avatar { box-shadow: 0 0 0 3px #ffffff22; }
+  .social-profile-link:hover { transform: translateY(-3px) rotate(-3deg); }
+}
+.app-shell [data-slot="button"]:not(:disabled):not([aria-disabled="true"]):active { transform: translateY(0) scale(.98); }
+.app-shell .sidebar nav button:active { transform: translateX(1px) scale(.99); }
+.app-shell .page-pad { animation: crm-arrive 220ms ease-out both; }
+@keyframes crm-arrive { from { opacity: .65; translate: 0 5px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *, .app-shell *::before, .app-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .app-shell :is([data-slot="button"], .sidebar nav button, .metric, .company-icon, .social-profile-link):is(:hover, :active),
+  .app-shell .sidebar nav button:hover > svg, .app-shell .customer-row:hover .company-icon { transform: none !important; }
+}

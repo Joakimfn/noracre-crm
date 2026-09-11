@@ -5102,6 +5102,7 @@ function Marketing({
           </Button>
         )}
       </div>
+      <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
       <div className="metric-grid">
         {["Visninger","Engasjement","Klikk"].map(label=><div className="metric" key={label}><span>{label}</span><strong>—</strong><small>Statistikk kommer senere</small></div>)}
         <Metric
@@ -5109,7 +5110,6 @@ function Marketing({
           value={posts.filter((post) => post.status === "Publisert").length}
         />
       </div>
-      <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
       <section className="surface marketing-composer">
         <div className="surface-head">
           <h3>Lag ett innlegg</h3>

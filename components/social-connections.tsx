@@ -16,7 +16,6 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   const [busy,setBusy]=useState(false),[pending,setPending]=useState("");
   const [pages,setPages]=useState<Choice[]>([]),[pageId,setPageId]=useState("");
   const [allowed,setAllowed]=useState<string[]>([]),[selected,setSelected]=useState<string[]>([]);
-  const [disconnect,setDisconnect]=useState<SocialConnection|null>(null);
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),popup=useRef<Window|null>(null),generation=useRef(0);
   const admin=["Administrator","Superadmin"].includes(role);
   const headers={"x-organization-id":String(organizationId)};
@@ -75,17 +74,6 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       setPending("");await load();toast.success("Bedriftens kontoer er koblet til.");
     }catch(e){toast.error(e instanceof Error?e.message:"Kunne ikke lagre tilkoblingen.");}finally{setBusy(false);}
   }
-  async function test(id:number){
-    setBusy(true);
-    try{const r=await apiFetch("/api/social/connections",{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({id})});const d=await r.json();
-      if(!r.ok||!d.ok)throw Error(d.error??"Kontoen svarte ikke som forventet.");toast.success("Kontotilgangen fungerer. Ingen innlegg ble publisert.");
-    }catch(e){toast.error(e instanceof Error?e.message:"Testen feilet.");}finally{setBusy(false);}
-  }
-  async function remove(){
-    if(!disconnect)return;setBusy(true);
-    try{const r=await apiFetch(`/api/social/connections?id=${disconnect.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnect(null);await load();toast.success("Kontoen er fjernet fra denne bedriften i Noracre.");}
-    catch{toast.error("Kunne ikke fjerne kontoen.");}finally{setBusy(false);}
-  }
   const chosen=pages.find(p=>p.id===pageId);
   return <section className="surface">
     <div className="surface-head"><div><p className="eyebrow">KANALER</p><h3>Koble til kontoer</h3></div></div>
@@ -94,10 +82,15 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     <div className="channel-grid social-connections">
       {SOCIAL_CHANNELS.map(channel=>{
         const connection=data.connections.find(c=>c.platform===channel),meta=["Facebook","Instagram"].includes(channel);
-        return <div key={channel}><SocialChannelIcon channel={channel}/><strong>{channel}</strong>
-          <span>{connection?`${connection.accountName}${connection.expired?" · Koble til på nytt":" · Tilkoblet"}`:meta?"Ikke tilkoblet":"Kommer senere"}</span>
-          {meta&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||!data.ready||Boolean(error)} onClick={connect}>{busy?"Venter …":connection?"Koble til på nytt":"Koble til"}</Button>}
-          {connection&&admin&&<><Button size="sm" variant="ghost" disabled={busy||!data.ready} onClick={()=>test(connection.id)}>Test tilgang</Button><Button size="sm" variant="ghost" disabled={busy} onClick={()=>setDisconnect(connection)}>Koble fra</Button></>}
+        const profileUrl=connection ? channel==="Facebook" && /^\d+$/.test(connection.accountId)
+          ? `https://www.facebook.com/${connection.accountId}`
+          : channel==="Instagram" && /^[A-Za-z0-9._]{1,30}$/.test(connection.accountName)
+            ? `https://www.instagram.com/${encodeURIComponent(connection.accountName)}/` : null : null;
+        return <div key={channel}>
+          {profileUrl ? <a className="social-profile-link" href={profileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Åpne ${connection!.accountName} på ${channel} (ny fane)`}><SocialChannelIcon channel={channel}/></a> : <SocialChannelIcon channel={channel}/>}
+          <strong>{channel}</strong>
+          <span>{connection?`${connection.accountName}${connection.expired?" · Tilgang utløpt":" · Tilkoblet"}`:meta?"Ikke tilkoblet":"Kommer senere"}</span>
+          {meta&&admin&&!connection&&<Button size="sm" variant="outline" disabled={busy||loading||!data.ready||Boolean(error)} onClick={connect}>{busy?"Venter …":"Koble til"}</Button>}
         </div>;
       })}
     </div>
@@ -109,6 +102,6 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       })}</div>}
       <Button disabled={busy||!pageId||!selected.length} onClick={save}>{busy?"Lagrer …":"Koble til valgte kontoer"}</Button>
     </DialogContent></Dialog>
-    <Dialog open={Boolean(disconnect)} onOpenChange={open=>{if(!open&&!busy)setDisconnect(null);}}><DialogContent><DialogHeader><DialogTitle>Koble fra {disconnect?.accountName}?</DialogTitle><DialogDescription>Noracre fjerner den lagrede tilgangen for denne bedriften. Publiserte innlegg blir stående. Du kan også fjerne Noracre under bedriftsintegrasjoner hos Meta.</DialogDescription></DialogHeader><Button disabled={busy} onClick={remove}>Koble fra</Button></DialogContent></Dialog>
+
   </section>;
 }
