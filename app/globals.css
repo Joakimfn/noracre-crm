@@ -3087,3 +3087,8 @@ textarea {
 .noracre-date-footer button{font-size:13px;padding-inline:11px}
 .noracre-date-error{font-size:13px;color:#b33c30;margin-top:8px}
 @media(prefers-reduced-motion:reduce){.noracre-date-panel,.noracre-datetime button,.noracre-date-panel button{animation:none!important;transition:none!important}}
+.noracre-date-panel .noracre-calendar{--cell-size:2rem;padding-block:12px}
+.noracre-calendar .rdp-month{gap:8px}
+.noracre-calendar .rdp-week{margin-top:4px}
+.noracre-calendar .rdp-day button{height:32px;min-height:32px}
+.noracre-date-footer{position:sticky;bottom:-18px;background:#fff;padding-block:10px;margin-bottom:-10px}
