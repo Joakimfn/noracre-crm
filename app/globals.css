@@ -2561,7 +2561,7 @@ textarea {
   background: var(--card) !important;
   color: var(--card-foreground) !important;
 }
-.dark .stage-amber,
+.dark .app-shell .stage-amber,
 .dark .legal-note {
   background: #443817 !important;
   color: #f8dda0 !important;
@@ -3092,3 +3092,50 @@ textarea {
 .noracre-calendar .rdp-week{margin-top:4px}
 .noracre-calendar .rdp-day button{height:32px;min-height:32px}
 .noracre-date-footer{position:sticky;bottom:-18px;background:#fff;padding-block:10px;margin-bottom:-10px}
+.session-loading{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;background:var(--background);color:var(--muted-foreground)}
+.session-loading img{width:220px;max-width:60vw;animation:noracre-breathe 1.8s ease-in-out infinite}
+.session-loading span{font-size:14px;letter-spacing:.02em}
+@keyframes noracre-breathe{0%,100%{opacity:.55;transform:scale(.97)}50%{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.session-loading img{animation:none}}
+.stage-teal{background:#dcefe9;color:#0e6250;border:1px solid #b8dbcf}
+.activity-label{font-size:14px;font-weight:650;color:var(--foreground);margin:20px 0 8px}
+.dark .session-loading img{filter:brightness(0) invert(1)}
+.dark .app-shell :is(h1,h2,h3,h4,label,legend,summary),.dark .detail-panel :is(strong,summary,summary span),.dark .activity-label{color:var(--foreground)}
+.dark .compact-section summary,.dark .compact-section summary svg,.dark .attachment-upload,.dark .contact-actions button,.dark .business-grid strong,.dark .notes-label{color:#d8e9e2!important}
+.dark .contact-actions button{background:#203c32;border-color:#3f6052}
+.dark .app-shell .stage-blue{background:#203f59!important;color:#b9deff!important}
+.dark .app-shell .stage-teal,.dark .app-shell .stage-green{background:#1d4638!important;color:#b4edcf!important}
+.dark .app-shell .stage-purple{background:#40304f!important;color:#e5caff!important}
+.dark .app-shell .stage-gray{background:#35443f!important;color:#d7e1dd!important}
+.dark .app-shell .stage-amber{background:#4a3a19!important;color:#ffe0a0!important}
+.dark .customer-row .stage{color:inherit}
+.dark .noracre-datetime .noracre-datetime-trigger,.dark .noracre-date-panel,.dark .noracre-date-footer{background:var(--card);border-color:var(--border);color:var(--foreground)}
+.dark .noracre-date-caption strong,.dark .noracre-date-heading strong,.dark .noracre-date-fields input,.dark .noracre-calendar button{color:var(--foreground)}
+.dark .noracre-date-caption>span,.dark .noracre-date-fields label,.dark .noracre-date-fields legend,.dark .noracre-date-heading .eyebrow{color:#bed0c7}
+.dark .noracre-date-icon,.dark .noracre-datetime .noracre-now,.dark .noracre-date-shortcuts button{background:#234438;color:#c2efd9;border-color:#48695a}
+.dark .noracre-date-fields input{background:#20372e;border-color:#48695a}
+.dark .noracre-calendar .rdp-today{background:#254b3c;color:#d1f0df}
+.dark .noracre-calendar [data-selected-single=true]{background:#36815f!important;color:#fff!important}
+.dark .channel-grid strong,.dark .marketing-post strong,.dark .metric strong,.dark .operations-banner h2,.dark .operations-banner p,.dark .server-health span{color:var(--foreground)}
+.dark .operations-banner,.dark .operations-table,.dark .contact-card,.dark .customer-heading{background:var(--card);color:var(--foreground)}
+.dark :is(input,textarea)::placeholder{color:#a3b8ae;opacity:1}
+.health-button{cursor:pointer;text-align:left;border:1px solid var(--border);transition:box-shadow .18s}
+.health-button:hover{box-shadow:0 4px 18px #073e3e18}
+.health-checks{display:grid;gap:12px}
+.health-checks>div{border:1px solid var(--border);border-radius:12px;padding:14px}
+.health-checks>div>div{display:flex;justify-content:space-between;gap:12px}
+.health-checks p{font-size:14px;margin:7px 0 0;color:var(--muted-foreground)}
+.health-good{color:#17664d}.health-bad{color:#b83b32}
+.dark .health-good{color:#9de7bf}.dark .health-bad{color:#ffafa5}
+.operations-history .surface-head{flex-wrap:wrap;gap:14px}
+.operations-report-filter{display:flex;align-items:center;gap:12px;margin:14px 0}
+.operations-report-filter [data-slot=select-trigger]{min-width:200px;max-width:100%}
+.operations-table-scroll{overflow:auto;max-width:100%;margin:16px 0;border:1px solid var(--border);border-radius:12px}
+.operations-report-table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:14px;background:var(--card);color:var(--foreground)}
+.operations-report-table th,.operations-report-table td{padding:13px 16px;border-bottom:1px solid var(--border);text-align:left;font-weight:400}
+.operations-report-table thead th{background:var(--muted);font-weight:650;color:var(--foreground)}
+.operations-report-table tbody th{text-transform:capitalize;font-weight:600}
+.operations-report-table small{display:block;color:var(--muted-foreground);font-size:12px;margin-top:3px}
+.operations-log-pages{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-size:14px}
+.operations-log-pages>span{margin-right:auto}
+.dark .operations-history :is(th,td,strong){color:var(--foreground)}

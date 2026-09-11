@@ -10,6 +10,7 @@ type AuthMode = "login" | "signup" | "reset";
 
 export default function AuthGate() {
   const [config, setConfig] = useState<AuthConfig | null>(null);
+  const [checking, setChecking] = useState(true);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -44,7 +45,8 @@ export default function AuthGate() {
         const response = await apiFetch("/api/session");
         if (response.ok) setReady(true);
       })
-      .catch(() => setConfig({ configured: false }));
+      .catch(() => setConfig({ configured: false }))
+      .finally(() => setChecking(false));
   }, []);
 
   async function authenticate(event: FormEvent) {
@@ -151,6 +153,7 @@ export default function AuthGate() {
     setBusy(false);
   }
 
+  if (checking) return <main className="session-loading" role="status" aria-live="polite" aria-label="Åpner Noracre CRM"><img src="/noracre-logo-primary.svg" alt="Noracre"/><span>Gjør klart arbeidsområdet ditt …</span></main>;
   if (ready) return <CRMClient />;
   return (
     <main className="login-page">
@@ -249,3 +252,4 @@ export default function AuthGate() {
     </main>
   );
 }
+

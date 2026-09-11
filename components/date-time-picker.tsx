@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { nb } from "date-fns/locale";
-import { CalendarDays, Clock3, ChevronDown, Zap } from "lucide-react";
+import { CalendarDays, Clock3, ChevronDown } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,6 @@ export function DateTimePicker({value="",onChange,label,showNow=false}:{value?:s
         <div className="noracre-date-footer"><Button type="button" variant="ghost" onClick={()=>{onChange("");setOpen(false);}}>Fjern tidspunkt</Button><Button type="button" disabled={!selected||!validTime} onClick={apply}>Velg tidspunkt</Button></div>
       </PopoverContent>
     </Popover>
-    {showNow&&<Button type="button" variant="secondary" className="noracre-now" onClick={()=>{onChange(localValue(new Date()));setOpen(false);}}><Zap size={16}/>Nå</Button>}
+    {showNow&&<Button type="button" variant="secondary" className="noracre-now" onClick={()=>{onChange(localValue(new Date()));setOpen(false);}}>Nå</Button>}
   </div>;
 }

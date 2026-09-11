@@ -383,3 +383,13 @@ export const socialDeliveries = sqliteTable("social_deliveries", {
   error: text("error").notNull().default(""),
   createdAt: text("created_at").notNull(),
 }, t => [uniqueIndex("social_delivery_once").on(t.organizationId, t.postId, t.platform)]);
+
+export const billingEvents = sqliteTable("billing_events", {
+ id: integer("id").primaryKey({autoIncrement:true}),
+ organizationId: integer("organization_id").notNull(),
+ entityType: text("entity_type").notNull(), entityId: integer("entity_id").notNull(),
+ membershipId: integer("membership_id").notNull().default(0), moduleKey: text("module_key").notNull().default(""),
+ label: text("label").notNull(), active: integer("active",{mode:"boolean"}).notNull(),
+ monthlyPrice: integer("monthly_price").notNull().default(0), eventKind: text("event_kind").notNull(),
+ occurredAt: text("occurred_at").notNull(), referenceAt: text("reference_at").notNull().default(""),
+});

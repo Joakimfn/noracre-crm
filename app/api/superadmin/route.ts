@@ -86,15 +86,15 @@ export async function GET(request: Request) {
           (license) =>
             license.organizationId === org.id &&
             license.moduleKey === "ringelister" &&
-            license.active,
+            license.active && orgUsers.some(u=>u.id===license.membershipId&&u.active) && modules.some(m=>m.organizationId===org.id&&m.moduleKey===license.moduleKey&&m.active),
         ).length,
         marketingModuleUsers = licenses.filter(
           (license) =>
             license.organizationId === org.id &&
             license.moduleKey === "markedsforing" &&
-            license.active,
+            license.active && orgUsers.some(u=>u.id===license.membershipId&&u.active) && modules.some(m=>m.organizationId===org.id&&m.moduleKey===license.moduleKey&&m.active),
         ).length,
-        moduleMonthly = (moduleUsers + marketingModuleUsers) * 49,
+        moduleMonthly = licenses.filter(l=>l.organizationId===org.id&&l.active&&orgUsers.some(u=>u.id===l.membershipId&&u.active)&&modules.some(m=>m.organizationId===org.id&&m.moduleKey===l.moduleKey&&m.active)).reduce((sum,l)=>sum+l.pricePerUser,0),
         status = org.status === "Tapt" ? "Deaktivert" : org.status;
       return {
         id: org.id,
@@ -135,11 +135,11 @@ export async function GET(request: Request) {
       summary: {
         activeOrganizations: rows.filter((o) => o.status === "Aktiv").length,
         lostOrganizations: rows.filter((o) => o.status === "Deaktivert").length,
-        activeUsers: users.filter((u) => u.active).length,
+        activeUsers: users.filter((u) => u.active && orgs.some(o=>o.id===u.organizationId&&o.status==="Aktiv")).length,
         lostUsers: users.filter((u) => !u.active).length,
-        ringModuleOrganizations: rows.filter((o) => o.ringModuleActive).length,
+        ringModuleOrganizations: rows.filter((o) => o.status === "Aktiv" && o.ringModuleActive).length,
         marketingModuleOrganizations: rows.filter(
-          (o) => o.marketingModuleActive,
+          (o) => o.status === "Aktiv" && o.marketingModuleActive,
         ).length,
         moduleMonthlyAmount: rows
           .filter((r) => r.status === "Aktiv")
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
         monthlyAmount: rows
           .filter((r) => r.status === "Aktiv")
           .reduce((sum, r) => sum + r.monthlyAmount, 0),
-        serverStatus: "Normal",
+        serverStatus: "Ikke kontrollert",
       },
       organizations: rows,
     });
@@ -238,3 +238,4 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+

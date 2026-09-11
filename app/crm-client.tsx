@@ -1,5 +1,6 @@
 "use client";
 
+import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
 import { DateTimePicker } from "@/components/date-time-picker";
 import { SocialConnections, type SocialState } from "@/components/social-connections";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
@@ -2715,9 +2716,10 @@ function Customers(p: {
             </div>
           )}
         </div>
-        <div className="contact-actions">
+        <p className="activity-label">Registrer aktivitet</p>
+        <div className="contact-actions" role="group" aria-label="Registrer aktivitet">
           {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
-            <button key={k} onClick={() => p.contact(k)}>
+            <button key={k} aria-label={`Registrer aktivitet: ${k}`} onClick={() => p.contact(k)}>
               {icon(k)}
               <span>{k}</span>
             </button>
@@ -4213,6 +4215,7 @@ function CallLists({
     );
   return (
     <div className="page-pad call-lists">
+      <OperationsInsights/>
       <section className="surface">
         <div className="operations-head">
           <div>
@@ -5511,15 +5514,7 @@ function Operations(p: {
             kundeorganisasjoner.
           </p>
         </div>
-        <div
-          className={`server-health ${s.serverStatus === "Normal" ? "ok" : "error"}`}
-        >
-          <Server />
-          <span>
-            <small>Systemstatus</small>
-            <strong>{s.serverStatus}</strong>
-          </span>
-        </div>
+        <HealthStatus/>
       </div>
       <div className="metric-grid operations-metrics">
         <Metric
@@ -5544,6 +5539,7 @@ function Operations(p: {
           <strong>{s.monthlyAmount.toLocaleString("nb-NO")} kr</strong>
         </div>
       </div>
+      <OperationsInsights/>
       <section className="surface">
         <div className="operations-head">
           <div>
