@@ -599,6 +599,8 @@ export default function Home() {
   const avatarIdentity = JSON.stringify([user.email, activeOrgId, profile.avatarKey, avatarVersion]);
   const [savedAvatar, setSavedAvatar] = useState({ identity: "", url: "" });
   const avatarSrc = profilePreview || (savedAvatar.identity === avatarIdentity ? savedAvatar.url : "");
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState("");
+  const hasAvatar = Boolean(avatarSrc && avatarSrc !== failedAvatarSrc);
   useEffect(() => {
     if (!sessionReady || !profile.avatarKey) return;
     const controller = new AbortController();
@@ -1421,9 +1423,9 @@ export default function Home() {
   }
   if (!sessionReady)
     return (
-      <main className="session-gate">
-        <img className="brand-icon" src="/noracre-app-icon.svg" alt="" />
-        <span>Kontrollerer tilgang …</span>
+      <main className="session-loading" role="status" aria-live="polite" aria-label="Åpner Noracre CRM">
+        <img src="/noracre-logo-primary.svg" alt="Noracre" />
+        <span>Gjør klart arbeidsområdet ditt …</span>
       </main>
     );
   if (accessError.message)
@@ -1523,11 +1525,11 @@ export default function Home() {
           <DropdownMenuTrigger asChild>
             <button className="sidebar-foot account-trigger">
               <div className="avatar">
-                {avatarSrc && (
+                {hasAvatar && (
                   <img
                     key={avatarSrc}
                     src={avatarSrc}
-                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    onError={() => setFailedAvatarSrc(avatarSrc)}
                     alt=""
                     style={{
                       left: `${profile.avatarX}%`,
@@ -1536,14 +1538,14 @@ export default function Home() {
                     }}
                   />
                 )}
-                <span>
+                {!hasAvatar && <span>
                   {user.displayName
                     .split(" ")
                     .map((x) => x[0])
                     .join("")
                     .slice(0, 3)
                     .toUpperCase()}
-                </span>
+                </span>}
               </div>
               <div>
                 <strong>{user.displayName}</strong>
@@ -1585,11 +1587,11 @@ export default function Home() {
             <Label>Profilbilde</Label>
             <div className="profile-photo-row">
               <div className="avatar large">
-                {avatarSrc && (
+                {hasAvatar && (
                   <img
                     key={avatarSrc}
                     src={avatarSrc}
-                    onError={(event) => { event.currentTarget.style.display = "none"; }}
+                    onError={() => setFailedAvatarSrc(avatarSrc)}
                     alt=""
                     style={{
                       left: `${profile.avatarX}%`,
@@ -1598,14 +1600,14 @@ export default function Home() {
                     }}
                   />
                 )}
-                <span>
+                {!hasAvatar && <span>
                   {profile.displayName
                     .split(" ")
                     .map((x) => x[0])
                     .join("")
                     .slice(0, 3)
                     .toUpperCase()}
-                </span>
+                </span>}
               </div>
               <label className="photo-upload-button">
                 Velg bilde
