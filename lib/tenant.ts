@@ -147,9 +147,9 @@ export async function requireTenant(request: Request) {
   const requested = Number(
     request.headers.get("x-organization-id") || member[0].organizationId,
   );
-  const superadmin = member.find((m) => m.role === "Superadmin" && m.active);
+  const superadmin = member.find((m) => m.role === "Superadmin" && m.active && (!m.scheduledDisableAt || m.scheduledDisableAt > new Date().toISOString()));
   const anyDirect = member.find((m) => m.organizationId === requested);
-  if (anyDirect && !anyDirect.active)
+  if (anyDirect && (!anyDirect.active || (anyDirect.scheduledDisableAt && anyDirect.scheduledDisableAt <= new Date().toISOString())))
     throw new AccessError(
       403,
       "Brukeren din er deaktivert. Kontakt support dersom dette ikke skulle ha skjedd.",
@@ -162,7 +162,7 @@ export async function requireTenant(request: Request) {
           .from(organizations)
           .where(eq(organizations.id, requested))
           .limit(1);
-    if (!organization || organization.status !== "Aktiv")
+    if (!organization || organization.status !== "Aktiv" || (organization.scheduledDisableAt && organization.scheduledDisableAt <= new Date().toISOString()))
       throw new AccessError(
         403,
         "Bedriften er deaktivert. Kontakt support dersom dette ikke skulle ha skjedd.",
@@ -205,7 +205,7 @@ export async function requireTenant(request: Request) {
     .from(organizations)
     .where(eq(organizations.id, requested))
     .limit(1);
-  if (!organization || organization.status !== "Aktiv")
+  if (!organization || organization.status !== "Aktiv" || (organization.scheduledDisableAt && organization.scheduledDisableAt <= new Date().toISOString()))
     throw new AccessError(
       403,
       "Bedriften er deaktivert. Kontakt support dersom dette ikke skulle ha skjedd.",
@@ -230,4 +230,5 @@ export function accessResponse(error: unknown) {
       )
     : Response.json({ error: "Noe gikk galt." }, { status: 500 });
 }
+
 

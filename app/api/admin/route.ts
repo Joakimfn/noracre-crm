@@ -1,3 +1,4 @@
+import {disableAt} from "@/lib/deactivation";
 import { canManageModules } from "@/lib/module-access";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -289,9 +290,10 @@ export async function POST(request: Request) {
           { error: "Du kan ikke deaktivere din egen bruker." },
           { status: 400 },
         );
+      const scheduledDisableAt = active ? "" : disableAt(data.effectiveAt);
       const [member] = await db
         .update(memberships)
-        .set({ active })
+        .set({ active: scheduledDisableAt ? target.active : active, scheduledDisableAt })
         .where(
           and(
             eq(memberships.id, id),
@@ -301,7 +303,7 @@ export async function POST(request: Request) {
         .returning();
       await db
         .update(teamMembers)
-        .set({ active })
+        .set({ active: member.active })
         .where(
           and(
             eq(teamMembers.organizationId, ctx.organizationId),
@@ -522,3 +524,4 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+

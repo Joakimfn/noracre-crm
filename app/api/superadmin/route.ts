@@ -1,3 +1,4 @@
+import {disableAt} from "@/lib/deactivation";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -98,6 +99,7 @@ export async function GET(request: Request) {
         status = org.status === "Tapt" ? "Deaktivert" : org.status;
       return {
         id: org.id,
+        scheduledDisableAt: org.scheduledDisableAt,
         name: org.name,
         orgNumber: org.orgNumber,
         address: org.address,
@@ -190,6 +192,12 @@ export async function POST(request: Request) {
       return Response.json({ request: created }, { status: 201 });
     }
     if (data.type === "organizationStatus") {
+      const scheduledDisableAt = data.status === "Deaktivert" ? disableAt(data.effectiveAt) : "";
+      if (scheduledDisableAt) {
+        const [org] = await db.update(organizations).set({scheduledDisableAt}).where(eq(organizations.id,organizationId)).returning();
+        if(!org) throw new AccessError(404,"Bedriften finnes ikke");
+        return Response.json({organization:org});
+      }
       const status = data.status === "Deaktivert" ? "Deaktivert" : "Aktiv",
         deactivatedAt = status === "Deaktivert" ? now : "",
         retainUntil =
@@ -198,7 +206,7 @@ export async function POST(request: Request) {
             : "";
       const [org] = await db
         .update(organizations)
-        .set({ status, deactivatedAt, retainUntil })
+        .set({ status, deactivatedAt, retainUntil, scheduledDisableAt: "" })
         .where(eq(organizations.id, organizationId))
         .returning();
       return Response.json({ organization: org });
@@ -238,4 +246,5 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+
 
