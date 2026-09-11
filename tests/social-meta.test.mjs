@@ -85,6 +85,13 @@ test('OAuth diagnostics identify the failing stage without exposing provider sec
   assert.match(data.error,/190/);assert.doesNotMatch(JSON.stringify(data),/SECRET|private-page-token/);
   assert.doesNotMatch(sql.prepare('select payload from social_oauth where id=?').get(f.id).payload,/SECRET|private-page-token/);
   assert.equal((await route('meta/accounts').GET(req('meta/accounts?id='+f.id,2,2))).status,404);
+  const own=await (await route('connections').GET(req('connections'))).json();
+  assert.equal(own.connectionError,data.error);
+  for(const [user,org] of [[2,2],[3,1]]) {
+    const other=await (await route('connections').GET(req('connections',user,org))).json();
+    assert.equal(other.connectionError,undefined);
+  }
+
  }
 });
 test('OAuth state is bound to browser, is one-use, and callback never selects accounts',async()=>{

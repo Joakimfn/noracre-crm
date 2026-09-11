@@ -13,6 +13,7 @@ interface Choice {id:string;name:string;instagram:{id:string;name:string}|null}
 export function SocialConnections({organizationId,role,onChange}:{organizationId:number;role:string;onChange:(value:SocialState)=>void}){
   const [data,setData]=useState<SocialState>({ready:false,connections:[]});
   const [loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [connectionError,setConnectionError]=useState("");
   const [busy,setBusy]=useState(false),[pending,setPending]=useState("");
   const [pages,setPages]=useState<Choice[]>([]),[pageId,setPageId]=useState("");
   const [allowed,setAllowed]=useState<string[]>([]),[selected,setSelected]=useState<string[]>([]);
@@ -25,12 +26,12 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       const r=await apiFetch("/api/social/connections",{headers});const d=await r.json();
       if(!r.ok)throw Error(d.error);
       if(g!==generation.current)return;
-      setData(d);onChange(d);setError("");
+      setData(d);onChange(d);setError("");setConnectionError(d.connectionError??"");
     }catch{if(g===generation.current)setError("Kunne ikke hente kontotilkoblingene. Prøv å åpne modulen på nytt.");}
     finally{if(g===generation.current)setLoading(false);}
   }
   useEffect(()=>{
-    generation.current++;setLoading(true);setData({ready:false,connections:[]});onChange({ready:false,connections:[]});load();
+    generation.current++;setConnectionError("");setLoading(true);setData({ready:false,connections:[]});onChange({ready:false,connections:[]});load();
     return()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();};
     // Remount on organization change; onChange is the parent's stable state setter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,7 +42,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     popup.current=window.open("about:blank","noracre-meta","width=650,height=760");
     if(!popup.current)return toast.error("Tillat sprettoppvinduer for å koble til Meta.");
     popup.current.opener=null;
-    setBusy(true);
+    setBusy(true);setConnectionError("");
     try{
       const r=await apiFetch("/api/social/meta/start",{method:"POST",headers});const d=await r.json();
       if(!r.ok)throw Error(d.error);
@@ -61,10 +62,10 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           if(result.status==="error")throw Error(result.error || "Tilkoblingen ble ikke fullført. Start på nytt.");
           if(Date.now()>until)throw Error("Tilkoblingen ble avbrutt eller utløp.");
           timer.current=setTimeout(poll,2000);
-        }catch(e){if(g===generation.current){setBusy(false);popup.current?.close();toast.error(e instanceof Error?e.message:"Kunne ikke koble til.");}}
+        }catch(e){if(g===generation.current){setBusy(false);popup.current?.close();setConnectionError(e instanceof Error?e.message:"Kunne ikke koble til.");}}
       };
       timer.current=setTimeout(poll,1500);
-    }catch(e){popup.current?.close();setBusy(false);toast.error(e instanceof Error?e.message:"Kunne ikke koble til.");}
+    }catch(e){popup.current?.close();setBusy(false);setConnectionError(e instanceof Error?e.message:"Kunne ikke koble til.");}
   }
   async function save(){
     setBusy(true);
@@ -78,6 +79,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   return <section className="surface">
     <div className="surface-head"><div><p className="eyebrow">KANALER</p><h3>Koble til kontoer</h3></div></div>
     <p className="form-hint">{loading?"Henter kontotilkoblinger …":error||(!data.ready?"Facebook og Instagram venter på at Noracre fullfører Meta-oppsettet.":"Koble til bedriftens Facebook-side og tilknyttede profesjonelle Instagram-konto. Kun administratorer kan endre tilkoblingene.")}</p>
+    {connectionError&&<p role="alert" className="form-hint" style={{color:"var(--destructive)"}}>{connectionError}</p>}
     {busy&&!pending&&<Button variant="ghost" onClick={()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();setBusy(false);}}>Avbryt venting</Button>}
     <div className="channel-grid social-connections">
       {SOCIAL_CHANNELS.map(channel=>{

@@ -1,13 +1,20 @@
+import { socialDiagnostic } from "@/lib/social-diagnostic";
+import { canManageModules } from "@/lib/module-access";
 import { getDb } from "@/db";
-import { socialConnections } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { socialConnections, socialOAuth } from "@/db/schema";
+import { and, eq, gt, desc } from "drizzle-orm";
 import { accessResponse } from "@/lib/tenant";
 import { graph, metaReady, socialAccess, tokenContext, unseal } from "@/lib/social-meta";
 export async function GET(request:Request){
   try {
     const ctx=await socialAccess(request);
     const rows=await getDb().select({id:socialConnections.id,platform:socialConnections.platform,accountId:socialConnections.accountId,accountName:socialConnections.accountName,expiresAt:socialConnections.expiresAt}).from(socialConnections).where(eq(socialConnections.organizationId,ctx.organizationId));
-    return Response.json({ready:metaReady(),connections:rows.map(r=>({...r,expired:r.expiresAt<=Date.now()}))});
+    let connectionError: string | undefined;
+    if(canManageModules(ctx.role)) {
+      const [attempt]=await getDb().select({status:socialOAuth.status,payload:socialOAuth.payload}).from(socialOAuth).where(and(eq(socialOAuth.organizationId,ctx.organizationId),eq(socialOAuth.membershipId,ctx.membershipId),gt(socialOAuth.expiresAt,Date.now()-86400000))).orderBy(desc(socialOAuth.expiresAt)).limit(1);
+      if(attempt?.status==="error")connectionError=socialDiagnostic(attempt.payload).error;
+    }
+    return Response.json({connectionError,ready:metaReady(),connections:rows.map(r=>({...r,expired:r.expiresAt<=Date.now()}))});
   }catch(e){return accessResponse(e);}
 }
 export async function DELETE(request:Request){
