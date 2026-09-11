@@ -594,6 +594,34 @@ export default function Home() {
       confirm: () => void;
     } | null>(null),
     [sessionReady, setSessionReady] = useState(false);
+  const avatarIdentity = JSON.stringify([user.email, activeOrgId, profile.avatarKey, avatarVersion]);
+  const [savedAvatar, setSavedAvatar] = useState({ identity: "", url: "" });
+  const avatarSrc = profilePreview || (savedAvatar.identity === avatarIdentity ? savedAvatar.url : "");
+  useEffect(() => {
+    if (!sessionReady || !profile.avatarKey) return;
+    const controller = new AbortController();
+    let objectUrl = "";
+    apiFetch(`/api/profile?avatar=1&v=${avatarVersion}`, {
+      headers: { "x-organization-id": String(activeOrgId) },
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error("Kunne ikke hente profilbildet");
+        return response.blob();
+      })
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSavedAvatar({ identity: avatarIdentity, url: objectUrl });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSavedAvatar({ identity: avatarIdentity, url: "" });
+      });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [sessionReady, avatarIdentity, activeOrgId, profile.avatarKey, avatarVersion]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const api = (url: string, init: RequestInit = {}) => {
     const h = new Headers(init.headers);
@@ -1493,13 +1521,11 @@ export default function Home() {
           <DropdownMenuTrigger asChild>
             <button className="sidebar-foot account-trigger">
               <div className="avatar">
-                {(profile.avatarKey || profilePreview) && (
+                {avatarSrc && (
                   <img
-                    key={`${avatarVersion}-${profilePreview}`}
-                    src={
-                      profilePreview ||
-                      `/api/profile?avatar=1&v=${avatarVersion}`
-                    }
+                    key={avatarSrc}
+                    src={avatarSrc}
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
                     alt=""
                     style={{
                       left: `${profile.avatarX}%`,
@@ -1557,12 +1583,11 @@ export default function Home() {
             <Label>Profilbilde</Label>
             <div className="profile-photo-row">
               <div className="avatar large">
-                {(profile.avatarKey || profilePreview) && (
+                {avatarSrc && (
                   <img
-                    src={
-                      profilePreview ||
-                      `/api/profile?avatar=1&v=${avatarVersion}`
-                    }
+                    key={avatarSrc}
+                    src={avatarSrc}
+                    onError={(event) => { event.currentTarget.style.display = "none"; }}
                     alt=""
                     style={{
                       left: `${profile.avatarX}%`,
@@ -1602,7 +1627,7 @@ export default function Home() {
                   }}
                 />
               </label>
-              {(profile.avatarKey || profilePreview) && (
+              {avatarSrc && (
                 <Button
                   type="button"
                   variant="outline"
@@ -1670,10 +1695,7 @@ export default function Home() {
       <AvatarCropDialog
         open={cropOpen}
         setOpen={setCropOpen}
-        src={
-          profilePreview ||
-          (profile.avatarKey ? `/api/profile?avatar=1&v=${avatarVersion}` : "")
-        }
+        src={avatarSrc}
         x={profile.avatarX}
         y={profile.avatarY}
         zoom={profile.avatarZoom}
