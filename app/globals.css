@@ -3139,3 +3139,5 @@ textarea {
 .operations-log-pages{display:flex;align-items:center;justify-content:flex-end;gap:10px;font-size:14px}
 .operations-log-pages>span{margin-right:auto}
 .dark .operations-history :is(th,td,strong){color:var(--foreground)}
+
+.dark .facts span,.dark .section-label,.dark .section-label span,.dark .status-row>span,.dark .detail-panel p,.dark .save-state.saved{color:var(--muted-foreground)!important}
