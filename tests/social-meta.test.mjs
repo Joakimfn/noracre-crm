@@ -68,6 +68,20 @@ test('unconfigured Meta fails closed',async()=>{
  const secret=testEnv.META_APP_SECRET;delete testEnv.META_APP_SECRET;
  assert.equal((await route('meta/start').POST(req('meta/start',1,1,{}))).status,503);testEnv.META_APP_SECRET=secret;
 });
+test('OAuth diagnostics identify the failing stage without exposing provider secrets',async()=>{
+ const normal=globalThis.fetch;
+ for(const target of ['oauth/access_token','me/permissions','me/accounts']){
+  const f=await start();
+  globalThis.fetch=async(input,init)=>String(input).includes('/'+target)?Response.json({error:{code:190,message:'SECRET token=private-page-token'}},{status:400}):normal(input,init);
+  try {assert.equal((await callback(f)).status,400);} finally {globalThis.fetch=normal;}
+  const result=await route('meta/accounts').GET(req('meta/accounts?id='+f.id));
+  const data=await result.json();
+  assert.equal(data.stage,{'oauth/access_token':'code_exchange','me/permissions':'permissions','me/accounts':'pages'}[target]);
+  assert.match(data.error,/190/);assert.doesNotMatch(JSON.stringify(data),/SECRET|private-page-token/);
+  assert.doesNotMatch(sql.prepare('select payload from social_oauth where id=?').get(f.id).payload,/SECRET|private-page-token/);
+  assert.equal((await route('meta/accounts').GET(req('meta/accounts?id='+f.id,2,2))).status,404);
+ }
+});
 test('OAuth state is bound to browser, is one-use, and callback never selects accounts',async()=>{
  flow=await start();assert.equal((await callback(flow,'')).status,400);assert.equal(sql.prepare('select status from social_oauth where id=?').get(flow.id).status,'waiting');
  assert.equal((await callback(flow)).status,200);const n=calls.length;

@@ -59,7 +59,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           if(result.status==="ready"){
             popup.current?.close();setPending(d.id);setPages(result.pages);setAllowed(result.platforms);setPageId("");setSelected([]);setBusy(false);return;
           }
-          if(result.status==="error")throw Error("Tilkoblingen ble ikke fullført. Kontroller tillatelsene hos Meta og prøv igjen.");
+          if(result.status==="error")throw Error(result.error || "Tilkoblingen ble ikke fullført. Start på nytt.");
           if(Date.now()>until)throw Error("Tilkoblingen ble avbrutt eller utløp.");
           timer.current=setTimeout(poll,2000);
         }catch(e){if(g===generation.current){setBusy(false);popup.current?.close();toast.error(e instanceof Error?e.message:"Kunne ikke koble til.");}}

@@ -53,7 +53,7 @@ export const tokenContext = (org: number, platform: string, accountId: string) =
 export const pendingContext = (org: number, id: string) => `pending:${org}:${id}`;
 
 export class MetaError extends AccessError {
-  constructor(public uncertain: boolean, public expired = false) {
+  constructor(public uncertain: boolean, public expired = false, public providerCode?: number) {
     super(502, expired ? "Tilgangen hos Meta er utløpt eller fjernet. Koble til kontoen på nytt." :
       uncertain ? "Svaret fra Meta er uklart. Kontroller kontoen før du forsøker å publisere innholdet på nytt." :
       "Meta avviste forespørselen. Kontroller kontoens rettigheter og bildene.");
@@ -76,19 +76,23 @@ export async function graph<T>(path: string, token?: string, values: Record<stri
   catch { throw new MetaError(method === "POST"); }
   let data: {error?: {code?: number}};
   try { data = await response.json(); } catch { throw new MetaError(method === "POST"); }
-  if (!response.ok || data.error) throw new MetaError(response.status >= 500 && method === "POST", data.error?.code === 190);
+  if (!response.ok || data.error) throw new MetaError(response.status >= 500 && method === "POST", data.error?.code === 190, Number.isSafeInteger(data.error?.code) ? data.error?.code : undefined);
   return data as T;
 }
 export interface MetaPage { id: string; name: string; access_token: string; tasks?: string[]; instagram_business_account?: {id: string; username?: string} }
 export interface PendingAccounts { pages: MetaPage[]; expiresAt: number; permissions: string[] }
-export async function discoverAccounts(code: string): Promise<PendingAccounts> {
+export async function discoverAccounts(code: string, stage: (name: string) => void = () => {}): Promise<PendingAccounts> {
   const c = metaConfig();
+  stage("code_exchange");
   const short = await graph<{access_token: string}>("oauth/access_token", undefined, {client_id:c.appId, client_secret:c.secret, redirect_uri:c.redirect, code});
   if (!short.access_token) throw new MetaError(false);
+  stage("token_exchange");
   const long = await graph<{access_token: string; expires_in?: number}>("oauth/access_token", undefined,
     {grant_type:"fb_exchange_token", client_id:c.appId, client_secret:c.secret, fb_exchange_token:short.access_token});
   if (!long.access_token) throw new MetaError(false);
+  stage("permissions");
   const permissions = (await graph<{data: {permission: string; status: string}[]}>("me/permissions", long.access_token)).data.filter(p=>p.status==="granted").map(p=>p.permission);
+  stage("pages");
   const pages: MetaPage[] = [];
   let after = "";
   for(let i=0;i<10;i++) {
@@ -99,6 +103,7 @@ export async function discoverAccounts(code: string): Promise<PendingAccounts> {
     after=result.paging.cursors?.after ?? "";
     if(!after || i===9) throw new AccessError(400,"For mange sider. Begrens sidetilgangen hos Meta og prøv igjen.");
   }
+  stage("token_expiry");
   const lifetime = Number(long.expires_in);
   // Conservatively reconnect on expiry instead of pretending there is a refresh token.
   if (!Number.isFinite(lifetime) || lifetime <= 0) throw new MetaError(false);
