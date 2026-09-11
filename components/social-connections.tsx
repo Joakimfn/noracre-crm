@@ -15,6 +15,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   const [loading,setLoading]=useState(true),[error,setError]=useState("");
   const [connectionError,setConnectionError]=useState("");
   const [busy,setBusy]=useState(false),[pending,setPending]=useState("");
+  const [discovery,setDiscovery]=useState<{returned:number;missingToken:number;missingTask:number;missingTasksField:number}|null>(null);
   const [pages,setPages]=useState<Choice[]>([]),[pageId,setPageId]=useState("");
   const [allowed,setAllowed]=useState<string[]>([]),[selected,setSelected]=useState<string[]>([]);
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),popup=useRef<Window|null>(null),generation=useRef(0);
@@ -57,7 +58,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           if(g!==generation.current)return;
           if(!response.ok)throw Error(result.error);
           if(result.status==="ready"){
-            popup.current?.close();setPending(d.id);setPages(result.pages);setAllowed(result.platforms);setPageId("");setSelected([]);setBusy(false);return;
+            popup.current?.close();setPending(d.id);setPages(result.pages);setDiscovery(result.discovery??null);setAllowed(result.platforms);setPageId("");setSelected([]);setBusy(false);return;
           }
           if(result.status==="error")throw Error(result.error || "Tilkoblingen ble ikke fullført. Start på nytt.");
           if(Date.now()>until)throw Error("Tilkoblingen ble avbrutt eller utløp.");
@@ -97,7 +98,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       })}
     </div>
     <Dialog open={Boolean(pending)} onOpenChange={open=>{if(!open&&!busy)setPending("");}}><DialogContent><DialogHeader><DialogTitle>Velg bedriftens kontoer</DialogTitle><DialogDescription>Velg siden som tilhører denne bedriften. Eksisterende tilkobling erstattes bare for kanalene du velger.</DialogDescription></DialogHeader>
-      {!pages.length?<p>Meta returnerte ingen sider med publiseringstilgang. Kontroller at du administrerer en Facebook-side, og at du ga tilgang til den.</p>:<Select value={pageId} onValueChange={value=>{setPageId(value);setSelected([]);}}><SelectTrigger><SelectValue placeholder="Velg Facebook-side"/></SelectTrigger><SelectContent>{pages.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>}
+      {!pages.length?<p>Meta returnerte ingen sider med publiseringstilgang. Kontroller at du administrerer en Facebook-side, og at du ga tilgang til den.{discovery&&<span> Sider mottatt: {discovery.returned}. Uten kontotilgang: {discovery.missingToken}. Uten publiseringsrolle: {discovery.missingTask}. Uten rolleopplysninger: {discovery.missingTasksField}.</span>}</p>:<Select value={pageId} onValueChange={value=>{setPageId(value);setSelected([]);}}><SelectTrigger><SelectValue placeholder="Velg Facebook-side"/></SelectTrigger><SelectContent>{pages.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>}
       {chosen&&<div className="social-account-options">{["Facebook","Instagram"].map(platform=>{
         const enabled=allowed.includes(platform)&&(platform!=="Instagram"||Boolean(chosen.instagram));
         return <label key={platform}><input type="checkbox" disabled={!enabled} checked={selected.includes(platform)} onChange={e=>setSelected(s=>e.target.checked?[...s,platform]:s.filter(p=>p!==platform))}/><span>{platform}: {platform==="Facebook"?chosen.name:chosen.instagram?.name??"Ingen tilknyttet profesjonell konto"}{!allowed.includes(platform)?" · Publiseringstillatelse mangler":""}</span></label>;

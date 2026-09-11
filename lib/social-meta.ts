@@ -82,7 +82,7 @@ export async function graph<T>(path: string, token?: string, values: Record<stri
   return data as T;
 }
 export interface MetaPage { id: string; name: string; access_token: string; tasks?: string[]; instagram_business_account?: {id: string; username?: string} }
-export interface PendingAccounts { pages: MetaPage[]; expiresAt: number; permissions: string[] }
+export interface PendingAccounts { pages: MetaPage[]; discovery?: {returned:number;missingToken:number;missingTask:number;missingTasksField:number}; expiresAt: number; permissions: string[] }
 export async function discoverAccounts(code: string, stage: (name: string) => void = () => {}): Promise<PendingAccounts> {
   const c = metaConfig();
   stage("code_exchange");
@@ -96,10 +96,15 @@ export async function discoverAccounts(code: string, stage: (name: string) => vo
   const permissions = (await graph<{data: {permission: string; status: string}[]}>("me/permissions", long.access_token)).data.filter(p=>p.status==="granted").map(p=>p.permission);
   stage("pages");
   const pages: MetaPage[] = [];
+  const discovery={returned:0,missingToken:0,missingTask:0,missingTasksField:0};
   let after = "";
   for(let i=0;i<10;i++) {
     const result = await graph<{data:MetaPage[]; paging?:{cursors?:{after?:string}; next?:string}}>("me/accounts",long.access_token,
       {fields:"id,name,access_token,tasks"+(permissions.includes("instagram_basic")?",instagram_business_account{id,username}":""),limit:"100",...(after?{after}:{})});
+    discovery.returned+=result.data.length;
+    discovery.missingToken+=result.data.filter(p=>!p.access_token).length;
+    discovery.missingTask+=result.data.filter(p=>!p.tasks?.some(t=>["CREATE_CONTENT","MANAGE"].includes(t))).length;
+    discovery.missingTasksField+=result.data.filter(p=>!Array.isArray(p.tasks)).length;
     pages.push(...result.data.filter(p => /^\d+$/.test(p.id) && p.access_token && p.tasks?.some(t=>["CREATE_CONTENT","MANAGE"].includes(t))));
     if(!result.paging?.next) break;
     after=result.paging.cursors?.after ?? "";
@@ -125,7 +130,7 @@ export async function discoverAccounts(code: string, stage: (name: string) => vo
     }
     expiresAt=Math.min(...deadlines);
   }
-  return {pages, permissions, expiresAt};
+  return {pages, discovery, permissions, expiresAt};
 }
 export function permittedPlatforms(p: PendingAccounts) {
   const has = (...names:string[])=>names.every(n=>p.permissions.includes(n));

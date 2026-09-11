@@ -18,7 +18,7 @@ export async function GET(request:Request) {
     }
     if(flow.status!=="ready")return Response.json({status:flow.status});
     const payload=await unseal<PendingAccounts>(flow.payload,pendingContext(ctx.organizationId,flow.id));
-    return Response.json({status:"ready",platforms:permittedPlatforms(payload),pages:payload.pages.map(p=>({id:p.id,name:p.name,instagram:p.instagram_business_account?{id:p.instagram_business_account.id,name:p.instagram_business_account.username??p.name}:null}))});
+    return Response.json({status:"ready",discovery:payload.discovery,platforms:permittedPlatforms(payload),pages:payload.pages.map(p=>({id:p.id,name:p.name,instagram:p.instagram_business_account?{id:p.instagram_business_account.id,name:p.instagram_business_account.username??p.name}:null}))});
   } catch(e){return accessResponse(e);}
 }
 export async function POST(request:Request) {
