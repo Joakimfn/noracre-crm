@@ -106,10 +106,26 @@ export async function discoverAccounts(code: string, stage: (name: string) => vo
     if(!after || i===9) throw new AccessError(400,"For mange sider. Begrens sidetilgangen hos Meta og prøv igjen.");
   }
   stage("token_expiry");
-  const lifetime = Number(long.expires_in);
-  // Conservatively reconnect on expiry instead of pretending there is a refresh token.
-  if (!Number.isFinite(lifetime) || lifetime <= 0) throw new MetaError(false);
-  return {pages, permissions, expiresAt:Date.now()+Math.min(lifetime,60*24*3600)*1000};
+  const lifetime = Number(long.expires_in), now = Date.now();
+  const cap = now + 60*24*3600*1000;
+  let expiresAt: number;
+  if (Number.isFinite(lifetime) && lifetime > 0) expiresAt = Math.min(now+lifetime*1000,cap);
+  else {
+    // A repeated exchange can omit expires_in. Verify the token with Meta rather
+    // than inventing a new lifetime for an existing credential.
+    const {data} = await graph<{data:{is_valid?:boolean;app_id?:string;type?:string;expires_at?:number;data_access_expires_at?:number}}>(
+      "debug_token", `${c.appId}|${c.secret}`, {input_token:long.access_token});
+    if(data?.is_valid!==true || String(data.app_id)!==c.appId || data.type!=="USER" ||
+      !Number.isSafeInteger(data.expires_at) || data.expires_at! < 0) throw new MetaError(false);
+    const deadlines=[cap];
+    for(const expiry of [data.expires_at,data.data_access_expires_at]) {
+      if(expiry===undefined)continue;
+      if(!Number.isSafeInteger(expiry)||expiry<0||(expiry>0&&expiry*1000<=now))throw new MetaError(false);
+      if(expiry>0)deadlines.push(expiry*1000);
+    }
+    expiresAt=Math.min(...deadlines);
+  }
+  return {pages, permissions, expiresAt};
 }
 export function permittedPlatforms(p: PendingAccounts) {
   const has = (...names:string[])=>names.every(n=>p.permissions.includes(n));

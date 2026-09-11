@@ -94,6 +94,30 @@ test('OAuth diagnostics identify the failing stage without exposing provider sec
 
  }
 });
+test('repeated exchange verifies missing lifetime through Meta and bounds expiry',async()=>{
+ const normal=globalThis.fetch, now=Math.floor(Date.now()/1000);
+ let debug={is_valid:true,app_id:'123',type:'USER',expires_at:now+10000,data_access_expires_at:now+5000};
+ globalThis.fetch=async(input,init)=>{
+   const u=new URL(String(input));
+   if(u.pathname.endsWith('/oauth/access_token'))return Response.json({access_token:'private-user-token'});
+   if(u.pathname.endsWith('/debug_token')) {
+     assert.equal(u.searchParams.get('input_token'),'private-user-token');
+     assert.equal(init.headers.Authorization,'Bearer 123|'+testEnv.META_APP_SECRET);
+     return Response.json({data:debug});
+   }
+   return normal(input,init);
+ };
+ try {
+   assert.equal((await app.meta.discoverAccounts('code')).expiresAt,(now+5000)*1000);
+   for(const patch of [{is_valid:false},{app_id:'other'},{type:'PAGE'},{expires_at:now-1},{data_access_expires_at:now-1},{expires_at:undefined}]) {
+     const saved=debug;debug={...saved,...patch};
+     await assert.rejects(app.meta.discoverAccounts('code'),app.meta.MetaError);debug=saved;
+   }
+   debug={...debug,expires_at:0,data_access_expires_at:0};
+   const before=Date.now();const result=await app.meta.discoverAccounts('code');
+   assert.ok(result.expiresAt>=before+60*86400000 && result.expiresAt<=Date.now()+60*86400000);
+ } finally {globalThis.fetch=normal;}
+});
 test('OAuth state is bound to browser, is one-use, and callback never selects accounts',async()=>{
  flow=await start();assert.equal((await callback(flow,'')).status,400);assert.equal(sql.prepare('select status from social_oauth where id=?').get(flow.id).status,'waiting');
  assert.equal((await callback(flow)).status,200);const n=calls.length;
