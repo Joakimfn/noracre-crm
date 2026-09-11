@@ -3200,3 +3200,5 @@ textarea {
 .email-confirm-body { white-space:pre-wrap;overflow-wrap:anywhere;max-height:35vh;overflow-y:auto; }
 .email-attachments { display:grid;gap:10px; }
 .bulk-email-foot { align-items:start;gap:16px;flex-wrap:wrap; }
+/* Search input must inherit its wrapper even against native-control selectors. */
+.dark .app-shell .search-box input { background:transparent!important; }
