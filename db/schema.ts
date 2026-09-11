@@ -346,3 +346,40 @@ export const marketingPostImages = sqliteTable(
     index("idx_marketing_post_images_org_post").on(t.organizationId, t.postId),
   ],
 );
+
+
+export const socialOAuth = sqliteTable("social_oauth", {
+  id: text("id").primaryKey(),
+  organizationId: integer("organization_id").notNull(),
+  membershipId: integer("membership_id").notNull(),
+  stateHash: text("state_hash").notNull(),
+  browserHash: text("browser_hash").notNull(),
+  status: text("status").notNull().default("waiting"),
+  payload: text("payload").notNull().default(""),
+  expiresAt: integer("expires_at").notNull(),
+}, t => [uniqueIndex("social_oauth_state").on(t.stateHash), index("social_oauth_expiry").on(t.expiresAt)]);
+
+export const socialConnections = sqliteTable("social_connections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationId: integer("organization_id").notNull(),
+  platform: text("platform").notNull(),
+  accountId: text("account_id").notNull(),
+  accountName: text("account_name").notNull(),
+  pageId: text("page_id").notNull(),
+  token: text("token").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  connectedBy: integer("connected_by").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, t => [uniqueIndex("social_connection_org_platform").on(t.organizationId, t.platform)]);
+
+export const socialDeliveries = sqliteTable("social_deliveries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  organizationId: integer("organization_id").notNull(),
+  postId: integer("post_id").notNull(),
+  platform: text("platform").notNull(),
+  accountId: text("account_id").notNull(),
+  status: text("status").notNull().default("sending"),
+  remoteId: text("remote_id").notNull().default(""),
+  error: text("error").notNull().default(""),
+  createdAt: text("created_at").notNull(),
+}, t => [uniqueIndex("social_delivery_once").on(t.organizationId, t.postId, t.platform)]);

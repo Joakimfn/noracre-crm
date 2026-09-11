@@ -1,5 +1,6 @@
 "use client";
 
+import { SocialConnections, type SocialState } from "@/components/social-connections";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { SocialChannelIcon } from "@/components/social-channel-icon";
 
@@ -1825,6 +1826,7 @@ export default function Home() {
         )}{" "}
         {view === "marketing" && (["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
           <Marketing
+            key={activeOrgId}
             active={marketingModuleActive}
             role={rolePreview}
             members={members}
@@ -4845,6 +4847,7 @@ function Marketing({
         platforms: string;
         scheduledAt: string;
         status: string;
+        deliveries?: {platform:string;status:string;error:string}[];
         images?: {
           id: number;
           filename: string;
@@ -4858,6 +4861,33 @@ function Marketing({
     [platforms, setPlatforms] = useState<string[]>([]),
     [images, setImages] = useState<File[]>([]),
     [savingPost, setSavingPost] = useState(false);
+  const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
+  const [publishId,setPublishId] = useState<number|null>(null);
+  const [publishing,setPublishing] = useState(false);
+  const publishPost = posts.find(post=>post.id===publishId);
+  function canPublish(post: typeof posts[number]) {
+    const selected=JSON.parse(post.platforms) as string[];
+    return social.ready && post.status === "Kladd" && selected.length>0 && selected.every(channel=>
+      ["Facebook","Instagram"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
+  }
+  async function publishNow() {
+    if(!publishPost||publishing)return;
+    setPublishing(true);
+    try {
+      const response=await apiFetch("/api/social/publish",{method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({postId:publishPost.id,confirm:true,targets:social.connections.map(c=>({id:c.id,accountId:c.accountId,platform:c.platform}))})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error??"Kunne ikke publisere.");
+      setPosts(rows=>rows.map(p=>p.id===publishPost.id?{...p,status:result.status,deliveries:result.results}:p));
+      setPublishId(null);
+      if(result.status==="Publisert")toast.success("Innlegget er publisert.");
+      else toast.error("Kontroller resultatet for hver kanal i innholdsplanen.");
+    } catch(error) {
+      toast.error(error instanceof Error?error.message:"Svaret mangler. Kontroller status før du forsøker igjen.");
+      const r=await apiFetch("/api/marketing",{headers:{"x-organization-id":String(organizationId)}}).catch(()=>null);
+      if(r?.ok){const d=await r.json();setPosts(d.posts??[]);}
+      setPublishId(null);
+    } finally {setPublishing(false);}
+  }
   const imagePreviews = useMemo(
     () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
     [images],
@@ -5051,32 +5081,13 @@ function Marketing({
         )}
       </div>
       <div className="metric-grid">
-        <Metric label="Visninger" value={0} />
-        <Metric label="Engasjement" value={0} />
-        <Metric label="Klikk" value={0} />
+        {["Visninger","Engasjement","Klikk"].map(label=><div className="metric" key={label}><span>{label}</span><strong>—</strong><small>Statistikk kommer senere</small></div>)}
         <Metric
           label="Publisert"
           value={posts.filter((post) => post.status === "Publisert").length}
         />
       </div>
-      <section className="surface">
-        <div className="surface-head">
-          <div>
-            <p className="eyebrow">KANALER</p>
-            <h3>Koble til kontoer</h3>
-          </div>
-        </div>
-        <p className="form-hint">Kontotilkobling er ikke tilgjengelig ennå. Du kan foreløpig lagre kladder for kanalene nedenfor.</p>
-        <div className="channel-grid social-connections">
-          {channels.map((channel) => (
-            <div key={channel}>
-              <SocialChannelIcon channel={channel} />
-              <strong>{channel}</strong>
-              <span>Kommer senere</span>
-            </div>
-          ))}
-        </div>
-      </section>
+      <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
       <section className="surface marketing-composer">
         <div className="surface-head">
           <h3>Lag ett innlegg</h3>
@@ -5146,7 +5157,7 @@ function Marketing({
           {savingPost ? "Lagrer …" : "Lagre kladd"}
         </Button>
         <p className="form-hint">
-          Innlegget lagres som kladd. Det publiseres ikke automatisk, heller ikke når du velger et tidspunkt.
+          Innlegget lagres som kladd. Publiser til tilkoblede Facebook- og Instagram-kontoer fra innholdsplanen. Tidspunktet er kun til planlegging og starter ingen automatisk publisering.
         </p>
       </section>
       <section className="surface">
@@ -5175,12 +5186,21 @@ function Marketing({
                 {JSON.parse(post.platforms).join(", ")}
                 {post.scheduledAt ? ` · ${date(post.scheduledAt, true)}` : ""}
               </small>
+              {post.deliveries?.map(delivery=><small key={delivery.platform}>{delivery.platform}: {delivery.status === "published" ? "Publisert" : delivery.error || "Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres."}</small>)}
+              {canPublish(post) && <Button variant="outline" onClick={()=>setPublishId(post.id)}>Publiser nå</Button>}
             </div>
           ))
         ) : (
           <p className="empty-line">Ingen innlegg planlagt ennå.</p>
         )}
       </section>
+      <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
+        <DialogContent><DialogHeader><DialogTitle>Publiser innlegget nå?</DialogTitle><DialogDescription>Innlegget blir synlig på kontoene nedenfor med en gang. Et eventuelt planlagt tidspunkt blir ikke brukt.</DialogDescription></DialogHeader>
+          {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0} bilder</p>
+          <ul>{(JSON.parse(publishPost.platforms) as string[]).map(channel=><li key={channel}>{channel}: {social.connections.find(c=>c.platform===channel)?.accountName}</li>)}</ul></>}
+          <Button disabled={publishing} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
+        </DialogContent>
+      </Dialog>
       {chooser}
     </div>
   );

@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   marketingPostImages,
   marketingPosts,
+  socialDeliveries,
   moduleLicenses,
 } from "@/db/schema";
 import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
@@ -42,9 +43,12 @@ export async function GET(request: Request) {
       current.push(image);
       imagesByPost.set(image.postId, current);
     });
+    const deliveries = await getDb().select({postId:socialDeliveries.postId,platform:socialDeliveries.platform,status:socialDeliveries.status,error:socialDeliveries.error})
+      .from(socialDeliveries).where(eq(socialDeliveries.organizationId, ctx.organizationId));
     return Response.json({
       posts: posts.map((post) => ({
         ...post,
+        deliveries: deliveries.filter(d => d.postId === post.id),
         images: imagesByPost.get(post.id) ?? [],
       })),
       connections: [],
