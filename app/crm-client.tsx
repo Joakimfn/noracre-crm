@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimePicker } from "@/components/date-time-picker";
 import { SocialConnections, type SocialState } from "@/components/social-connections";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { SocialChannelIcon } from "@/components/social-channel-icon";
@@ -1954,11 +1955,7 @@ export default function Home() {
             placeholder="Kort notat …"
           />
           <Label>Når skal kunden følges opp igjen?</Label>
-          <Input
-            type="datetime-local"
-            value={nextAt}
-            onChange={(e) => setNextAt(e.target.value)}
-          />
+          <DateTimePicker label="Neste oppfølging" value={nextAt} onChange={setNextAt}/>
           <Button onClick={register}>Lagre kontakten</Button>
         </DialogContent>
       </Dialog>
@@ -2791,11 +2788,7 @@ function Customers(p: {
               </SelectContent>
             </Select>
             <Label>Dato og tid</Label>
-            <Input
-              type="datetime-local"
-              value={c.nextActionDate?.slice(0, 16)}
-              onChange={(e) => p.update({ nextActionDate: e.target.value })}
-            />
+            <DateTimePicker label="Dato og tid" value={c.nextActionDate?.slice(0, 16)} onChange={value => p.update({ nextActionDate: value })}/>
           </div>
         </details>
         {!isPerson && (
@@ -4484,13 +4477,7 @@ function CallLists({
           </DialogHeader>
           <div className="meeting-form">
             <Label>Dato og tidspunkt</Label>
-            <Input
-              type="datetime-local"
-              value={meeting.meetingAt}
-              onChange={(e) =>
-                setMeeting({ ...meeting, meetingAt: e.target.value })
-              }
-            />
+            <DateTimePicker label="Møtetidspunkt" value={meeting.meetingAt} onChange={value => setMeeting({ ...meeting, meetingAt: value })}/>
             <Label>Kontaktperson</Label>
             <Input
               value={meeting.contactName}
@@ -5170,11 +5157,7 @@ function Marketing({
           </div>
         </fieldset>
         <Label>Ønsket publiseringstidspunkt</Label>
-        <Input
-          type="datetime-local"
-          value={scheduledAt}
-          onChange={(e) => setScheduledAt(e.target.value)}
-        />
+        <DateTimePicker label="Ønsket publiseringstidspunkt" value={scheduledAt} onChange={setScheduledAt} showNow/>
         <Button onClick={savePost} disabled={savingPost}>
           {savingPost ? "Lagrer …" : "Lagre kladd"}
         </Button>
