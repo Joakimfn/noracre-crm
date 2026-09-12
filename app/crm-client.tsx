@@ -754,11 +754,12 @@ export default function Home() {
       .finally(() => setSessionReady(true));
   }, []);
   useEffect(() => {
-    const dark =
-      profile.theme === "dark" ||
-      (profile.theme === "system" &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches);
-    document.documentElement.classList.toggle("dark", dark);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => document.documentElement.classList.toggle("dark", profile.theme === "dark" || (profile.theme === "system" && media.matches));
+    apply();
+    if (profile.theme !== "system") return;
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, [profile.theme]);
   async function saveProfile() {
     const previousUser = user;
@@ -781,10 +782,10 @@ export default function Home() {
       setProfileOpen(true);
       return toast.error(d.error ?? "Kunne ikke lagre innstillingene");
     }
-    setUser({
+    setUser(current => ({...current,
       displayName: d.profile.displayName,
       email: d.profile.contactEmail,
-    });
+    }));
     setProfile(d.profile);
     setProfileAvatar(null);
     if (profilePreview) URL.revokeObjectURL(profilePreview);
@@ -1436,15 +1437,16 @@ export default function Home() {
       <AccessDenied message={accessError.message} code={accessError.code} />
     );
   return (
-    <main className="app-shell">
+    <main className="app-shell signature-shell">
       <Toaster position="top-right" />
       <aside className="sidebar">
         <div className="brand">
           <img
-            className="brand-wordmark"
-            src="/noracre-logo-dark.svg"
+            className="brand-wordmark brand-wordmark-light"
+            src="/noracre-logo-primary.svg"
             alt="Noracre"
           />
+          <img className="brand-wordmark brand-wordmark-dark" src="/noracre-logo-dark.svg" alt="Noracre" />
           <img
             className="brand-icon brand-icon-sidebar"
             src="/noracre-app-icon.svg"
@@ -1732,7 +1734,7 @@ export default function Home() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <section className="workspace">
+      <section className={`workspace view-${view}`}>
         <header className="topbar">
           <div>
             <p className="eyebrow">NORACRE CRM</p>
@@ -2146,7 +2148,7 @@ function Nav(p: {
   count?: number;
 }) {
   return (
-    <button className={p.a ? "active" : ""} onClick={p.click} title={p.text} aria-label={p.text}>
+    <button aria-current={p.a ? "page" : undefined} className={p.a ? "active" : ""} onClick={p.click} title={p.text} aria-label={p.text}>
       {p.ico}
       <span className="nav-label">{p.text}</span>
       {p.count ? <span className="nav-count">{p.count}</span> : null}
@@ -2370,44 +2372,44 @@ function Overview(p: {
   select: (id: number) => void;
 }) {
   const tasks = [...p.overdue, ...p.today];
+  const recent = [...p.companies].sort((a,b) => (b.lastContactAt || "").localeCompare(a.lastContactAt || "")).slice(0, 6);
   return (
-    <div className="page-pad">
+    <div className="page-pad overview-page">
       <section className="welcome">
         <div>
-          <p>God dag, {p.displayName}</p>
-          <h2>
-            {tasks.length
-              ? `Du har ${tasks.length} oppfølginger som trenger deg.`
-              : "Alt er fulgt opp."}
-          </h2>
+          <p className="eyebrow">DIN ARBEIDSDAG</p>
+          <h2>God dag, {p.displayName}.</h2>
+          <p>{tasks.length ? `Du har ${tasks.length} ${tasks.length === 1 ? "oppfølging som trenger" : "oppfølginger som trenger"} deg.` : "Alt er fulgt opp. Her er kundene og avtalene dine."}</p>
         </div>
-        <Button variant="outline" onClick={() => p.go("followup")}>
-          Se all oppfølging <ChevronRight />
-        </Button>
+        <Button variant="outline" onClick={() => p.go("followup")}>Se all oppfølging <ChevronRight /></Button>
       </section>
-      <div className="metric-grid">
+      <div className="metric-grid overview-metrics">
+        <Metric label="Kunder" value={p.companies.length} />
         <Metric label="Forfalt" value={p.overdue.length} tone="red" />
         <Metric label="I dag" value={p.today.length} tone="green" />
         <Metric label="Kommende" value={p.upcoming.length} />
-        <Metric label="Kunder" value={p.companies.length} />
       </div>
-      <Group
-        title="Forfalte oppfølginger"
-        items={[...p.overdue].sort((a, b) => a.dueAt.localeCompare(b.dueAt))}
-        tone="danger"
-        complete={p.complete}
-        select={p.select}
-      />
-      <Group
-        title="Dagens oppfølginger"
-        items={[...p.today].sort((a, b) => a.dueAt.localeCompare(b.dueAt))}
-        tone="today"
-        complete={p.complete}
-        select={p.select}
-      />
+      <div className="overview-columns">
+        <section className="customer-ledger">
+          <div className="surface-head"><h3>Kundene dine</h3><Button variant="ghost" onClick={() => p.go("customers")}>Se alle <ChevronRight /></Button></div>
+          <p className="form-hint">Sist kontaktet</p>
+          {recent.length ? <div className="ledger-list">{recent.map(company => <button key={company.id} className="ledger-row" onClick={() => p.select(company.id)}>
+            <span className="company-icon">{company.name.slice(0,1)}</span>
+            <span className="ledger-company"><strong>{company.name}</strong><small>{company.city || company.industry || (company.customerType === "Person" ? "Privatperson" : "Bedrift")}</small></span>
+            <span className={stageClass[company.stage]}>{company.stage}</span><ChevronRight size={17}/>
+          </button>)}</div> : <div className="ledger-empty"><Building2/><p>Kundeboken din er klar.</p><Button variant="outline" onClick={() => p.go("customers")}>Legg til den første kunden</Button></div>}
+        </section>
+        <aside className="overview-agenda" aria-label="Oppfølginger">
+          <h3>Dagens agenda</h3>
+          <Group title="Forfalt" items={[...p.overdue].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="danger" complete={p.complete} select={p.select}/>
+          <Group title="I dag" items={[...p.today].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="today" complete={p.complete} select={p.select}/>
+          {!tasks.length && p.upcoming.length > 0 && <Group title="Neste avtaler" items={[...p.upcoming].sort((a,b)=>a.dueAt.localeCompare(b.dueAt)).slice(0,3)} complete={p.complete} select={p.select}/>}
+        </aside>
+      </div>
     </div>
   );
 }
+
 function OfferComposer({
   company,
   contacts,
@@ -2640,18 +2642,20 @@ function Customers(p: {
       ? p.contacts.find((x) => x.id === openHistory.contactId)
       : null;
   return (
-    <section className="content-grid">
+    <section className="content-grid customer-book" aria-label="Kundebok">
       <div className="customer-panel">
+        <div className="book-heading"><span className="eyebrow">KUNDEBOK</span><h2>Bedrifter og kontakter</h2></div>
         <div className="customer-search-row">
           <div className="search-box">
             <Search size={19} />
             <input
+              aria-label="Søk etter kunde eller kontakt"
               placeholder="Søk etter kunde eller kontakt …"
               value={p.query}
               onChange={(e) => p.setQuery(e.target.value)}
             />
             {p.query && (
-              <button onClick={() => p.setQuery("")}>
+              <button aria-label="Tøm søk" onClick={() => p.setQuery("")}>
                 <X size={17} />
               </button>
             )}
@@ -2666,10 +2670,13 @@ function Customers(p: {
             {p.list.length} {p.list.length === 1 ? "kunde" : "kunder"}
           </span>
         </div>
-        <div className="customer-list">
+        <div className="customer-list" aria-label="Kunder">
+          {!p.list.length && <p className="empty-list">Ingen kunder passer søket ditt.</p>}
           {p.list.map((x) => (
             <button
               key={x.id}
+              aria-pressed={x.id === c.id}
+              title={x.name}
               className={
                 x.id === c.id ? "customer-row selected" : "customer-row"
               }
@@ -2689,7 +2696,7 @@ function Customers(p: {
           ))}
         </div>
       </div>
-      <article className="detail-panel">
+      <article className="detail-panel" aria-label={`Kundekort: ${c.name}`}>
         <div className="detail-head">
           <div className="large-company-icon">{c.name[0]}</div>
           <div>
