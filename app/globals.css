@@ -3474,3 +3474,19 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 @media(max-width:620px) {.signature-shell .operations-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.signature-shell .operations-metrics .metric:last-child strong {font-size:1.6rem;}}
 .signature-shell :is(.prospect-row small,.prospect-contact>span,.server-health small,.operations-table-head,.support-access span) {color:var(--muted-foreground);}
 .signature-shell .setting-row span {color:var(--muted-foreground);}
+
+/* Customer invoice amounts share the operations surfaces in both themes. */
+.invoice-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+.invoice-search { display:flex; align-items:center; gap:8px; width:min(100%,360px); color:var(--muted-foreground); }
+.invoice-search input { min-width:0; }
+.invoice-table { width:100%; }
+.invoice-table th:first-child { min-width:180px; max-width:380px; overflow-wrap:anywhere; }
+.invoice-table th:not(:first-child),.invoice-table td { text-align:right; font-variant-numeric:tabular-nums; }
+.invoice-table thead small,.invoice-table td small { display:block; margin-top:5px; font-weight:400; color:var(--muted-foreground); }
+.invoice-table tbody th { font-size:14px; font-weight:600; color:var(--foreground); border-bottom:1px solid var(--border); padding:16px 12px; text-align:left; }
+.invoice-incomplete { color:var(--muted-foreground); font-size:13px; }
+.signature-shell .facts>div { min-width:0; padding:16px 18px; border:1px solid var(--border); border-radius:14px; background:var(--secondary); gap:10px; }
+.signature-shell .facts strong { overflow-wrap:anywhere; }
+.teams-phone-link { display:inline-flex; align-items:baseline; flex-wrap:wrap; gap:8px; text-decoration:underline; text-underline-offset:4px; }
+.signature-shell .teams-phone-link small { color:var(--muted-foreground); font-size:11px; font-weight:400; }
+.teams-phone-link:focus-visible { outline:2px solid var(--primary); outline-offset:4px; border-radius:3px; }

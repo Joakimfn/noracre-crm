@@ -1,4 +1,5 @@
 "use client";
+import {PhoneLink} from "@/components/phone-link";
 
 import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
 import { MailAccount } from "@/components/mail-account";
@@ -2767,11 +2768,11 @@ function Customers(p: {
           </div>
           <div>
             <span>Telefon</span>
-            <strong>{person?.phone || c.phone || "Ikke oppgitt"}</strong>
+            <strong><PhoneLink phone={person?.phone || c.phone || ""}/></strong>
           </div>
           <div>
             <span>E-post</span>
-            <strong>{person?.email || c.email || "Ikke oppgitt"}</strong>
+            <strong>{person?.email || c.email ? <a href={`mailto:${person?.email || c.email}`}>{person?.email || c.email}</a> : "Ikke oppgitt"}</strong>
           </div>
         </div>
         <CustomerFollowups company={c} contacts={currentContacts} organizationId={p.organizationId} onChanged={p.onFollowupsChanged} revision={p.activityRevision}/>
@@ -4593,7 +4594,7 @@ function ProspectRows({
           </div>
           <div className="prospect-contact">
             {row.phone ? (
-              <a href={`tel:${row.phone}`}>{row.phone}</a>
+              <PhoneLink phone={row.phone}/>
             ) : (
               <span>Telefon mangler</span>
             )}
@@ -5554,9 +5555,7 @@ function Operations(p: {
                   <small>E-post mangler</small>
                 )}
                 {o.primaryContactPhone ? (
-                  <a href={`tel:${o.primaryContactPhone}`}>
-                    {o.primaryContactPhone}
-                  </a>
+                  <PhoneLink phone={o.primaryContactPhone}/>
                 ) : null}
               </div>
               <span>
