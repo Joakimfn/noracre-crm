@@ -284,3 +284,23 @@ test('confirmed user creation uses the company price in audit and response',asyn
  assert.equal(r.status,201);assert.equal((await r.json()).monthlyPrice,199);
  assert.match(sql.prepare("select detail from audit_logs where action='Aktiverte bruker' order by id desc limit 1").get().detail,/199 kr/);
 });
+
+test('booked meetings retain their own notes and return the updated customer for navigation',async()=>{
+ add('organizations',{id:99,name:'Meeting test',created_at:'2026-01-01'});
+ add('memberships',{id:99,organization_id:99,user_id:'99',email:'99@test.no',name:'Booker',role:'Administrator',created_at:'2026-01-01'});
+ add('organization_modules',{organization_id:99,module_key:'ringelister',activated_at:'2026-01-01'});
+ add('module_licenses',{organization_id:99,membership_id:99,module_key:'ringelister',activated_at:'2026-01-01'});
+ add('companies',{id:999,organization_id:99,name:'Meeting customer',org_number:'999999999',note:'Existing customer note',stage:'Ny kunde'});
+ add('call_list_entries',{id:999,organization_id:99,name:'Meeting customer',org_number:'999999999',created_at:'2026-01-01',updated_at:'2026-01-01'});
+ const body={type:'status',id:999,status:'Møte booket',meetingAt:'2026-10-15T13:30',meetingNote:'Behovsanalyse\nDiskutere budsjett og videre fremdrift.',contactName:'Contact',contactEmail:'meeting@test.no'};
+ const response=await route('call-lists').POST(request(99,99,body));assert.equal(response.status,200);
+ const data=await response.json();assert.equal(data.company.id,999);assert.equal(data.company.stage,'Møte avtalt');assert.equal(data.company.nextActionDate,body.meetingAt);
+ const saved=sql.prepare('SELECT * FROM activities WHERE organization_id=99').get();assert.equal(saved.note,body.meetingNote);assert.equal(saved.due_at,body.meetingAt);assert.equal(saved.created_by,'Booker');assert.ok(saved.contact_id);
+ assert.equal(sql.prepare('SELECT note FROM companies WHERE id=999').get().note,'Existing customer note');
+ body.meetingAt='2026-10-20T10:00';body.meetingNote='';
+ assert.equal((await route('call-lists').POST(request(99,99,body))).status,200);
+ const notes=sql.prepare('SELECT note FROM activities WHERE organization_id=99 ORDER BY id').all().map(r=>r.note);assert.deepEqual(notes,['Behovsanalyse\nDiskutere budsjett og videre fremdrift.','Møte booket fra ringelisten']);
+ for(const invalid of [{meetingAt:''},{meetingAt:'invalid'},{meetingNote:'x'.repeat(5001)}])assert.equal((await route('call-lists').POST(request(99,99,{...body,...invalid}))).status,400);
+ assert.equal(sql.prepare('SELECT count(*) n FROM activities WHERE organization_id=99').get().n,2);
+ assert.equal((await route('call-lists').POST(request(99,99,{...body,id:1}))).status,404);
+});

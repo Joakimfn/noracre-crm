@@ -3800,6 +3800,8 @@ function CallLists({
     [meetingEntry, setMeetingEntry] = useState<CallListEntry | null>(null),
     [offerEntry, setOfferEntry] = useState<CallListEntry | null>(null),
     [createdCustomer, setCreatedCustomer] = useState<Company | null>(null),
+    [bookedCustomer, setBookedCustomer] = useState<Company | null>(null),
+    [meetingSaving, setMeetingSaving] = useState(false),
     [customerChoice, setCustomerChoice] = useState<{
       name: string;
       company: Company | null;
@@ -3808,6 +3810,7 @@ function CallLists({
     } | null>(null),
     [meeting, setMeeting] = useState({
       meetingAt: "",
+        meetingNote: "",
       contactName: "",
       contactEmail: "",
       contactPhone: "",
@@ -4016,6 +4019,7 @@ function CallLists({
       setMeetingEntry(row);
       setMeeting({
         meetingAt: "",
+        meetingNote: "",
         contactName: row.contactName ?? "",
         contactEmail: row.contactEmail ?? row.email ?? "",
         contactPhone: row.contactPhone ?? row.phone ?? "",
@@ -4026,6 +4030,7 @@ function CallLists({
       setOfferEntry(row);
       setMeeting({
         meetingAt: "",
+        meetingNote: "",
         contactName: row.contactName ?? "",
         contactEmail: row.contactEmail ?? row.email ?? "",
         contactPhone: row.contactPhone ?? row.phone ?? "",
@@ -4408,7 +4413,7 @@ function CallLists({
       <Dialog
         open={Boolean(meetingEntry)}
         onOpenChange={(open) => {
-          if (!open) setMeetingEntry(null);
+          if (!open && !meetingSaving) setMeetingEntry(null);
         }}
       >
         <DialogContent className="sm:max-w-lg">
@@ -4443,16 +4448,28 @@ function CallLists({
                 setMeeting({ ...meeting, contactPhone: e.target.value })
               }
             />
-            <Button
+            <Label htmlFor="call-meeting-note">Hva skal møtet handle om?</Label>
+            <Textarea id="call-meeting-note" value={meeting.meetingNote} maxLength={5000} rows={3} placeholder="Tema, behov og det dere skal snakke om …" onChange={e=>setMeeting({...meeting,meetingNote:e.target.value})}/>
+            <Button disabled={meetingSaving || !meeting.meetingAt}
               onClick={async () => {
-                if (!meetingEntry) return;
-                await saveStatus(meetingEntry, "Møte booket", meeting);
-                setMeetingEntry(null);
+                if (!meetingEntry || meetingSaving) return;
+                setMeetingSaving(true);
+                try {
+                  const result=await saveStatus(meetingEntry, "Møte booket", meeting);
+                  if(!result?.company)return;
+                  setMeetingEntry(null);
+                  setBookedCustomer(result.company);
+                } catch { toast.error("Møtet kunne ikke lagres. Prøv igjen."); }
+                finally { setMeetingSaving(false); }
               }}
-            >
-              Lagre møte
-            </Button>
+            >{meetingSaving?"Lagrer møte …":"Lagre møte"}</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(bookedCustomer)} onOpenChange={open=>{if(!open)setBookedCustomer(null);}}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Møtet er opprettet</DialogTitle><DialogDescription>Møtet med {bookedCustomer?.name} er lagret. Hva vil du gjøre videre?</DialogDescription></DialogHeader>
+          <div className="offer-actions"><Button variant="outline" onClick={()=>setBookedCustomer(null)}>Fortsett her</Button><Button onClick={()=>{if(bookedCustomer)onGoToCustomer(bookedCustomer);setBookedCustomer(null);}}>Gå til kundekortet</Button></div>
         </DialogContent>
       </Dialog>
       <Dialog

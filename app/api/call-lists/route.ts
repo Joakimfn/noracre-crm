@@ -178,6 +178,8 @@ export async function POST(request: Request) {
         status === "Møte booket"
           ? String(data.meetingAt ?? "")
           : current.meetingAt;
+      const meetingNote=String(data.meetingNote??"").trim();
+      if(status==="Møte booket"&&meetingNote.length>5000)return Response.json({error:"Møtenotatet kan være maks 5 000 tegn."},{status:400});
       const contactName = String(
           data.contactName ?? current.contactName ?? "",
         ).trim(),
@@ -193,7 +195,7 @@ export async function POST(request: Request) {
         status === "Tilbud sendt" ||
         data.type === "addCustomer"
       ) {
-        if (status === "Møte booket" && !meetingAt)
+        if (status === "Møte booket" && (!meetingAt || Number.isNaN(new Date(meetingAt).getTime())))
           return Response.json(
             { error: "Velg dato og tidspunkt for møtet." },
             { status: 400 },
@@ -288,13 +290,14 @@ export async function POST(request: Request) {
                 eq(companies.organizationId, ctx.organizationId),
               ),
             );
+          customer={...customer,stage:"Møte avtalt",nextAction:"Gjennomfør møte",nextActionDate:meetingAt,nextContactId:contactId,updatedAt:now};
           await db.insert(activities).values({
             organizationId: ctx.organizationId,
             companyId: customer.id,
             contactId,
             companyName: customer.name,
             kind: "Møte",
-            note: "Møte booket fra ringelisten",
+            note: meetingNote || "Møte booket fra ringelisten",
             dueAt: meetingAt,
             completedAt: "",
             createdBy: ctx.user.displayName,
