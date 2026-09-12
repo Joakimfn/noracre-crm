@@ -30,7 +30,7 @@ for(const table of Object.values(app.schema)){
 }
 globalThis.testDb=drizzle(async(query,params,method)=>{const s=sql.prepare(query);s.setReturnArrays(true);return {rows:method==='run'?(s.run(...params),[]):method==='get'?s.get(...params):s.all(...params)}});
 const add=(table,values)=>{const keys=Object.keys(values);sql.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...Object.values(values));};
-for(const id of [1,2]){add('organizations',{id,name:'Org '+id,created_at:'2026-01-01'});add('companies',{id,organization_id:id,name:'Customer '+id});add('contacts',{id,organization_id:id,company_id:id,name:'Contact '+id,created_at:'2026-01-01'});add('activities',{id,organization_id:id,company_id:id,kind:'Telefon'});}
+for(const id of [1,2]){add('organizations',{id,name:'Org '+id,crm_price:id===1?199:299,ring_price:29,marketing_price:69,created_at:'2026-01-01'});add('companies',{id,organization_id:id,name:'Customer '+id});add('contacts',{id,organization_id:id,company_id:id,name:'Contact '+id,created_at:'2026-01-01'});add('activities',{id,organization_id:id,company_id:id,kind:'Telefon'});}
 for(const [id,org,role] of [[1,1,'Administrator'],[2,2,'Administrator'],[3,1,'Bruker'],[4,1,'Bruker']])add('memberships',{id,organization_id:org,user_id:String(id),email:`${id}@test.no`,name:'User '+id,role,created_at:'2026-01-01'});
 const realFetch=globalThis.fetch;
 globalThis.fetch=async(url,init)=>{assert.equal(String(url),'https://auth.test/auth/v1/user');const id=init.headers.Authorization.replace('Bearer ','');if(id==='invalid')return new Response('',{status:401});return Response.json({id,email:id==='owner'?'jfn@noracre.no':`${id}@test.no`,email_confirmed_at:id==='unverified'?null:'2026-01-01'})};
@@ -47,7 +47,7 @@ test('foreign files are not fetched from storage',async()=>assert.equal((await r
 test('regular user cannot buy modules',async()=>assert.equal((await route('admin').POST(request(3,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[3]}))).status,403));
 test('administrator cannot license another organization member',async()=>assert.equal((await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[2]}))).status,400));
 test('only selected users receive module access and catalog stays private',async()=>{
- for(const moduleKey of ['ringelister','markedsforing'])assert.equal((await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey,membershipIds:[3]}))).status,200);
+ for(const moduleKey of ['ringelister','markedsforing'])assert.equal((await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey,membershipIds:[3],acceptedPrice:moduleKey==='ringelister'?29:69}))).status,200);
  assert.deepEqual((await (await route('admin').GET(request(4))).json()).modules,{});
  assert.equal((await route('marketing').GET(request(3))).status,200);
  for(const user of [1,4])assert.equal((await route('marketing').GET(request(user))).status,403);
@@ -181,7 +181,7 @@ test('two followups survive unrelated customer edits and completing one preserve
  const create=async(id,note,dueAt)=>{const r=await route('activities').POST(request(id,1,{companyId:1,companyName:'Customer 1',contactId:1,isTask:true,note,dueAt}));assert.equal(r.status,201);return (await r.json()).activity;};
  const first=await create(1,'Meeting with contact A','2027-01-02T09:00');
  const second=await create(3,'Meeting with contact B','2027-01-03T10:00');
- assert.equal(first.createdBy,'1@test.no');assert.equal(second.createdBy,'3@test.no');
+ assert.equal(first.createdBy,'User 1');assert.equal(second.createdBy,'User 3');
  const save=await route('companies').PATCH(request(1,1,{id:1,name:'Customer 1',note:'New note',nextActionDate:''}));assert.equal(save.status,200);
  assert.equal(sql.prepare('SELECT count(*) n FROM activities WHERE id IN (?,?) AND completed_at=\'\'').get(first.id,second.id).n,2);
  const done=await route('activities').PATCH(request(1,1,{id:first.id,completedAt:new Date().toISOString()}));assert.equal(done.status,200);
@@ -189,7 +189,7 @@ test('two followups survive unrelated customer edits and completing one preserve
  assert.equal(sql.prepare('SELECT due_at FROM activities WHERE id=?').get(first.id).due_at,first.dueAt);
  assert.equal(sql.prepare('SELECT next_action_date FROM companies WHERE id=1').get().next_action_date,second.dueAt);
  const edit=await route('activities').PATCH(request(3,1,{id:second.id,note:'Changed'}));assert.equal(edit.status,200);
- assert.equal((await edit.json()).activity.createdBy,'3@test.no');
+ assert.equal((await edit.json()).activity.createdBy,'User 3');
  const foreign=await route('activities').PATCH(request(2,2,{id:second.id,note:'Foreign'}));assert.equal(foreign.status,404);
 });
 test('scheduled member deactivation keeps access until due and can be cancelled',async()=>{
@@ -246,3 +246,41 @@ test('email sends through connected mailbox with files and private bulk recipien
 });
 test.after(()=>{globalThis.fetch=realFetch;sql.close();return rm(dir,{recursive:true,force:true})});
 
+
+test('invitation name is preserved and becomes session/profile default',async()=>{
+ add('memberships',{id:80,organization_id:1,user_id:'invite:80@test.no',email:'80@test.no',name:'Invitert Navn',role:'Bruker',created_at:'2026-01-01'});
+ const session=await (await route('session').GET(request(80))).json();
+ assert.equal(session.user.displayName,'Invitert Navn');
+ assert.equal(sql.prepare('select name from memberships where id=80').get().name,'Invitert Navn');
+ const profile=await (await route('profile').GET(request(80))).json();assert.equal(profile.profile.displayName,'Invitert Navn');
+});
+test('each company receives only its negotiated prices',async()=>{
+ for(const [id,price] of [[1,199],[2,299]]) {
+   const d=await (await route('admin').GET(request(id,id))).json();assert.equal(d.pricing.crmPrice,price);
+   assert.equal(d.pricing.marketingPrice,69);
+ }
+ assert.equal((await route('superadmin').GET(request(1))).status,403);
+});
+test('member creation rejects missing or stale prices before inserting a user',async()=>{
+ const before=sql.prepare('select count(*) n from memberships').get().n;
+ for(const acceptedPrice of [undefined,0,399]) {
+   const r=await route('admin').POST(request(1,1,{type:'member',name:'Quote Test',email:'quote@test.no',role:'Bruker',acceptedPrice}));assert.equal(r.status,409);
+ }
+ assert.equal(sql.prepare('select count(*) n from memberships').get().n,before);
+});
+test('module purchase rejects a stale price and charges the agreed amount',async()=>{
+ const stale=await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[3],acceptedPrice:49}));assert.equal(stale.status,409);
+ const r=await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[3],acceptedPrice:29}));assert.equal(r.status,200);assert.equal((await r.json()).monthlyAmount,29);
+ assert.equal(sql.prepare("select price_per_user from module_licenses where organization_id=1 and module_key='ringelister' and membership_id=3").get().price_per_user,29);
+});
+
+test('legacy overwritten invitation name is recovered from the original team record',async()=>{
+ add('memberships',{id:81,organization_id:1,user_id:'81',email:'81@test.no',name:'81@test.no',role:'Bruker',created_at:'2026-01-01'});
+ add('team_members',{id:81,organization_id:1,email:'81@test.no',name:'Opprinnelig Navn',role:'Bruker',created_at:'2026-01-01'});
+ const d=await (await route('session').GET(request(81))).json();assert.equal(d.user.displayName,'Opprinnelig Navn');
+});
+test('confirmed user creation uses the company price in audit and response',async()=>{
+ const r=await route('admin').POST(request(1,1,{type:'member',name:'Ny Ansatt',email:'newprice@test.no',acceptedPrice:199}));
+ assert.equal(r.status,201);assert.equal((await r.json()).monthlyPrice,199);
+ assert.match(sql.prepare("select detail from audit_logs where action='Aktiverte bruker' order by id desc limit 1").get().detail,/199 kr/);
+});

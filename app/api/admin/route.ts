@@ -1,3 +1,4 @@
+import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { canManageModules } from "@/lib/module-access";
 import { and, desc, eq } from "drizzle-orm";
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
   try {
     const ctx = await requireTenant(request),
       db = getDb();
+    const prices = await organizationPricing(ctx.organizationId);
     const [activeSupport, modules, licenses] = await Promise.all([
       db
         .select()
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
         .where(eq(moduleLicenses.organizationId, ctx.organizationId)),
     ]);
     if (!canManageModules(ctx.role)) return Response.json({
+      pricing: prices,
       members: [], audit: [], supportRequests: [], activeSupport: false,
       modules: Object.fromEntries(modules.filter(item => item.active && licenses.some(license =>
         license.moduleKey === item.moduleKey && license.active && license.membershipId === ctx.membershipId
@@ -53,6 +56,8 @@ export async function GET(request: Request) {
       role: ctx.role, membershipId: ctx.membershipId,
     });
     return Response.json({
+      pricing: prices,
+      memberModuleCosts: Object.fromEntries(licenses.map(l => [l.membershipId, licenses.filter(x => x.membershipId === l.membershipId && x.active && modules.some(m => m.moduleKey === x.moduleKey && m.active)).reduce((sum, x) => sum + x.pricePerUser, 0)])),
       members: await db
         .select()
         .from(memberships)
@@ -132,9 +137,12 @@ export async function POST(request: Request) {
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
         );
+      const prices = parsePricing(data);
+      if (prices.crmPrice == null) throw new AccessError(400, "Oppgi avtalt CRM-pris før du oppretter bedriften.");
       const [org] = await db
         .insert(organizations)
         .values({
+          ...prices,
           name: String(data.name ?? "Ny organisasjon"),
           orgNumber,
           address: String(data.address ?? "").trim(),
@@ -196,6 +204,8 @@ export async function POST(request: Request) {
       if (requestedRole === "Superadmin" && !isOwner)
         throw new AccessError(403, "Bare en eierkonto kan gi superadmintilgang.");
       const role = requestedRole;
+      const price = confirmPrice((await organizationPricing(ctx.organizationId)).crmPrice, data.acceptedPrice);
+
       const duplicate = await db
         .select()
         .from(memberships)
@@ -238,7 +248,7 @@ export async function POST(request: Request) {
         organizationId: ctx.organizationId,
         actor: ctx.user.displayName,
         action: "Aktiverte bruker",
-        detail: `${name} · 399 kr per måned`,
+        detail: `${name} · ${price} kr per måned`,
         createdAt: now,
       });
       const [organization] = await db
@@ -253,7 +263,7 @@ export async function POST(request: Request) {
         role,
       }).catch(() => ({ sent: false, reason: "provider_error" as const }));
       return Response.json(
-        { member, monthlyPrice: 399, invitationSent: invitation.sent },
+        { member, monthlyPrice: price, invitationSent: invitation.sent },
         { status: 201 },
       );
     }
@@ -290,6 +300,12 @@ export async function POST(request: Request) {
           { error: "Du kan ikke deaktivere din egen bruker." },
           { status: 400 },
         );
+      if (active && !target.active) {
+        const prices = await organizationPricing(ctx.organizationId);
+        const [licenses, modules] = await Promise.all([db.select().from(moduleLicenses).where(and(eq(moduleLicenses.organizationId,ctx.organizationId),eq(moduleLicenses.membershipId,id))),db.select().from(organizationModules).where(eq(organizationModules.organizationId,ctx.organizationId))]);
+        const extra = licenses.filter(l=>l.active&&modules.some(m=>m.moduleKey===l.moduleKey&&m.active)).reduce((sum,l)=>sum+l.pricePerUser,0);
+        confirmPrice(prices.crmPrice == null ? null : prices.crmPrice + extra, data.acceptedPrice);
+      }
       const scheduledDisableAt = active ? "" : disableAt(data.effectiveAt);
       const [member] = await db
         .update(memberships)
@@ -359,12 +375,14 @@ export async function POST(request: Request) {
             ),
           ),
       ]);
+      const prices = await organizationPricing(ctx.organizationId);
       const allowedIds = new Set(eligible.map((member) => member.id));
       if (requestedIds.some((id) => !allowedIds.has(id)))
         return Response.json(
           { error: "En eller flere valgte brukere er ikke aktive." },
           { status: 400 },
         );
+      const price = confirmPrice(moduleKey === "ringelister" ? prices.ringPrice : prices.marketingPrice, data.acceptedPrice);
       await Promise.all([
         ...requestedIds.map((membershipId) => {
           const license = currentLicenses.find(
@@ -373,14 +391,14 @@ export async function POST(request: Request) {
           return license
             ? db
                 .update(moduleLicenses)
-                .set({ active: true, deactivatedAt: "", activatedAt: now })
+                .set({ active: true, pricePerUser: price, deactivatedAt: "", activatedAt: now })
                 .where(eq(moduleLicenses.id, license.id))
             : db.insert(moduleLicenses).values({
                 organizationId: ctx.organizationId,
                 membershipId,
                 moduleKey,
                 active: true,
-                pricePerUser: 49,
+                pricePerUser: price,
                 activatedAt: now,
                 deactivatedAt: "",
               });
@@ -401,6 +419,7 @@ export async function POST(request: Request) {
             .update(organizationModules)
             .set({
               active,
+              pricePerUser: price,
               activatedAt: active ? now : existing[0].activatedAt,
               deactivatedAt: active ? "" : now,
             })
@@ -412,7 +431,7 @@ export async function POST(request: Request) {
               organizationId: ctx.organizationId,
               moduleKey,
               active,
-              pricePerUser: 49,
+              pricePerUser: price,
               activatedAt: now,
               deactivatedAt: "",
             })
@@ -423,13 +442,13 @@ export async function POST(request: Request) {
         action: active
           ? `Aktiverte ${moduleKey === "ringelister" ? "ringelistemodul" : "markedsføringsmodul"}`
           : `Deaktiverte ${moduleKey === "ringelister" ? "ringelistemodul" : "markedsføringsmodul"}`,
-        detail: `${requestedIds.length} brukerlisenser · ${requestedIds.length * 49} kr per måned`,
+        detail: `${requestedIds.length} brukerlisenser · ${requestedIds.length * price} kr per måned`,
         createdAt: now,
       });
       return Response.json({
         module,
         licensedMemberIds: requestedIds,
-        monthlyAmount: requestedIds.length * 49,
+        monthlyAmount: requestedIds.length * price,
         currentUserActive: requestedIds.includes(ctx.membershipId),
       });
     }

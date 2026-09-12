@@ -1,3 +1,4 @@
+import {parsePricing} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -99,6 +100,7 @@ export async function GET(request: Request) {
         status = org.status === "Tapt" ? "Deaktivert" : org.status;
       return {
         id: org.id,
+        crmPrice: org.crmPrice, ringPrice: org.ringPrice, marketingPrice: org.marketingPrice,
         scheduledDisableAt: org.scheduledDisableAt,
         name: org.name,
         orgNumber: org.orgNumber,
@@ -112,8 +114,8 @@ export async function GET(request: Request) {
         activeUsers,
         lostUsers,
         activeSubscriptions: activeUsers,
-        monthlyAmount: activeUsers * 399 + moduleMonthly,
-        baseMonthlyAmount: activeUsers * 399,
+        monthlyAmount: activeUsers * (org.crmPrice ?? 0) + moduleMonthly,
+        baseMonthlyAmount: activeUsers * (org.crmPrice ?? 0),
         moduleMonthly,
         ringModuleActive: Boolean(ringModule),
         ringModuleUsers: moduleUsers,
@@ -218,9 +220,15 @@ export async function POST(request: Request) {
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
         );
+      const prices = parsePricing(data);
+      const enabledModules = await db.select().from(organizationModules).where(and(eq(organizationModules.organizationId,organizationId),eq(organizationModules.active,true)));
+      if (enabledModules.some(m => (m.moduleKey === 'ringelister' ? prices.ringPrice : prices.marketingPrice) == null))
+        throw new AccessError(400, "Aktive moduler må ha en avtalt pris. Bruk 0 hvis modulen er inkludert.");
+      if (prices.crmPrice == null) throw new AccessError(400, "CRM-pris må fylles ut.");
       const [org] = await db
         .update(organizations)
         .set({
+          ...prices,
           name: String(data.name ?? "").trim(),
           orgNumber,
           address: String(data.address ?? "").trim(),

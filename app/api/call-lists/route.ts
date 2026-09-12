@@ -116,7 +116,7 @@ export async function GET(request: Request) {
     ]);
     if (!module?.active || !license.length) {
       if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
-      return Response.json({ active: false, pricePerUser: 49, entries: [] });
+      return Response.json({ active: false, entries: [] });
     }
     const condition =
       view === "history"
@@ -531,4 +531,5 @@ export async function POST(request: Request) {
     return accessResponse(e);
   }
 }
+
 

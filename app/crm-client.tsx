@@ -184,7 +184,8 @@ type Contact = {
   isPrimary: boolean;
 };
 type Organization = { id: number; name: string; status?: string };
-type NewOrganization = {
+type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string };
+type NewOrganization = PriceFields & {
   name: string;
   orgNumber: string;
   address: string;
@@ -199,6 +200,7 @@ type NewOrganization = {
   adminRole: string;
 };
 const emptyNewOrganization: NewOrganization = {
+  crmPrice: "", ringPrice: "", marketingPrice: "",
   name: "",
   orgNumber: "",
   address: "",
@@ -229,6 +231,7 @@ type SupportRequest = {
   createdAt: string;
 };
 type OperationOrganization = {
+  crmPrice: number | null; ringPrice: number | null; marketingPrice: number | null;
   scheduledDisableAt?: string;
   id: number;
   name: string;
@@ -575,7 +578,7 @@ export default function Home() {
     [attachments, setAttachments] = useState<Attachment[]>([]),
     [uploading, setUploading] = useState(false),
     [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved"),
-    [user, setUser] = useState({ displayName: "Min konto", email: "" }),
+    [user, setUser] = useState<{id?:string;displayName:string;email:string}>({ displayName: "Min konto", email: "" }),
     [supportRequests, setSupportRequests] = useState<SupportRequest[]>([]),
     [operations, setOperations] = useState<OperationsData | null>(null),
     [currentMembershipId, setCurrentMembershipId] = useState(0),
@@ -602,6 +605,9 @@ export default function Home() {
       confirm: () => void;
     } | null>(null),
     [sessionReady, setSessionReady] = useState(false);
+  const [pricing, setPricing] = useState<{crmPrice:number|null;ringPrice:number|null;marketingPrice:number|null}>({crmPrice:null,ringPrice:null,marketingPrice:null});
+  const [memberModuleCosts,setMemberModuleCosts] = useState<Record<number,number>>({});
+  const [memberBusy,setMemberBusy] = useState(false);
   const [deactivation,setDeactivation] = useState<{id:number;name:string;kind:"member"|"organization"}|null>(null);
   async function scheduleDeactivation(effectiveAt:string){
     if(!deactivation)return;
@@ -660,6 +666,8 @@ export default function Home() {
     setCompanies(c.companies ?? []);
     setActivities(a.activities ?? []);
     setMembers(ad.members ?? []);
+    setPricing(ad.pricing ?? {crmPrice:null,ringPrice:null,marketingPrice:null});
+    setMemberModuleCosts(ad.memberModuleCosts ?? {});
     setSupportRequests(ad.supportRequests ?? []);
     setSupportAccess(Boolean(ad.activeSupport));
     setCurrentMembershipId(Number(ad.membershipId) || 0);
@@ -754,7 +762,7 @@ export default function Home() {
   }, [profile.theme]);
   async function saveProfile() {
     const previousUser = user;
-    setUser({ displayName: profile.displayName, email: profile.contactEmail });
+    setUser(current => ({...current, displayName: profile.displayName, email: profile.contactEmail}));
     setProfileOpen(false);
     toast.success("Innstillingene er lagret");
     const form = new FormData();
@@ -1174,47 +1182,49 @@ export default function Home() {
   }
   function calendar() {}
   async function addMember(confirmed = false) {
-    if (!newMember.name || !newMember.email) return;
+    if (memberBusy || !newMember.name || !newMember.email) return;
+    if (pricing.crmPrice == null) return toast.error("Pris er ikke avtalt. Oppgi pris under Drift først.");
     if (!confirmed)
       return setConfirmation({
         title: "Aktiver ny bruker?",
-        description: `${newMember.name} opprettes som aktiv bruker. Abonnementet øker med 399 kr per måned.`,
+        description: `${newMember.name} opprettes som aktiv bruker. Abonnementet øker med ${pricing.crmPrice} kr per måned eks. mva.`,
         confirm: () => {
           setConfirmation(null);
           void addMember(true);
         },
       });
-    const m: Member = { id: Date.now(), ...newMember, active: true };
+    setMemberBusy(true);
+    const m: Member = { id: Date.now(), ...newMember, phone: "", active: true };
     try {
       const r = await api("/api/admin", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "member", ...newMember }),
+        body: JSON.stringify({ type: "member", ...newMember, acceptedPrice: pricing.crmPrice }),
       });
       const d = await r.json();
       if (!r.ok) return toast.error(d.error ?? "Kunne ikke invitere brukeren");
       m.id = d.member.id;
-      await navigator.clipboard
-        .writeText(window.location.origin)
+      await navigator.clipboard?.writeText(window.location.origin)
         .catch(() => undefined);
       setMembers((x) => [...x, m]);
       setNewMember({ name: "", email: "", role: "Bruker" });
-      toast.success("Invitasjonen er klar – innloggingslenken er kopiert");
+      toast.success(d.invitationSent ? "Brukeren er opprettet og invitasjonen er sendt" : "Brukeren er opprettet. Invitasjonen kunne ikke sendes; del innloggingslenken manuelt.");
     } catch {
       toast.error("Kunne ikke invitere brukeren");
-    }
+    } finally { setMemberBusy(false); }
   }
   async function setMemberStatus(
     member: Member,
     active: boolean,
     confirmed = false,
   ) {
+    if(active && !member.active && pricing.crmPrice == null) return toast.error("Pris er ikke avtalt. Oppgi pris under Drift først.");
     if(!active&&!confirmed)return setDeactivation({id:member.id,name:member.name,kind:'member'});
     if (!confirmed)
       return setConfirmation({
         title: active ? "Aktiver bruker?" : "Deaktiver bruker?",
         description: active
-          ? `${member.name} får tilgang igjen. Abonnementet øker med 399 kr per måned.`
+          ? member.active ? `Planlagt deaktivering av ${member.name} avbrytes. Ingen nye kostnader.` : `${member.name} får tilgang igjen. Abonnementet øker med ${(pricing.crmPrice ?? 0) + (memberModuleCosts[member.id] ?? 0)} kr per måned eks. mva., inkludert eventuelle eksisterende modullisenser.`
           : `${member.name} mister tilgangen umiddelbart. Dataene slettes ikke.`,
         confirm: () => {
           setConfirmation(null);
@@ -1224,7 +1234,7 @@ export default function Home() {
     const r = await api("/api/admin", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "memberStatus", id: member.id, active }),
+      body: JSON.stringify({ type: "memberStatus", id: member.id, active, acceptedPrice: pricing.crmPrice == null ? null : pricing.crmPrice + (memberModuleCosts[member.id] ?? 0) }),
     });
     const d = await r.json();
     if (!r.ok) return toast.error(d.error ?? "Kunne ikke endre brukeren");
@@ -1268,6 +1278,7 @@ export default function Home() {
   }
   async function addOrganization() {
     if (!newOrg.name || !newOrg.adminEmail) return;
+    if (newOrg.crmPrice === "") return toast.error("Oppgi avtalt pris per CRM-bruker.");
     const r = await api("/api/admin", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1342,7 +1353,7 @@ export default function Home() {
       | "industry"
       | "phone"
       | "email"
-    >,
+    > & PriceFields,
   ) {
     const r = await api("/api/superadmin", {
         method: "POST",
@@ -1358,18 +1369,9 @@ export default function Home() {
       toast.error(d.error ?? "Kunne ikke lagre bedriftsinformasjonen");
       return false;
     }
-    setOperations((current) =>
-      current
-        ? {
-            ...current,
-            organizations: current.organizations.map((organization) =>
-              organization.id === id
-                ? { ...organization, ...d.organization }
-                : organization,
-            ),
-          }
-        : current,
-    );
+    const refreshed = await api("/api/superadmin").then(r=>r.json());
+    if (!refreshed.error) setOperations(refreshed);
+    await loadOrganization(activeOrgId);
     toast.success("Bedriftsinformasjonen er lagret");
     return true;
   }
@@ -1524,7 +1526,7 @@ export default function Home() {
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="sidebar-foot account-trigger">
+            <button className="sidebar-foot account-trigger" title={user.displayName} aria-label={`Konto: ${user.displayName}`}>
               <div className="avatar">
                 {hasAvatar && (
                   <img
@@ -1555,7 +1557,7 @@ export default function Home() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-56">
-            <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+            <DropdownMenuLabel className="break-all">{user.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setProfileOpen(true)}>
               <Settings />
@@ -1679,6 +1681,7 @@ export default function Home() {
               <Switch
                 checked={profile.browserNotifications}
                 onCheckedChange={async (enabled) => {
+                  if (enabled && !("Notification" in window)) return toast.error("Denne nettleseren støtter ikke nettleservarsler. Du kan fortsatt bruke CRM-et.");
                   if (
                     enabled &&
                     "Notification" in window &&
@@ -1764,6 +1767,7 @@ export default function Home() {
         </header>
         {view === "overview" && (
           <Overview
+            displayName={user.displayName}
             companies={companies}
             overdue={overdue}
             today={dueToday}
@@ -1837,6 +1841,7 @@ export default function Home() {
         {view === "calllists" && (["Administrator", "Superadmin"].includes(rolePreview) || ringModuleActive) && (
           <CallListBoundary>
             <CallLists
+            agreedPrice={pricing.ringPrice}
               active={ringModuleActive}
               role={rolePreview}
               members={members}
@@ -1857,6 +1862,7 @@ export default function Home() {
         )}{" "}
         {view === "marketing" && (["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
           <Marketing
+            agreedPrice={pricing.marketingPrice}
             key={activeOrgId}
             active={marketingModuleActive}
             role={rolePreview}
@@ -2140,9 +2146,9 @@ function Nav(p: {
   count?: number;
 }) {
   return (
-    <button className={p.a ? "active" : ""} onClick={p.click}>
+    <button className={p.a ? "active" : ""} onClick={p.click} title={p.text} aria-label={p.text}>
       {p.ico}
-      {p.text}
+      <span className="nav-label">{p.text}</span>
       {p.count ? <span className="nav-count">{p.count}</span> : null}
     </button>
   );
@@ -2354,6 +2360,7 @@ function Add(p: {
   );
 }
 function Overview(p: {
+  displayName: string;
   companies: Company[];
   overdue: Activity[];
   today: Activity[];
@@ -2367,7 +2374,7 @@ function Overview(p: {
     <div className="page-pad">
       <section className="welcome">
         <div>
-          <p>God dag, Joakim</p>
+          <p>God dag, {p.displayName}</p>
           <h2>
             {tasks.length
               ? `Du har ${tasks.length} oppfølginger som trenger deg.`
@@ -3752,6 +3759,7 @@ function MultiSearchPicker({
   );
 }
 function CallLists({
+  agreedPrice,
   active,
   role,
   members,
@@ -3761,6 +3769,7 @@ function CallLists({
   onDataChanged,
   onGoToCustomer,
 }: {
+  agreedPrice: number | null;
   active: boolean;
   role: string;
   members: Member[];
@@ -3770,6 +3779,9 @@ function CallLists({
   onDataChanged: () => Promise<void>;
   onGoToCustomer: (company: Company) => void;
 }) {
+  const [unitPrice,setUnitPrice] = useState(agreedPrice);
+  const [purchaseBusy,setPurchaseBusy] = useState(false);
+  useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
   const initialCache = callListCache.get(organizationId);
   const [entries, setEntries] = useState<CallListEntry[]>(
       initialCache?.entries ?? [],
@@ -3852,41 +3864,28 @@ function CallLists({
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
-      .then((admin) =>
-        setLicensedMemberIds(
-          admin.modules?.ringelister?.licensedMemberIds ?? [],
-        ),
-      )
+      .then((admin) => {
+        setLicensedMemberIds(admin.modules?.ringelister?.licensedMemberIds ?? []);
+        setUnitPrice(admin.pricing?.ringPrice ?? null);
+      })
       .catch(() => undefined);
   }, [purchaseOpen, role, organizationId]);
   async function activate() {
-    if (!licensedMemberIds.length)
-      return toast.error("Velg minst én bruker som skal ha modulen");
-    const previous = active,
-      optimisticActive = licensedMemberIds.includes(currentMembershipId);
-    setPurchaseOpen(false);
-    onActivated(optimisticActive);
-    toast.success("Ringelistemodulen er oppdatert");
-    const r = await apiFetch("/api/admin", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-organization-id": String(organizationId),
-        },
-        body: JSON.stringify({
-          type: "moduleStatus",
-          moduleKey: "ringelister",
-          membershipIds: licensedMemberIds,
-        }),
-      }),
-      d = await r.json();
-    if (!r.ok) {
-      onActivated(previous);
-      setPurchaseOpen(true);
-      return toast.error(d.error ?? "Kunne ikke aktivere modulen");
-    }
-    onActivated(Boolean(d.currentUserActive));
+    if (purchaseBusy) return;
+    if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
+    if (!licensedMemberIds.length) return toast.error("Velg minst én bruker");
+    setPurchaseBusy(true);
+    try {
+      const r = await apiFetch("/api/admin", {method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"moduleStatus",moduleKey:"ringelister",membershipIds:licensedMemberIds,acceptedPrice:unitPrice})});
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Kunne ikke aktivere modulen");
+      onActivated(Boolean(d.currentUserActive));
+      setPurchaseOpen(false);
+      toast.success("Modullisensene er oppdatert");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Kunne ikke aktivere modulen"); }
+    finally { setPurchaseBusy(false); }
   }
+
   async function generate() {
     setBusy(true);
     try {
@@ -4076,9 +4075,9 @@ function CallLists({
             Lag målrettede ringelister fra Brønnøysundregistrene eller importer
             lister du allerede har kjøpt.
           </p>
-          <strong>49 kr per aktiv bruker per måned</strong>
+          <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
           {role !== "Bruker" ? (
-            <Button onClick={() => setPurchaseOpen(true)}>
+            <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
               Velg brukere og aktiver
             </Button>
           ) : (
@@ -4090,8 +4089,7 @@ function CallLists({
             <DialogHeader>
               <DialogTitle>Aktiver Ringelister</DialogTitle>
               <DialogDescription>
-                Velg hvilke ansatte som skal ha modulen. Prisen er 49 kr per
-                bruker per måned.
+                Velg hvilke ansatte som skal ha modulen. Avtalt pris er {unitPrice} kr per bruker per måned eks. mva.
               </DialogDescription>
             </DialogHeader>
             <div className="module-member-list">
@@ -4139,9 +4137,9 @@ function CallLists({
                 {licensedMemberIds.length}{" "}
                 {licensedMemberIds.length === 1 ? "bruker" : "brukere"}
               </span>
-              <strong>{licensedMemberIds.length * 49} kr/mnd.</strong>
+              <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
-            <Button onClick={activate} disabled={!licensedMemberIds.length}>
+            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}>
               Bekreft kjøp og aktiver
             </Button>
           </DialogContent>
@@ -4227,9 +4225,9 @@ function CallLists({
                 {licensedMemberIds.length}{" "}
                 {licensedMemberIds.length === 1 ? "bruker" : "brukere"}
               </span>
-              <strong>{licensedMemberIds.length * 49} kr/mnd.</strong>
+              <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
-            <Button onClick={activate} disabled={!licensedMemberIds.length}>
+            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}>
               Lagre og bekreft pris
             </Button>
           </DialogContent>
@@ -4770,6 +4768,7 @@ function MarketingPostImage({
 }
 
 function Marketing({
+  agreedPrice,
   companies,
   active,
   role,
@@ -4778,6 +4777,7 @@ function Marketing({
   currentMembershipId,
   onActivated,
 }: {
+  agreedPrice: number | null;
   active: boolean;
   role: string;
   members: Member[];
@@ -4786,6 +4786,9 @@ function Marketing({
   onActivated: (active: boolean) => void;
   companies: Company[];
 }) {
+  const [unitPrice,setUnitPrice] = useState(agreedPrice);
+  const [purchaseBusy,setPurchaseBusy] = useState(false);
+  useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
   const [purchaseOpen, setPurchaseOpen] = useState(false),
     [licensed, setLicensed] = useState<number[]>([]),
     [posts, setPosts] = useState<
@@ -4861,38 +4864,28 @@ function Marketing({
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
-      .then((d) =>
-        setLicensed(d.modules?.markedsforing?.licensedMemberIds ?? []),
-      )
+      .then((d) => {
+        setLicensed(d.modules?.markedsforing?.licensedMemberIds ?? []);
+        setUnitPrice(d.pricing?.marketingPrice ?? null);
+      })
       .catch(() => undefined);
   }, [organizationId, purchaseOpen, role]);
   async function activate() {
+    if (purchaseBusy) return;
+    if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
     if (!licensed.length) return toast.error("Velg minst én bruker");
-    const previous = active,
-      optimisticActive = licensed.includes(currentMembershipId);
-    setPurchaseOpen(false);
-    onActivated(optimisticActive);
-    toast.success("Markedsføringsmodulen er oppdatert");
-    const r = await apiFetch("/api/admin", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-organization-id": String(organizationId),
-        },
-        body: JSON.stringify({
-          type: "moduleStatus",
-          moduleKey: "markedsforing",
-          membershipIds: licensed,
-        }),
-      }),
-      d = await r.json();
-    if (!r.ok) {
-      onActivated(previous);
-      setPurchaseOpen(true);
-      return toast.error(d.error ?? "Kunne ikke aktivere modulen");
-    }
-    onActivated(Boolean(d.currentUserActive));
+    setPurchaseBusy(true);
+    try {
+      const r = await apiFetch("/api/admin", {method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"moduleStatus",moduleKey:"markedsforing",membershipIds:licensed,acceptedPrice:unitPrice})});
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Kunne ikke aktivere modulen");
+      onActivated(Boolean(d.currentUserActive));
+      setPurchaseOpen(false);
+      toast.success("Modullisensene er oppdatert");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Kunne ikke aktivere modulen"); }
+    finally { setPurchaseBusy(false); }
   }
+
   async function savePost() {
     if (savingPost) return;
     const form = new FormData();
@@ -4944,7 +4937,7 @@ function Marketing({
         <DialogHeader>
           <DialogTitle>Markedsføring for ansatte</DialogTitle>
           <DialogDescription>
-            49 kr per valgt bruker per måned.
+            Avtalt pris: {unitPrice} kr per valgt bruker per måned eks. mva.
           </DialogDescription>
         </DialogHeader>
         <div className="module-member-list">
@@ -4985,9 +4978,9 @@ function Marketing({
         </div>
         <div className="module-purchase-total">
           <span>{licensed.length} brukere</span>
-          <strong>{licensed.length * 49} kr/mnd.</strong>
+          <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensed.length * unitPrice} kr/mnd.`}</strong>
         </div>
-        <Button onClick={activate}>Lagre og bekreft pris</Button>
+        <Button disabled={purchaseBusy || unitPrice == null || !licensed.length} onClick={activate}>Lagre og bekreft pris</Button>
       </DialogContent>
     </Dialog>
   );
@@ -5002,9 +4995,9 @@ function Marketing({
             Planlegg innhold på tvers av kanaler og samle nøkkeltall på ett
             sted.
           </p>
-          <strong>49 kr per aktiv bruker per måned</strong>
+          <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
           {role !== "Bruker" ? (
-            <Button onClick={() => setPurchaseOpen(true)}>
+            <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
               Velg brukere og aktiver
             </Button>
           ) : (
@@ -5302,6 +5295,7 @@ function SuperadminSettings(p: {
               <SelectItem value="Bruker">Bruker</SelectItem>
             </SelectContent>
           </Select>
+          <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
           <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
         </div>
       </AdminCard>
@@ -5387,13 +5381,14 @@ function Operations(p: {
       | "industry"
       | "phone"
       | "email"
-    >,
+    > & PriceFields,
   ) => Promise<boolean>;
 }) {
   const [q, setQ] = useState(""),
     [selectedOrganization, setSelectedOrganization] =
       useState<OperationOrganization | null>(null),
     [details, setDetails] = useState({
+      crmPrice: "", ringPrice: "", marketingPrice: "",
       name: "",
       orgNumber: "",
       address: "",
@@ -5409,6 +5404,9 @@ function Operations(p: {
   function openDetails(organization: OperationOrganization) {
     setSelectedOrganization(organization);
     setDetails({
+      crmPrice: organization.crmPrice == null ? "" : String(organization.crmPrice),
+      ringPrice: organization.ringPrice == null ? "" : String(organization.ringPrice),
+      marketingPrice: organization.marketingPrice == null ? "" : String(organization.marketingPrice),
       name: organization.name,
       orgNumber: organization.orgNumber,
       address: organization.address,
@@ -5482,7 +5480,7 @@ function Operations(p: {
           <div>
             <h3>Kundeorganisasjoner</h3>
             <p>
-              399 kr per aktiv bruker · Tilleggsmoduler 49 kr per valgt bruker
+              Individuelt avtalte priser per bedrift
             </p>
           </div>
           <div className="operations-toolbar">
@@ -5724,6 +5722,8 @@ function Operations(p: {
               />
             </div>
           </div>
+          <NegotiatedPrices values={details} change={(values) => setDetails({...details,...values})} />
+          <p className="form-hint">Lagre prisene dere har avtalt. Endringen gjelder eksisterende og nye brukerlisenser fra nå; tidligere fakturagrunnlag beholdes.</p>
           <div className="offer-actions">
             <Button
               variant="outline"
@@ -5896,3 +5896,10 @@ function AvatarCropDialog({
   );
 }
 
+
+function NegotiatedPrices({values,change}:{values:PriceFields;change:(value:PriceFields)=>void}) {
+  return <fieldset className="negotiated-prices"><legend>Avtalte priser</legend>
+    <p className="form-hint">Kroner per bruker per måned, eks. mva. Skriv 0 hvis inkludert. Tom modulpris betyr at pris må avtales før kjøp.</p>
+    {([["crmPrice","CRM-bruker"],["ringPrice","Ringelister"],["marketingPrice","Markedsføring"]] as const).map(([key,label])=><label key={key}>{label}<Input type="number" min="0" max="1000000" step="1" inputMode="numeric" required={key==="crmPrice"} value={values[key]} onChange={e=>change({...values,[key]:e.target.value})} placeholder={key==="crmPrice"?"Avtalt pris":"Ikke avtalt"}/></label>)}
+  </fieldset>;
+}

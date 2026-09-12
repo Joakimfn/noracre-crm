@@ -5,7 +5,7 @@ export default function Vilkar() {
     <main className="legal-page">
       <article>
         <Link href="/">← Tilbake til Noracre CRM</Link>
-        <p className="eyebrow">SIST OPPDATERT 9. SEPTEMBER 2026</p>
+        <p className="eyebrow">SIST OPPDATERT 12. SEPTEMBER 2026</p>
         <h1>Bruksvilkår for Noracre CRM</h1>
         <p>
           Vilkårene gjelder mellom leverandøren av Noracre CRM og virksomheten
@@ -22,11 +22,12 @@ export default function Vilkar() {
         </p>
         <h2>Pris og betaling</h2>
         <p>
-          Abonnementet koster 399 kroner per aktiv bruker per måned. Det er
-          ingen etableringsgebyr for inntil fem brukere. Fra og med bruker
-          nummer seks påløper et etableringsgebyr på 999 kroner per ekstra
-          bruker. Tilleggsmoduler prises separat. Merverdiavgift kommer i
-          tillegg når det er relevant.
+          Pris avtales individuelt med hver kundevirksomhet. Avtalt månedspris
+          per aktiv CRM-bruker og per brukerlisens for tilleggsmoduler vises
+          før aktivering. Nye brukere og modullisenser krever prisbekreftelse
+          fra en administrator. Eventuelle etableringsgebyrer må avtales
+          særskilt. Prisendringer følger avtalen med virksomheten.
+          Merverdiavgift kommer i tillegg når det er relevant.
         </p>
         <h2>Kundens ansvar</h2>
         <p>

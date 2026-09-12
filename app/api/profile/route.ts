@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       const object = await bucket().get(profile.avatarKey);
       return object ? new Response(object.body, { headers: { "content-type": profile.avatarType, "cache-control": "private, max-age=300" } }) : new Response(null, { status: 404 });
     }
-    return Response.json({ profile: profile ?? { displayName: ctx.user.displayName, contactEmail: ctx.user.email, theme: "light", avatarKey: "", avatarX: 50, avatarY: 50, avatarZoom: 100, browserNotifications: false } });
+    return Response.json({ profile: profile ? {...profile, displayName: !profile.displayName.trim() || profile.displayName.toLowerCase() === ctx.user.email.toLowerCase() ? ctx.user.displayName : profile.displayName} : { displayName: ctx.user.displayName, contactEmail: ctx.user.email, theme: "light", avatarKey: "", avatarX: 50, avatarY: 50, avatarZoom: 100, browserNotifications: false } });
   } catch (error) { return accessResponse(error); }
 }
 
@@ -42,3 +42,4 @@ export async function POST(request: Request) {
     return Response.json({ profile: values });
   } catch (error) { return accessResponse(error); }
 }
+

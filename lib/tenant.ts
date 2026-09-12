@@ -1,7 +1,7 @@
 import { and, eq, gt, or } from "drizzle-orm";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
-import { memberships, organizations, supportSessions } from "@/db/schema";
+import { memberships, organizations, supportSessions, teamMembers } from "@/db/schema";
 
 export const ownerAccounts = [
   { email: "joakimfn@gmail.com", name: "Joakim Ferdinand Nygård" },
@@ -135,11 +135,11 @@ export async function requireTenant(request: Request) {
     if (invited) {
       await db
         .update(memberships)
-        .set({ userId: user.id, name: user.displayName })
+        .set({ userId: user.id })
         .where(eq(memberships.id, invited.id));
       member = member.map((m) =>
         m.id === invited.id
-          ? { ...m, userId: user.id, name: user.displayName }
+          ? { ...m, userId: user.id }
           : m,
       );
     }
@@ -157,6 +157,14 @@ export async function requireTenant(request: Request) {
     );
   const direct = anyDirect?.active ? anyDirect : undefined;
   if (direct) {
+    // Recover invitation names lost by older versions at first sign-in.
+    if (!direct.name.trim() || direct.name.toLowerCase() === user.email.toLowerCase()) {
+      const [invitation] = await db.select().from(teamMembers).where(and(eq(teamMembers.organizationId,requested),eq(teamMembers.email,user.email))).limit(1);
+      if (invitation?.name.trim() && invitation.name.toLowerCase() !== user.email.toLowerCase()) {
+        direct.name = invitation.name;
+        await db.update(memberships).set({name:invitation.name}).where(eq(memberships.id,direct.id));
+      }
+    }
     const [organization] = await db
           .select()
           .from(organizations)
@@ -169,7 +177,7 @@ export async function requireTenant(request: Request) {
         "ORGANIZATION_DISABLED",
       );
     return {
-      user,
+      user: { ...user, displayName: direct.name.trim() || user.displayName },
       organizationId: requested,
       role: direct.role,
       membershipId: direct.id,
