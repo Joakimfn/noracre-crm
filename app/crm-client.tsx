@@ -1,4 +1,5 @@
 "use client";
+import {prepareInstagramImage} from "@/lib/instagram-image";
 import {PhoneLink} from "@/components/phone-link";
 
 import { HealthStatus, OperationsInsights } from "@/components/operations-insights";
@@ -4840,6 +4841,48 @@ function Marketing({
   const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
   const [publishId,setPublishId] = useState<number|null>(null);
   const [publishing,setPublishing] = useState(false);
+  const [deleteId,setDeleteId]=useState<number|null>(null),[deleting,setDeleting]=useState(false);
+  const [preparing,setPreparing]=useState(false),[prepareError,setPrepareError]=useState("");
+  const [preparedImages,setPreparedImages]=useState<{id:number;blob:Blob;upscaled:boolean}[]>([]);
+  const [confirmedTargets,setConfirmedTargets]=useState<{id:number;accountId:string;platform:string;accountName:string}[]>([]);
+  const preparedPreviews=useMemo(()=>preparedImages.map(i=>({...i,url:URL.createObjectURL(i.blob)})),[preparedImages]);
+  useEffect(()=>()=>preparedPreviews.forEach(i=>URL.revokeObjectURL(i.url)),[preparedPreviews]);
+  function openPublish(post:typeof posts[number]){
+    setPreparing(true);setPrepareError("");setPreparedImages([]);
+    setConfirmedTargets(social.connections.map(c=>({id:c.id,accountId:c.accountId,platform:c.platform,accountName:c.accountName})));
+    setPublishId(post.id);
+  }
+  useEffect(()=>{
+    if(!publishId)return;
+    let cancelled=false;
+    const post=posts.find(p=>p.id===publishId);
+    void (async()=>{try{
+      const prepared:{id:number;blob:Blob;upscaled:boolean}[]=[];
+      if(post&&JSON.parse(post.platforms).includes('Instagram')){
+        if(!post.images?.length)throw Error('Legg til minst ett bilde for Instagram.');
+        if([...post.content].length>2200)throw Error('Instagram-teksten kan være maks 2 200 tegn.');
+        let ratio:number|undefined;
+        for(const image of post.images){
+          const response=await apiFetch(`/api/marketing-images?id=${image.id}`,{headers:{'x-organization-id':String(organizationId)}});
+          if(!response.ok)throw Error(`Kunne ikke hente «${image.filename}». Prøv igjen.`);
+          const result=await prepareInstagramImage(await response.blob(),ratio);ratio??=result.ratio;
+          prepared.push({id:image.id,blob:result.blob,upscaled:result.upscaled});
+        }
+      }
+      if(!cancelled)setPreparedImages(prepared);
+    }catch(error){if(!cancelled)setPrepareError(error instanceof Error?error.message:'Bildene kunne ikke klargjøres.');}
+    finally{if(!cancelled)setPreparing(false);}})();
+    return ()=>{cancelled=true;};
+  },[publishId,organizationId]);
+  async function deletePost(){
+    if(!deleteId||deleting)return;setDeleting(true);
+    try{
+      const r=await apiFetch('/api/marketing',{method:'DELETE',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({id:deleteId,confirm:true})});
+      const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke fjerne innlegget.');
+      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDeleteId(null);toast.success('Innlegget er fjernet fra innholdsplanen.');
+    }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke fjerne innlegget.');}
+    finally{setDeleting(false);}
+  }
   const publishPost = posts.find(post=>post.id===publishId);
   function canPublish(post: typeof posts[number]) {
     const selected=JSON.parse(post.platforms) as string[];
@@ -4847,10 +4890,12 @@ function Marketing({
       ["Facebook","Instagram"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
   }
   async function publishNow() {
-    if(!publishPost||publishing)return;
+    if(!publishPost||publishing||preparing||prepareError)return;
     setPublishing(true);
     try {
-      const response=await apiFetch("/api/social/publish",{method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({postId:publishPost.id,confirm:true,targets:social.connections.map(c=>({id:c.id,accountId:c.accountId,platform:c.platform}))})});
+      const form=new FormData();form.append('payload',JSON.stringify({postId:publishPost.id,confirm:true,targets:confirmedTargets}));
+      preparedImages.forEach(i=>form.append(`image:${i.id}`,i.blob,`image-${i.id}.jpg`));
+      const response=await apiFetch("/api/social/publish",{method:"POST",headers:{"x-organization-id":String(organizationId)},body:form});
       const result=await response.json();
       if(!response.ok)throw Error(result.error??"Kunne ikke publisere.");
       setPosts(rows=>rows.map(p=>p.id===publishPost.id?{...p,status:result.status,deliveries:result.results}:p));
@@ -5149,7 +5194,7 @@ function Marketing({
                 {post.scheduledAt ? ` · ${date(post.scheduledAt, true)}` : ""}
               </small>
               {post.deliveries?.map(delivery=><small key={delivery.platform}>{delivery.platform}: {delivery.status === "published" ? "Publisert" : delivery.error || "Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres."}</small>)}
-              {canPublish(post) && <Button variant="outline" onClick={()=>setPublishId(post.id)}>Publiser nå</Button>}
+              <div className="marketing-post-actions">{canPublish(post) && <Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" disabled={post.status==='Publiserer'} aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} onClick={()=>setDeleteId(post.id)}><Trash2 size={16}/>Slett</Button></div>
             </div>
           ))
         ) : (
@@ -5159,10 +5204,15 @@ function Marketing({
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
         <DialogContent><DialogHeader><DialogTitle>Publiser innlegget nå?</DialogTitle><DialogDescription>Innlegget blir synlig på kontoene nedenfor med en gang. Et eventuelt planlagt tidspunkt blir ikke brukt.</DialogDescription></DialogHeader>
           {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0} bilder</p>
-          <ul>{(JSON.parse(publishPost.platforms) as string[]).map(channel=><li key={channel}>{channel}: {social.connections.find(c=>c.platform===channel)?.accountName}</li>)}</ul></>}
-          <Button disabled={publishing} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
+          <ul>{(JSON.parse(publishPost.platforms) as string[]).map(channel=><li key={channel}>{channel}: {confirmedTargets.find(c=>c.platform===channel)?.accountName}</li>)}</ul></>}
+          {preparing&&<p role="status">Klargjør bilder …</p>}
+          {prepareError&&<p role="alert">{prepareError}</p>}
+          {preparedPreviews.length>0&&<><div className="marketing-publish-previews">{preparedPreviews.map((i,index)=><img key={i.id} src={i.url} alt={`Bilde ${index+1} slik det publiseres`}/>)}</div><p className="form-hint">Tilpasset for Instagram med proporsjonene bevart. Eventuelle marger og gjennomsiktighet får hvit bakgrunn. Animasjoner blir stillbilder.{preparedImages.some(i=>i.upscaled)?' Små originalbilder er forstørret og kan bli mindre skarpe.':''}</p></>}
+          {!preparing&&!prepareError&&!preparedPreviews.length&&publishPost?.images?.length?<div className="marketing-publish-previews">{publishPost.images.map(i=><MarketingPostImage key={i.id} id={i.id} filename={i.filename} organizationId={organizationId}/>)}</div>:null}
+          <Button disabled={publishing||preparing||Boolean(prepareError)} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
         </DialogContent>
       </Dialog>
+      <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>Slett fra innholdsplanen?</DialogTitle><DialogDescription>Innlegget fjernes fra oversikten i CRM-et. Innlegg som allerede er publisert på Facebook eller Instagram, blir ikke slettet der.</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}>Avbryt</Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?'Sletter …':'Slett fra innholdsplanen'}</Button></div></DialogContent></Dialog>
       <BulkEmail companies={companies} organizationId={organizationId} />
       {chooser}
     </div>

@@ -304,3 +304,18 @@ test('booked meetings retain their own notes and return the updated customer for
  assert.equal(sql.prepare('SELECT count(*) n FROM activities WHERE organization_id=99').get().n,2);
  assert.equal((await route('call-lists').POST(request(99,99,{...body,id:1}))).status,404);
 });
+
+test('removing plan entries is tenant scoped, requires confirmation and preserves external delivery records',async()=>{
+ add('organization_modules',{organization_id:99,module_key:'markedsforing',activated_at:'2026-01-01'});
+ add('module_licenses',{organization_id:99,membership_id:99,module_key:'markedsforing',activated_at:'2026-01-01'});
+ add('marketing_posts',{id:999,organization_id:99,content:'Delete test',created_by:'Test',platforms:'["Facebook"]',status:'Publisert',created_at:'now',updated_at:'now'});
+ add('social_deliveries',{organization_id:99,post_id:999,platform:'Facebook',account_id:'test-page',status:'published',remote_id:'external-post',created_at:'now'});
+ const deletion=body=>route('marketing').DELETE(request(99,99,body));
+ assert.equal((await deletion({id:999})).status,400);
+ assert.equal((await deletion({id:1,confirm:true})).status,409);
+ sql.exec("UPDATE marketing_posts SET status='Publiserer' WHERE id=999");assert.equal((await deletion({id:999,confirm:true})).status,409);
+ sql.exec("UPDATE marketing_posts SET status='Publisert' WHERE id=999");assert.equal((await deletion({id:999,confirm:true})).status,200);
+ assert.equal(sql.prepare('SELECT status FROM marketing_posts WHERE id=999').get().status,'Slettet');
+ assert.equal(sql.prepare('SELECT remote_id FROM social_deliveries WHERE post_id=999').get().remote_id,'external-post');
+ assert.equal((await (await route('marketing').GET(request(99,99))).json()).posts.length,0);
+});

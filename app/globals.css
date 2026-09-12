@@ -3502,3 +3502,7 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .noracre-calendar .rdp-today:not([data-selected=true]) button { box-shadow:inset 0 0 0 1px var(--border); }
 .noracre-calendar .rdp-day button:focus-visible { outline:2px solid var(--ring); outline-offset:1px; }
 .noracre-date-panel .noracre-date-footer { bottom:-12px; margin-top:0; margin-bottom:-6px; padding:8px 0; }
+.marketing-post-actions {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.marketing-publish-previews {display:flex;flex-wrap:wrap;gap:10px;}
+.marketing-publish-previews img {width:128px;max-height:160px;object-fit:contain;border:1px solid var(--border);border-radius:10px;background:#fff;}
+.marketing-delete-excerpt {white-space:pre-wrap;overflow-wrap:anywhere;max-height:25vh;overflow:auto;}

@@ -205,6 +205,30 @@ test('only GET callback and signed media bypass bearer gate; handlers still vali
  }
  assert.equal((await app.guardRequest(new Request('https://crm.noracre.no/api/social/meta/accounts'))).status,401);
 });
+test('prepared JPEG replaces an existing PNG draft only after validation, then sends both channels once',async()=>{
+ post(90,['Instagram','Facebook']);
+ add('marketing_post_images',{id:90,organization_id:1,post_id:90,object_key:'old-png',filename:'logo.png',content_type:'image/png',size:900,created_at:'now'});
+ const jpeg=new Uint8Array([255,216,255,192,0,8,8,1,64,1,64,1]);
+ let uploaded=[];testEnv.BUCKET.put=async(key,bytes,options)=>{uploaded.push({key,bytes,options});};
+ const send=(imageId,blob)=>{
+  const form=new FormData();form.append('payload',JSON.stringify({postId:90,confirm:true,targets:targets()}));form.append(`image:${imageId}`,blob,'prepared.jpg');
+  return route('publish').POST(new Request('https://crm.noracre.no/api/social/publish',{method:'POST',headers:{authorization:'Bearer 1','x-organization-id':'1'},body:form}));
+ };
+ let before=calls.length;
+ assert.equal((await send(7,new Blob([jpeg],{type:'image/jpeg'}))).status,400);
+ assert.equal((await send(90,new Blob(['not a jpeg'],{type:'image/jpeg'}))).status,400);
+ assert.equal(calls.length,before);assert.equal(uploaded.length,0);
+ testEnv.BUCKET.put=async()=>{throw Error('Storage unavailable')};
+ assert.equal((await send(90,new Blob([jpeg],{type:'image/jpeg'}))).status,503);
+ assert.equal(sql.prepare('SELECT status FROM marketing_posts WHERE id=90').get().status,'Kladd');
+ assert.equal(calls.slice(before).filter(c=>c.init.method==='POST').length,0);
+ testEnv.BUCKET.put=async(key,bytes,options)=>{uploaded.push({key,bytes,options});};
+ const result=await send(90,new Blob([jpeg],{type:'image/jpeg'}));assert.equal(result.status,200);assert.equal((await result.json()).status,'Publisert');
+ assert.equal(uploaded.length,1);assert.equal(uploaded[0].options.httpMetadata.contentType,'image/jpeg');
+ const stored=sql.prepare('SELECT content_type,filename,object_key FROM marketing_post_images WHERE id=90').get();assert.equal(stored.content_type,'image/jpeg');assert.equal(stored.filename,'logo.jpg');assert.equal(stored.object_key,uploaded[0].key);
+ before=calls.length;assert.equal((await send(90,new Blob([jpeg],{type:'image/jpeg'}))).status,409);assert.equal(calls.slice(before).filter(c=>c.init.method==='POST').length,0);assert.equal(uploaded.length,1);
+});
+
 test('disconnect is tenant-scoped and removes stored credential',async()=>{
  const row=sql.prepare("select id from social_connections where platform='Facebook'").get();
  await route('connections').DELETE(req('connections?id='+row.id,2,2,undefined,'DELETE'));
@@ -213,3 +237,5 @@ test('disconnect is tenant-scoped and removes stored credential',async()=>{
  assert.equal(sql.prepare('select id from social_connections where id=?').get(row.id),undefined);
 });
 test.after(()=>{globalThis.fetch=original;sql.close();return rm(dir,{recursive:true,force:true});});
+
+

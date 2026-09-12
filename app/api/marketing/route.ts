@@ -2,7 +2,7 @@ import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
 import { validateImage } from "@/lib/safe-image";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   marketingPostImages,
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const posts = await getDb()
       .select()
       .from(marketingPosts)
-      .where(eq(marketingPosts.organizationId, ctx.organizationId))
+      .where(and(eq(marketingPosts.organizationId, ctx.organizationId),ne(marketingPosts.status,"Slettet")))
       .orderBy(desc(marketingPosts.id))
       .limit(100);
     const imageRows = await getDb()
@@ -186,4 +186,16 @@ export async function POST(request: Request) {
   } catch (error) {
     return accessResponse(error);
   }
+}
+
+
+// Remove from the CRM plan only; external publications and their delivery history remain intact.
+export async function DELETE(request:Request){
+ try {
+  const ctx=await requireTenant(request);await requireMarketing(ctx.organizationId,ctx.membershipId);
+  const body=await request.json();if(body.confirm!==true)throw new AccessError(400,"Bekreft sletting først.");
+  const [post]=await getDb().update(marketingPosts).set({status:"Slettet",updatedAt:new Date().toISOString()}).where(and(eq(marketingPosts.organizationId,ctx.organizationId),eq(marketingPosts.id,Number(body.id)),ne(marketingPosts.status,"Publiserer"),ne(marketingPosts.status,"Slettet"))).returning({id:marketingPosts.id});
+  if(!post)throw new AccessError(409,"Innlegget finnes ikke eller publiseres nå. Oppdater innholdsplanen.");
+  return Response.json({deletedId:post.id});
+ }catch(error){return accessResponse(error);}
 }
