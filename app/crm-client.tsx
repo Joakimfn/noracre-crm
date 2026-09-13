@@ -1,4 +1,6 @@
 "use client";
+import { canManageModules } from "@/lib/roles";
+import { CompanyUserCreate } from "@/components/company-user-create";
 import { useAutosave } from "@/hooks/use-autosave";
 import {prepareInstagramImage} from "@/lib/instagram-image";
 import {PhoneLink} from "@/components/phone-link";
@@ -1305,10 +1307,11 @@ export default function Home() {
       return toast.error(
         (await r.json()).error ?? "Kunne ikke opprette organisasjonen",
       );
-    const org = (await r.json()).organization;
+    const data = await r.json();
+    const org = data.organization;
     setOrganizations((x) => [...x, org]);
     setNewOrg(emptyNewOrganization);
-    toast.success("Kundeorganisasjonen er opprettet");
+    toast.success(data.invitationSent ? "Bedriften er opprettet og invitasjonen er sendt" : "Bedriften er opprettet, men invitasjonen kunne ikke sendes. Del https://crm.noracre.no med kontaktpersonen.");
   }
   async function switchOrganization(id: number) {
     try {
@@ -1933,6 +1936,9 @@ export default function Home() {
         )}
         {view === "superadmin" && rolePreview === "Superadmin" && (
           <SuperadminSettings
+            activeOrgId={activeOrgId}
+            refreshKey={organizations.length}
+            onUserCreated={() => { void api("/api/admin").then(r => r.json()).then(data => { if (data.members) setMembers(data.members); }).catch(() => undefined); }}
             newOrg={newOrg}
             setNewOrg={setNewOrg}
             addOrg={addOrganization}
@@ -3902,7 +3908,7 @@ function CallLists({
     });
   }, [active, entries, loadingEntries, options, organizationId]);
   useEffect(() => {
-    if (!purchaseOpen || role === "Bruker") return;
+    if (!purchaseOpen || !canManageModules(role)) return;
     apiFetch("/api/admin", {
       headers: { "x-organization-id": String(organizationId) },
     })
@@ -4133,7 +4139,7 @@ function CallLists({
             lister du allerede har kjøpt.
           </p>
           <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
-          {role !== "Bruker" ? (
+          {canManageModules(role) ? (
             <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
               Velg brukere og aktiver
             </Button>
@@ -4212,7 +4218,7 @@ function CallLists({
             <h3>Lag en målrettet liste</h3>
           </div>
           <div className="offer-actions">
-            {role !== "Bruker" && (
+            {canManageModules(role) && (
               <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
                 <UsersRound />
                 Administrer brukere
@@ -4995,7 +5001,7 @@ function Marketing({
     return ()=>{window.clearTimeout(timer);controller.abort();};
   }, [active, organizationId,planView,planQuery,planPage,planRevision]);
   useEffect(() => {
-    if (!purchaseOpen || role === "Bruker") return;
+    if (!purchaseOpen || !canManageModules(role)) return;
     apiFetch("/api/admin", {
       headers: { "x-organization-id": String(organizationId) },
     })
@@ -5132,7 +5138,7 @@ function Marketing({
             sted.
           </p>
           <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
-          {role !== "Bruker" ? (
+          {canManageModules(role) ? (
             <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
               Velg brukere og aktiver
             </Button>
@@ -5150,7 +5156,7 @@ function Marketing({
           <p className="eyebrow">MARKEDSFØRING</p>
           <h2>Innhold og utsendinger</h2>
         </div>
-        {role !== "Bruker" && (
+        {canManageModules(role) && (
           <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
             <UsersRound />
             Administrer brukere
@@ -5281,6 +5287,9 @@ function Marketing({
   );
 }
 function SuperadminSettings(p: {
+  activeOrgId: number;
+  refreshKey: number;
+  onUserCreated: () => void;
   newOrg: NewOrganization;
   setNewOrg: (value: NewOrganization) => void;
   addOrg: () => void;
@@ -5435,6 +5444,13 @@ function SuperadminSettings(p: {
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
           <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
         </div>
+      </AdminCard>
+      <AdminCard
+        eye="BEDRIFTSBRUKERE"
+        title="Opprett bruker i en bedrift"
+        ico={<Building2 />}
+      >
+        <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey} onCreated={p.onUserCreated} />
       </AdminCard>
       <AdminCard
         eye="EIERKONTROLL"

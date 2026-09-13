@@ -21,7 +21,7 @@ await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './ap
  b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='campaigns'?'export const createCampaign=()=>{throw Error("Unexpected campaign")};export const dispatchCampaign=()=>{};export const campaignOutcome=()=>{};':p==='user-mail'?'export const getMailAccount=async()=>globalThis.testMailAccount;export const sendFromMailbox=async(a,p)=>globalThis.testMailSend(a,p);':p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
 }}],nodePaths:[path.join(root,'node_modules')]});
 // External packages resolve from the repository, not the temporary directory.
-const {symlink}=await import('node:fs/promises');await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'));
+const {symlink}=await import('node:fs/promises');await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
 const app=await import(pathToFileURL(path.join(dir,'routes.mjs')));
 const sql=new DatabaseSync(':memory:');
 for(const table of Object.values(app.schema)){
@@ -49,6 +49,11 @@ test('foreign contact cannot be linked to own customer',async()=>assert.equal((a
 test('foreign files are not fetched from storage',async()=>assert.equal((await route('attachments').GET(request(1,1,undefined,'?id=2'))).status,404));
 test('regular user cannot buy modules',async()=>assert.equal((await route('admin').POST(request(3,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[3]}))).status,403));
 test('administrator cannot license another organization member',async()=>assert.equal((await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey:'ringelister',membershipIds:[2]}))).status,400));
+
+test('employees cannot assign or revoke either module, including their own access',async()=>{
+ for(const moduleKey of ['ringelister','markedsforing'])for(const membershipIds of [[],[3],[1,3,4]])
+   assert.equal((await route('admin').POST(request(3,1,{type:'moduleStatus',moduleKey,membershipIds,acceptedPrice:29}))).status,403);
+});
 test('only selected users receive module access and catalog stays private',async()=>{
  for(const moduleKey of ['ringelister','markedsforing'])assert.equal((await route('admin').POST(request(1,1,{type:'moduleStatus',moduleKey,membershipIds:[3],acceptedPrice:moduleKey==='ringelister'?29:69}))).status,200);
  assert.deepEqual((await (await route('admin').GET(request(4))).json()).modules,{});
@@ -96,6 +101,62 @@ test('consented support expires, is revocable, and cannot renew itself',async()=
 });
 test('role escalation and unknown roles are rejected',async()=>{
  for(const [role,status] of [['Superadmin',403],['root',400]])assert.equal((await route('admin').POST(request(1,1,{type:'member',role,name:'Test',email:'new@test.no'}))).status,status);
+});
+
+test('only superadmin can target another company when creating users',async()=>{
+ const data={type:'member',organizationId:2,name:'Cross tenant',email:'cross@test.no',role:'Bruker',acceptedPrice:299};
+ for(const user of [1,3])assert.equal((await route('admin').POST(request(user,1,data))).status,403);
+ assert.equal(sql.prepare("SELECT count(*) n FROM memberships WHERE email='cross@test.no'").get().n,0);
+});
+
+test('superadmin provisions a customer user without support access and uses the target price',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={type:'member',organizationId:2,name:'Customer Admin',email:' CUSTOMER@TEST.NO ',phone:'12345678',role:'Administrator',acceptedPrice:299};
+ assert.equal((await route('companies').GET(request('owner',2))).status,403);
+ assert.equal((await route('admin').POST(request('owner',own,{...data,acceptedPrice:199}))).status,409);
+ const response=await route('admin').POST(request('owner',own,data));
+ assert.equal(response.status,201);
+ const result=await response.json();assert.equal(result.member.organizationId,2);assert.equal(result.member.email,'customer@test.no');assert.equal(result.member.phone,'12345678');assert.equal(result.monthlyPrice,299);
+ assert.equal(sql.prepare("SELECT organization_id FROM team_members WHERE email='customer@test.no'").get().organization_id,2);
+ assert.equal(sql.prepare("SELECT organization_id FROM audit_logs WHERE detail LIKE 'Customer Admin%'").get().organization_id,2);
+ assert.equal((await route('companies').GET(request('owner',2))).status,403);
+ assert.equal((await route('admin').POST(request('owner',own,data))).status,409);
+ assert.equal(sql.prepare("SELECT count(*) n FROM memberships WHERE email='customer@test.no'").get().n,1);
+});
+
+test('customer provisioning rejects privilege escalation, invalid input and disabled companies',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={type:'member',organizationId:2,name:'Blocked',email:'blocked@test.no',role:'Bruker',acceptedPrice:299};
+ for(const [change,status] of [[{role:'Superadmin'},403],[{role:'Root'},400],[{organizationId:999999},404],[{organizationId:-1},400],[{email:'bad@@email'},400],[{name:' '},400]])
+   assert.equal((await route('admin').POST(request('owner',own,{...data,...change}))).status,status);
+ sql.exec("UPDATE organizations SET status='Deaktivert' WHERE id=2");
+ assert.equal((await route('admin').POST(request('owner',own,data))).status,409);
+ sql.exec("UPDATE organizations SET status='Aktiv', scheduled_disable_at='2000-01-01' WHERE id=2");
+ assert.equal((await route('admin').POST(request('owner',own,data))).status,409);
+ sql.exec("UPDATE organizations SET scheduled_disable_at='' WHERE id=2");
+ assert.equal(sql.prepare("SELECT count(*) n FROM memberships WHERE email='blocked@test.no'").get().n,0);
+});
+
+test('customer membership, team entry and audit are atomic on write failure',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ sql.exec("CREATE TRIGGER fail_customer_team BEFORE INSERT ON team_members WHEN NEW.email='rollback@test.no' BEGIN SELECT RAISE(ABORT, 'test failure'); END");
+ const r=await route('admin').POST(request('owner',own,{type:'member',organizationId:2,name:'Rollback user',email:'rollback@test.no',role:'Bruker',acceptedPrice:299}));
+ assert.equal(r.status,500);
+ assert.equal(sql.prepare("SELECT count(*) n FROM memberships WHERE email='rollback@test.no'").get().n,0);
+ assert.equal(sql.prepare("SELECT count(*) n FROM audit_logs WHERE detail LIKE 'Rollback user%'").get().n,0);
+ sql.exec('DROP TRIGGER fail_customer_team');
+});
+
+test('the invitation identifies the selected customer company and only emails the created user',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const authFetch=globalThis.fetch;let message;
+ globalThis.testMailKey='test-key';
+ globalThis.fetch=async(url,options)=>{if(String(url)==='https://api.resend.com/emails'){message=JSON.parse(options.body);return Response.json({id:'test-only'});}return authFetch(url,options);};
+ try {
+   const response=await route('admin').POST(request('owner',own,{type:'member',organizationId:2,name:'Invited employee',email:'invited-employee@test.no',role:'Bruker',acceptedPrice:299}));
+   assert.equal(response.status,201);assert.equal((await response.json()).invitationSent,true);
+   assert.deepEqual(message.to,['invited-employee@test.no']);assert.match(message.subject,/Org 2/);assert.match(message.html,/Opprett konto eller logg inn/);
+ } finally {globalThis.fetch=authFetch;delete globalThis.testMailKey;}
 });
 test('SQL injection strings remain data, never executable SQL',async()=>{
  const name="'; DROP TABLE companies; --";

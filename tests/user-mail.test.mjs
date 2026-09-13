@@ -14,6 +14,22 @@ await build({stdin:{contents:"export * from './lib/user-mail';export * as callba
 const app=await import(pathToFileURL(path.join(dir,'mail.mjs'))),realFetch=globalThis.fetch;
 const account={organization_id:1,membership_id:1,provider:'google',email:'owner@example.test',token:'',updated_at:1};
 const input={to:['person@example.test'],bcc:[],subject:'Tilbud æøå',message:'Hei\nDette er en test.',files:[{filename:'tilbud.pdf',content:Buffer.from('PDF bytes').toString('base64')}],key:'test-id'};
+
+test('offer MIME preserves long Norwegian paragraphs and attachments with a fluid HTML alternative',()=>{
+ const message='Hei æøå,\r\n\r\n'+('CRM med kunder, kontakter og oppfølging. '.repeat(30))+'\n<script>alert("x")</script> & avslutning';
+ const mime=app.mimeMessage('sender@example.test',input.to,['hidden@example.test'],input.subject,message,input.files);
+ assert.match(mime,/Content-Type: multipart\/alternative/);
+ const parts=[...mime.matchAll(/Content-Type: text\/(plain|html); charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n([A-Za-z0-9+/=\r\n]+)\r\n--/g)];
+ assert.equal(parts.length,2);
+ assert.equal(Buffer.from(parts[0][2],'base64').toString('utf8'),message);
+ const html=Buffer.from(parts[1][2],'base64').toString('utf8');
+ assert.ok(html.includes('Hei æøå,<br><br>'));
+ assert.ok(html.includes('CRM med kunder, kontakter og oppfølging. '.repeat(30)));
+ assert.ok(html.includes('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; avslutning'));
+ assert.doesNotMatch(html,/<script|(?:max-)?width:\s*\d+px|overflow:\s*hidden|text-overflow:\s*ellipsis/);
+ assert.match(mime,/Content-Disposition: attachment;/);
+ assert.ok(mime.includes(input.files[0].content));
+});
 test('tokens are encrypted and bound to membership',async()=>{const sealed=await app.sealMail({refresh_token:'private'},'mail:1:1');assert.ok(!sealed.includes('private'));assert.deepEqual(await app.unsealMail(sealed,'mail:1:1'),{refresh_token:'private'});await assert.rejects(app.unsealMail(sealed,'mail:1:2'));});
 test('disconnected or deactivated pending grants cannot save a mailbox',async()=>{await assert.rejects(app.saveMailAccount(1,1,'google','a@example.test',{access_token:'a',refresh_token:'r',expires_at:Date.now()+3600000},'missing'));assert.equal(sql.prepare('SELECT count(*) n FROM mail_accounts').get().n,0);});
 test('valid claimed grant saves only its own encrypted mailbox',async()=>{sql.prepare("INSERT INTO mail_oauth VALUES(?,1,1,'browser','google','verifier','exchanging',?)").run('valid',Date.now()+60000);await app.saveMailAccount(1,1,'google','owner@example.test',{access_token:'a',refresh_token:'r',expires_at:Date.now()+3600000},'valid');const saved=await app.getMailAccount(1,1);assert.equal(saved.email,'owner@example.test');assert.equal((await app.unsealMail(saved.token,'mail:1:1')).refresh_token,'r');assert.equal(await app.getMailAccount(1,2),null);});

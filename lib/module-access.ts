@@ -3,8 +3,7 @@ import { getDb } from "@/db";
 import { moduleLicenses, organizationModules } from "@/db/schema";
 import { AccessError } from "@/lib/tenant";
 
-export const canManageModules = (role: string) =>
-  role === "Administrator" || role === "Superadmin";
+export { canManageModules } from "@/lib/roles";
 
 export async function requireModuleAccess(organizationId: number, membershipId: number, moduleKey: string) {
   const db = getDb();

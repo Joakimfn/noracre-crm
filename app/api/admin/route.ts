@@ -138,6 +138,8 @@ export async function POST(request: Request) {
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
         );
+      if (!String(data.name ?? "").trim() || !String(data.adminName ?? "").trim() || !/^[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+$/.test(email))
+        throw new AccessError(400, "Fyll inn bedriftsnavn, kontaktperson og gyldig e-postadresse.");
       const prices = parsePricing(data);
       if (prices.crmPrice == null) throw new AccessError(400, "Oppgi avtalt CRM-pris før du oppretter bedriften.");
       const [org] = await db
@@ -190,83 +192,38 @@ export async function POST(request: Request) {
     if (data.type === "member") {
       if (!ctx.isSuperadmin && ctx.role !== "Administrator")
         throw new AccessError(403, "Bare administrator kan legge til brukere.");
-      const email = String(data.email ?? "")
-          .trim()
-          .toLowerCase(),
-        name = String(data.name ?? "").trim();
-      if (!name || !email.includes("@"))
-        return await actorJson(ctx,
-          { error: "Navn og gyldig e-postadresse må fylles ut." },
-          { status: 400 },
-        );
-      const requestedRole = String(data.role ?? "Bruker");
-      if (!["Bruker", "Administrator", "Superadmin"].includes(requestedRole))
+      const targeted = data.organizationId !== undefined;
+      if (targeted && ctx.role !== "Superadmin")
+        throw new AccessError(403, "Bare superadmin kan opprette brukere i andre bedrifter.");
+      const organizationId = targeted ? Number(data.organizationId) : ctx.organizationId;
+      if (!Number.isSafeInteger(organizationId) || organizationId < 1)
+        throw new AccessError(400, "Velg en gyldig bedrift.");
+      const [organization] = await db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+      if (!organization) throw new AccessError(404, "Bedriften finnes ikke.");
+      if (organization.status !== "Aktiv" || (organization.scheduledDisableAt && organization.scheduledDisableAt <= now))
+        throw new AccessError(409, "Aktiver bedriften før du oppretter brukere.");
+      const email = String(data.email ?? "").trim().toLowerCase();
+      const name = String(data.name ?? "").trim();
+      if (!name || name.length > 160 || !/^[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+$/.test(email) || email.length > 254)
+        throw new AccessError(400, "Navn og gyldig e-postadresse må fylles ut.");
+      const role = String(data.role ?? "Bruker");
+      if (!["Bruker", "Administrator", "Superadmin"].includes(role))
         throw new AccessError(400, "Ugyldig rolle.");
-      if (requestedRole === "Superadmin" && !isOwner)
-        throw new AccessError(403, "Bare en eierkonto kan gi superadmintilgang.");
-      const role = requestedRole;
-      const price = confirmPrice((await organizationPricing(ctx.organizationId)).crmPrice, data.acceptedPrice);
-
-      const duplicate = await db
-        .select()
-        .from(memberships)
-        .where(
-          and(
-            eq(memberships.organizationId, ctx.organizationId),
-            eq(memberships.email, email),
-          ),
-        )
-        .limit(1);
+      if (role === "Superadmin" && (!isOwner || targeted))
+        throw new AccessError(403, "Superadmintilgang må gis av eierkontoen under Superadministratorer.");
+      const phone = String(data.phone ?? "").trim().slice(0, 50);
+      const price = confirmPrice(organization.crmPrice, data.acceptedPrice);
+      const duplicate = await db.select().from(memberships).where(and(eq(memberships.organizationId, organizationId), eq(memberships.email, email))).limit(1);
       if (duplicate.length)
-        return await actorJson(ctx,
-          { error: "Denne e-postadressen er allerede registrert i bedriften." },
-          { status: 409 },
-        );
-      await db
-        .insert(teamMembers)
-        .values({
-          organizationId: ctx.organizationId,
-          name,
-          email,
-          role,
-          active: true,
-          createdAt: now,
-        })
-        .returning();
-      const [member] = await db
-        .insert(memberships)
-        .values({
-          organizationId: ctx.organizationId,
-          userId: `invite:${email}`,
-          email,
-          name,
-          role,
-          active: true,
-          createdAt: now,
-        })
-        .returning();
-      await db.insert(auditLogs).values({
-        organizationId: ctx.organizationId,
-        actor: actorRef(ctx.user),
-        action: "Aktiverte bruker",
-        detail: `${name} · ${price} kr per måned`,
-        createdAt: now,
-      });
-      const [organization] = await db
-        .select({ name: organizations.name })
-        .from(organizations)
-        .where(eq(organizations.id, ctx.organizationId))
-        .limit(1);
-      const invitation = await sendInvitation({
-        to: email,
-        name,
-        organization: organization?.name || "din organisasjon",
-        role,
-      }).catch(() => ({ sent: false, reason: "provider_error" as const }));
-      return await actorJson(ctx,
-        { member, monthlyPrice: price, invitationSent: invitation.sent },
-        { status: 201 },
-      );
+        throw new AccessError(409, "Denne e-postadressen er allerede registrert i bedriften.");
+      const [[member]] = await db.batch([
+        db.insert(memberships).values({organizationId, userId: `invite:${email}`, email, name, phone, role, active: true, createdAt: now}).returning(),
+        db.insert(teamMembers).values({organizationId, email, name, phone, role, active: true, createdAt: now}),
+        db.insert(auditLogs).values({organizationId, actor: actorRef(ctx.user), action: "Aktiverte bruker", detail: `${name} · ${price} kr per måned`, createdAt: now}),
+      ]);
+      const invitation = await sendInvitation({ to: email, name, organization: organization.name, role })
+        .catch(() => ({ sent: false, reason: "provider_error" as const }));
+      return await actorJson(ctx, { member, monthlyPrice: price, invitationSent: invitation.sent }, { status: 201 });
     }
     if (data.type === "memberStatus") {
       if (!ctx.isSuperadmin && ctx.role !== "Administrator")

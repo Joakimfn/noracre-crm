@@ -16,6 +16,7 @@ export async function sendInvitation(input: {
   const appUrl = (runtime.APP_URL || "https://crm.noracre.no").replace(/\/$/, "");
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    signal: AbortSignal.timeout(15000),
     headers: {
       Authorization: `Bearer ${runtime.RESEND_API_KEY}`,
       "Content-Type": "application/json",

@@ -32,9 +32,16 @@ export async function saveMailAccount(org:number,member:number,provider:Provider
 async function accessToken(account:MailAccount){let t=await unsealMail<Token>(account.token,context(account.organization_id,account.membership_id));if(t.expires_at<Date.now()+60000){const renewed=await tokenRequest(account.provider,{grant_type:"refresh_token",refresh_token:t.refresh_token});t={access_token:renewed.access_token!,refresh_token:renewed.refresh_token||t.refresh_token,expires_at:Date.now()+Number(renewed.expires_in||3600)*1000};const encrypted=await sealMail(t,context(account.organization_id,account.membership_id));const saved=await mailDb().prepare("UPDATE mail_accounts SET token=?,updated_at=? WHERE organization_id=? AND membership_id=? AND token=?").bind(encrypted,Date.now(),account.organization_id,account.membership_id,account.token).run();if(!saved.meta.changes)throw new AccessError(409,"Kontotilkoblingen er endret. Oppdater siden før sending.");}return t.access_token;}
 const b64=(s:string)=>Buffer.from(s).toString("base64");
 const fold=(s:string)=>s.match(/.{1,76}/g)?.join("\r\n")||"";
+export function mailHtml(message:string){
+ const escaped=message.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
+ // HTML avoids mail clients' narrow plain-text display. Only explicit line breaks
+ // are preserved; the recipient's viewport controls all other wrapping.
+ return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;padding:0"><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;white-space:normal;overflow-wrap:anywhere;word-wrap:break-word">${escaped.replace(/\r\n|\r|\n/g,"<br>")}</div></body></html>`;
+}
 export function mimeMessage(from:string,to:string[],bcc:string[],subject:string,message:string,files:{filename:string;content:string}[]){
  const boundary="noracre_"+random();
- const lines=[`From: ${from}`,`To: ${to.join(", ")}`,...(bcc.length?[`Bcc: ${bcc.join(", ")}`]:[]),`Subject: =?UTF-8?B?${b64(subject)}?=`,"MIME-Version: 1.0",`Content-Type: multipart/mixed; boundary="${boundary}"`,"",`--${boundary}`,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",fold(b64(message))];
+ const alternative=boundary+"_body";
+ const lines=[`From: ${from}`,`To: ${to.join(", ")}`,...(bcc.length?[`Bcc: ${bcc.join(", ")}`]:[]),`Subject: =?UTF-8?B?${b64(subject)}?=`,"MIME-Version: 1.0",`Content-Type: multipart/mixed; boundary="${boundary}"`,"",`--${boundary}`,`Content-Type: multipart/alternative; boundary="${alternative}"`,"",`--${alternative}`,"Content-Type: text/plain; charset=UTF-8","Content-Transfer-Encoding: base64","",fold(b64(message)),`--${alternative}`,"Content-Type: text/html; charset=UTF-8","Content-Transfer-Encoding: base64","",fold(b64(mailHtml(message))),`--${alternative}--`,""];
  for(const file of files)lines.push(`--${boundary}`,"Content-Type: application/octet-stream",`Content-Disposition: attachment; filename*=UTF-8''${encodeURIComponent(file.filename).replace(/'/g,"%27")}`,"Content-Transfer-Encoding: base64","",fold(file.content));
  lines.push(`--${boundary}--`,"");return lines.join("\r\n");
 }
