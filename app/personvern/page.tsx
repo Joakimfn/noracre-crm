@@ -10,9 +10,9 @@ export default function Personvern() {
     <main className="legal-page">
       <article>
         <Link href="/om">← Om Noracre CRM</Link>
-        <p className="eyebrow">SIST OPPDATERT 12. SEPTEMBER 2026</p>
+        <p className="eyebrow">SIST OPPDATERT 13. SEPTEMBER 2026</p>
         <h1>Personvernerklæring for Noracre CRM</h1>
-        <p>Denne erklæringen gjelder Noracre CRM på crm.noracre.no, inkludert den valgfrie tilkoblingen til Google Workspace og Gmail. Kontakt for tjenesten er Joakim Ferdinand Nygård, <a href="mailto:jfn@noracre.no">jfn@noracre.no</a>.</p>
+        <p>Denne erklæringen gjelder Noracre CRM på crm.noracre.no, inkludert den valgfrie tilkoblingen til Google Workspace og Gmail. Tjenesten leveres av Joakim Ferdinand Nygård under navnet Noracre. Personvernkontakt: <a href="mailto:jfn@noracre.no">jfn@noracre.no</a>.</p>
         <p><a href="#google-data">Behandling av Google-data</a> · <a href="#english" lang="en">English: Google user data privacy summary</a></p>
         <p>
           Noracre CRM behandler opplysninger som er nødvendige for å levere

@@ -1,4 +1,5 @@
 "use client";
+import { useAutosave } from "@/hooks/use-autosave";
 import {prepareInstagramImage} from "@/lib/instagram-image";
 import {PhoneLink} from "@/components/phone-link";
 
@@ -607,6 +608,9 @@ export default function Home() {
       confirm: () => void;
     } | null>(null),
     [sessionReady, setSessionReady] = useState(false);
+  const [profileReady, setProfileReady] = useState(false);
+  const profileSaveValue = JSON.stringify({ displayName: profile.displayName, contactEmail: profile.contactEmail, theme: profile.theme, avatarX: profile.avatarX, avatarY: profile.avatarY, avatarZoom: profile.avatarZoom, browserNotifications: profile.browserNotifications, avatarFile: profileAvatar ? `${profileAvatar.name}:${profileAvatar.size}:${profileAvatar.lastModified}` : null });
+  const profileAutosave = useAutosave({ value: profileSaveValue, enabled: profileReady && !cropOpen, save: saveProfile });
   const [pricing, setPricing] = useState<{crmPrice:number|null;ringPrice:number|null;marketingPrice:number|null}>({crmPrice:null,ringPrice:null,marketingPrice:null});
   const [memberModuleCosts,setMemberModuleCosts] = useState<Record<number,number>>({});
   const [memberBusy,setMemberBusy] = useState(false);
@@ -711,7 +715,7 @@ export default function Home() {
           .then((r) => r.json())
           .then((d) => {
             const next = d.profile ?? {};
-            setProfile({
+            const loadedProfile = {
               displayName: next.displayName || s.user?.displayName || "",
               contactEmail: next.contactEmail || s.user?.email || "",
               theme: next.theme || "light",
@@ -720,7 +724,10 @@ export default function Home() {
               avatarY: next.avatarY ?? 50,
               avatarZoom: next.avatarZoom ?? 100,
               browserNotifications: Boolean(next.browserNotifications),
-            });
+            };
+            setProfile(loadedProfile);
+            profileAutosave.reset(JSON.stringify({ displayName: loadedProfile.displayName, contactEmail: loadedProfile.contactEmail, theme: loadedProfile.theme, avatarX: loadedProfile.avatarX, avatarY: loadedProfile.avatarY, avatarZoom: loadedProfile.avatarZoom, browserNotifications: loadedProfile.browserNotifications, avatarFile: null }));
+            setProfileReady(true);
             if (next.displayName)
               setUser((current) => ({
                 ...current,
@@ -763,41 +770,43 @@ export default function Home() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [profile.theme]);
-  async function saveProfile() {
-    const previousUser = user;
-    setUser(current => ({...current, displayName: profile.displayName, email: profile.contactEmail}));
-    setProfileOpen(false);
+  async function saveProfile(serialized: string) {
+    const snapshot = JSON.parse(serialized);
+    const avatar = profileAvatar;
+    const preview = profilePreview;
     const form = new FormData();
-    form.set("displayName", profile.displayName);
-    form.set("contactEmail", profile.contactEmail);
-    form.set("theme", profile.theme);
-    form.set("avatarX", String(profile.avatarX));
-    form.set("avatarY", String(profile.avatarY));
-    form.set("avatarZoom", String(profile.avatarZoom));
-    form.set("browserNotifications", String(profile.browserNotifications));
-    if (profileAvatar) form.set("avatar", profileAvatar);
-    const r = await api("/api/profile", { method: "POST", body: form }),
-      d = await r.json();
-    if (!r.ok) {
-      setUser(previousUser);
-      setProfileOpen(true);
-      return toast.error(d.error ?? "Kunne ikke lagre innstillingene");
+    for (const field of ["displayName", "contactEmail", "theme", "avatarX", "avatarY", "avatarZoom", "browserNotifications"]) {
+      form.set(field, String(snapshot[field]));
     }
-    setUser(current => ({...current,
-      displayName: d.profile.displayName,
-      email: d.profile.contactEmail,
-    }));
-    setProfile(d.profile);
-    setProfileAvatar(null);
-    if (profilePreview) URL.revokeObjectURL(profilePreview);
-    setProfilePreview("");
-    setAvatarVersion((v) => v + 1);
-    toast.success("Innstillingene er lagret");
-    await refreshCrmData();
-    const adminResponse = await api("/api/admin");
-    if(adminResponse.ok){const adminData=await adminResponse.json();setMembers(adminData.members??[]);}
-    callListCache.delete(activeOrgId);
-    window.dispatchEvent(new Event("crm-profile-updated"));
+    if (avatar) form.set("avatar", avatar);
+    try {
+      const r = await api("/api/profile", { method: "POST", body: form });
+      const d = await r.json();
+      if (!r.ok) throw Error(d.error ?? "Kunne ikke lagre innstillingene");
+      setUser(current => ({...current, displayName: d.profile.displayName, email: d.profile.contactEmail}));
+      // Keep edits made while this request was in flight. Only the server's
+      // file key needs to be merged into the current draft.
+      setProfile(current => ({...current, avatarKey: d.profile.avatarKey}));
+      if (avatar) {
+        setProfileAvatar(current => current === avatar ? null : current);
+        setProfilePreview(current => current === preview ? "" : current);
+        if (preview) URL.revokeObjectURL(preview);
+        setAvatarVersion(v => v + 1);
+      }
+      callListCache.delete(activeOrgId);
+      window.dispatchEvent(new Event("crm-profile-updated"));
+      if (snapshot.displayName !== user.displayName) {
+        await Promise.allSettled([
+          refreshCrmData(),
+          api("/api/admin").then(async response => {
+            if (response.ok) setMembers((await response.json()).members ?? []);
+          }),
+        ]);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Kunne ikke lagre innstillingene");
+      throw error;
+    }
   }
   const filtered = useMemo(
       () =>
@@ -1587,12 +1596,13 @@ export default function Home() {
           </DropdownMenuContent>
         </DropdownMenu>
       </aside>
+      {!profileOpen && profileAutosave.state === "error" && <div role="alert" className="form-hint">Innstillingene kunne ikke lagres. <Button variant="outline" onClick={() => setProfileOpen(true)}>Åpne innstillinger</Button></div>}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mine innstillinger</DialogTitle>
             <DialogDescription>
-              Profilen og utseendet gjelder bare brukeren din.
+              Profilen og utseendet gjelder bare brukeren din. Endringer lagres automatisk.
             </DialogDescription>
           </DialogHeader>
           <div className="profile-settings">
@@ -1702,10 +1712,12 @@ export default function Home() {
               />
             </div>
             <p className="form-hint">
-              Når egen innlogging kobles til, må endring av innloggings-e-post
-              bekreftes via e-post.
+              Kontaktadressen endrer ikke kontoen du bruker til innlogging.
             </p>
-            <Button onClick={saveProfile}>Lagre innstillinger</Button>
+            <div role="status" aria-live="polite" className="form-hint">
+              {!profileReady ? "Henter innstillingene …" : profileAutosave.state === "error" ? "Endringene er ikke lagret." : profileAutosave.state === "saved" ? "Alle endringer er lagret" : "Lagrer endringer …"}
+              {profileAutosave.state === "error" && <Button variant="outline" onClick={profileAutosave.retry}>Prøv igjen</Button>}
+            </div>
           </div>
           <MailAccount organizationId={activeOrgId}/>
         </DialogContent>

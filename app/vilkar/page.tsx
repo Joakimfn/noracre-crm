@@ -5,13 +5,20 @@ export default function Vilkar() {
     <main className="legal-page">
       <article>
         <Link href="/">← Tilbake til Noracre CRM</Link>
-        <p className="eyebrow">SIST OPPDATERT 12. SEPTEMBER 2026</p>
+        <p className="eyebrow">SIST OPPDATERT 13. SEPTEMBER 2026</p>
         <h1>Bruksvilkår for Noracre CRM</h1>
         <p>
-          Vilkårene gjelder mellom leverandøren av Noracre CRM og virksomheten
+          Noracre CRM leveres av Joakim Ferdinand Nygård under navnet Noracre.
+          Vilkårene gjelder mellom leverandøren og virksomheten
           som bestiller tjenesten. Tjenesten er beregnet for næringsdrivende.
           Personen som godkjenner vilkårene bekrefter at vedkommende kan binde
           virksomheten.
+        </p>
+        <p>
+          Kundens opplysninger og avtalte tjenester fremgår av det aksepterte
+          tilbudet eller ordrebekreftelsen. Skriftlig avtalte særvilkår går
+          foran disse bruksvilkårene ved motstrid. Kontakt Noracre på{" "}
+          <a href="mailto:jfn@noracre.no">jfn@noracre.no</a>.
         </p>
         <h2>Tjenesten</h2>
         <p>
@@ -28,6 +35,11 @@ export default function Vilkar() {
           fra en administrator. Eventuelle etableringsgebyrer må avtales
           særskilt. Prisendringer følger avtalen med virksomheten.
           Merverdiavgift kommer i tillegg når det er relevant.
+        </p>
+        <p>
+          Faktureringsperiode, betalingsfrist, eventuell bindingstid og
+          oppsigelsesfrist fremgår av det skriftlige tilbudet som kunden
+          godkjenner før oppstart. Oppsigelse sendes skriftlig til Noracre.
         </p>
         <h2>Kundens ansvar</h2>
         <p>
@@ -89,13 +101,9 @@ export default function Vilkar() {
           leverandørens alminnelige verneting, med mindre ufravikelig lov krever
           noe annet.
         </p>
-        <p className="legal-note">
-          <strong>Før første betalende kunde:</strong> Foretaksnavn,
-          organisasjonsnummer, kontaktadresse, fakturafrist, oppsigelsesfrist og
-          verneting må fylles inn. Ansvarsgrensen og databehandleravtalen bør
-          kvalitetssikres av norsk advokat. En absolutt ansvarsfraskrivelse er
-          ikke sikker; urimelige vilkår kan settes til side etter avtaleloven §
-          36.
+        <h2>Kontakt</h2>
+        <p>Spørsmål om avtalen, fakturering eller oppsigelse sendes til{" "}
+          <a href="mailto:jfn@noracre.no">jfn@noracre.no</a>.
         </p>
       </article>
     </main>
