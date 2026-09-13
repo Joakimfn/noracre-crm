@@ -52,6 +52,31 @@ export async function unseal<T>(value: string, context: string): Promise<T> {
 export const tokenContext = (org: number, platform: string, accountId: string) => `connection:${org}:${platform}:${accountId}`;
 export const pendingContext = (org: number, id: string) => `pending:${org}:${id}`;
 
+// The existing non-null expiresAt column uses this sentinel only when Meta
+// explicitly reports no scheduled expiry. It is not a promise against revocation.
+export const META_NO_SCHEDULED_EXPIRY = 8640000000000000;
+export async function pageTokenExpiry(token: string, pageId: string): Promise<number> {
+  const c = metaConfig();
+  const {data} = await graph<{data:{is_valid?:boolean;app_id?:string;type?:string;profile_id?:string;expires_at?:number;data_access_expires_at?:number}}>(
+    "debug_token", `${c.appId}|${c.secret}`, {input_token:token});
+  if(data?.is_valid!==true || String(data.app_id)!==c.appId || data.type!=="PAGE" ||
+    (data.profile_id!==undefined && String(data.profile_id)!==pageId)) throw new MetaError(false,true);
+  const deadlines: number[] = [];
+  for(const expiry of [data.expires_at,data.data_access_expires_at]) {
+    // Missing metadata is not evidence of perpetual access. Fail closed and
+    // retain the current connection so an incomplete response can be retried.
+    if(!Number.isSafeInteger(expiry) || expiry!<0 || !Number.isSafeInteger(expiry!*1000)) throw new MetaError(false);
+    if(expiry!>0) {
+      if(expiry!*1000<=Date.now()) throw new MetaError(false,true);
+      deadlines.push(expiry!*1000);
+    }
+  }
+  // Verify the actual Page identity too; some debug responses omit profile_id.
+  const page = await graph<{id:string}>("me",token,{fields:"id"});
+  if(page.id!==pageId) throw new MetaError(false,true);
+  return deadlines.length ? Math.min(...deadlines) : META_NO_SCHEDULED_EXPIRY;
+}
+
 export class MetaError extends AccessError {
   constructor(public uncertain: boolean, public expired = false, public providerCode?: number) {
     super(502, expired ? "Tilgangen hos Meta er utløpt eller fjernet. Koble til kontoen på nytt." :
