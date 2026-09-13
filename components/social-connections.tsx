@@ -128,7 +128,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           {profileUrl ? <a className="social-profile-link" href={profileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Åpne ${connection!.accountName} på ${channel} (ny fane)`}><SocialChannelIcon channel={channel}/></a> : <SocialChannelIcon channel={channel}/>}
           <strong>{channel}</strong>
           <span>{connection?`${connection.accountName}${connection.expired?" · Tilgang utløpt":" · Tilkoblet"}`:meta?"Ikke tilkoblet":linkedin?(ready?"Ikke tilkoblet":"Venter på oppsett"):"Kommer senere"}</span>
-          {meta&&admin&&!connection&&<Button size="sm" variant="outline" disabled={busy||loading||!ready||Boolean(error)} onClick={connect}>{busy?"Venter …":"Koble til"}</Button>}
+          {meta&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||!ready||Boolean(error)} onClick={connect}>{busy?"Venter …":connection?"Koble til på nytt":"Koble til"}</Button>}
           {linkedin&&admin&&<div className="linkedin-connection-actions"><Button size="sm" variant="outline" disabled={busy||loading||!ready||Boolean(error)} onClick={connectLinkedIn}>{busy?"Venter …":connection?"Koble til på nytt":"Koble til"}</Button>{connection&&<Button size="sm" variant="ghost" disabled={busy} onClick={()=>setDisconnectId(connection.id)}>Koble fra</Button>}</div>}
 
         </div>;
@@ -149,4 +149,3 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     <Dialog open={disconnectId!==null} onOpenChange={open=>{if(!open&&!busy)setDisconnectId(null);}}><DialogContent><DialogHeader><DialogTitle>Koble fra LinkedIn?</DialogTitle><DialogDescription>Tilgangsnøkkelen fjernes fra CRM-et. Publiserte innlegg på LinkedIn beholdes.</DialogDescription></DialogHeader><Button variant="outline" disabled={busy} onClick={()=>setDisconnectId(null)}>Avbryt</Button><Button disabled={busy} onClick={disconnect}>{busy?"Kobler fra …":"Koble fra LinkedIn"}</Button></DialogContent></Dialog>
   </section>;
 }
-

@@ -12,8 +12,7 @@ export async function POST(request: Request) {
     await getDb().insert(socialOAuth).values({id,organizationId:ctx.organizationId,membershipId:ctx.membershipId,stateHash:await hash(state),browserHash:await hash(browser),expiresAt:Date.now()+600000});
     const url=new URL(`https://www.facebook.com/${c.version}/dialog/oauth`);
     url.search=new URLSearchParams({client_id:c.appId,redirect_uri:c.redirect,response_type:"code",state,
-      ...(c.configId ? {config_id:c.configId} : {scope:"pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish",auth_type:"rerequest"})}).toString();
+      ...(c.configId ? {config_id:c.configId} : {scope:"pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,read_insights,instagram_manage_insights",auth_type:"rerequest"})}).toString();
     return Response.json({id,url:url.toString()},{headers:{"Set-Cookie":`${OAUTH_COOKIE}=${browser}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=600`}});
   } catch(e) {return accessResponse(e);}
 }
-

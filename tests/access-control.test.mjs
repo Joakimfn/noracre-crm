@@ -169,11 +169,11 @@ test('marketing drafts retain channel choices but never claim scheduled delivery
    const form=new FormData();form.set('content','Test draft');form.set('platforms',JSON.stringify(platforms));form.set('scheduledAt','2026-12-01T12:00');
    return route('marketing').POST(new Request('https://crm.test/api/marketing',{method:'POST',headers:{authorization:'Bearer 3','x-organization-id':'1'},body:form}));
  };
- for(const channel of ['Facebook','Instagram','LinkedIn','X','Snapchat']){
+ for(const channel of ['Facebook','Instagram','LinkedIn']){
    const response=await send([channel]);assert.equal(response.status,201);
    const {post}=await response.json();assert.equal(post.status,'Kladd');assert.deepEqual(JSON.parse(post.platforms),[channel]);
  }
- for(const channels of [['Google Ads'],['unknown'],[]])assert.equal((await send(channels)).status,400);
+ for(const channels of [['X'],['Snapchat'],['Google Ads'],['unknown'],[]])assert.equal((await send(channels)).status,400);
 });
 
 test('operations data is unavailable to ordinary users and administrators',async()=>{

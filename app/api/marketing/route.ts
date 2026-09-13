@@ -67,12 +67,7 @@ export async function GET(request: Request) {
       pagination: {page, pageSize, pages, total},
       counts: {upcoming, history:published},
       connections: [],
-      stats: {
-        impressions: 0,
-        engagement: 0,
-        clicks: 0,
-        published,
-      },
+      stats: { published },
     });
   } catch (error) {
     return accessResponse(error);
