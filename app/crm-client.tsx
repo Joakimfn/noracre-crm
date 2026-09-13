@@ -1,4 +1,5 @@
 "use client";
+import { SocialInsights } from "@/components/social-insights";
 import {prepareInstagramImage} from "@/lib/instagram-image";
 import {PhoneLink} from "@/components/phone-link";
 
@@ -4884,6 +4885,7 @@ function Marketing({
   function changePlanView(view:"upcoming"|"history") {if(view===planView)return;setPlanView(view);setPlanPage(1);setPlanLoading(true);}
   function showPlan() {setPlanView("upcoming");setPlanQuery("");setPlanPage(1);setPlanRevision(n=>n+1);setPlanLoading(true);setPlanOpen(true);}
   const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
+  const [insightsRevision,setInsightsRevision] = useState(0);
   const [publishId,setPublishId] = useState<number|null>(null);
   const [publishing,setPublishing] = useState(false);
   const [deleteId,setDeleteId]=useState<number|null>(null),[deleting,setDeleting]=useState(false);
@@ -4952,7 +4954,7 @@ function Marketing({
       const r=await apiFetch("/api/marketing",{headers:{"x-organization-id":String(organizationId)}}).catch(()=>null);
       if(r?.ok){const d=await r.json();setPosts(d.posts??[]);}
       setPublishId(null);
-    } finally {setPublishing(false);setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);}
+    } finally {setPublishing(false);setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setInsightsRevision(n=>n+1);}
   }
   const imagePreviews = useMemo(
     () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -5144,13 +5146,7 @@ function Marketing({
         )}
       </div>
       <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
-      <div className="metric-grid">
-        {["Visninger","Engasjement","Klikk"].map(label=><div className="metric" key={label}><span>{label}</span><strong>—</strong><small>Statistikk kommer senere</small></div>)}
-        <Metric
-          label="Publisert"
-          value={planCounts.history}
-        />
-      </div>
+      <SocialInsights key={organizationId} organizationId={organizationId} connections={social} revision={insightsRevision}/>
       <section className="surface marketing-composer">
         <div className="surface-head">
           <h3>Lag ett innlegg</h3>

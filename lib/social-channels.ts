@@ -1,1 +1,1 @@
-export const SOCIAL_CHANNELS = ["Facebook", "Instagram", "LinkedIn", "X", "Snapchat"] as const;
+export const SOCIAL_CHANNELS = ["Facebook", "Instagram", "LinkedIn"] as const;
