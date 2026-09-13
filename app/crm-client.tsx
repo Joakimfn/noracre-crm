@@ -4932,7 +4932,7 @@ function Marketing({
   function canPublish(post: typeof posts[number]) {
     const selected=JSON.parse(post.platforms) as string[];
     return social.ready && post.status === "Kladd" && selected.length>0 && selected.every(channel=>
-      ["Facebook","Instagram"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
+      ["Facebook","Instagram","LinkedIn"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
   }
   async function publishNow() {
     if(!publishPost||publishing||preparing||prepareError)return;
@@ -5216,7 +5216,7 @@ function Marketing({
           {savingPost ? "Lagrer …" : "Lagre kladd"}
         </Button>
         <p className="form-hint">
-          Innlegget lagres som kladd. Publiser til tilkoblede Facebook- og Instagram-kontoer fra innholdsplanen. Tidspunktet er kun til planlegging og starter ingen automatisk publisering.
+          Innlegget lagres som kladd. Publiser til tilkoblede Facebook-, Instagram- og LinkedIn-kontoer fra innholdsplanen. Tidspunktet er kun til planlegging og starter ingen automatisk publisering.
         </p>
       </section>
       <button type="button" className="content-plan-launcher" onClick={showPlan} aria-haspopup="dialog">

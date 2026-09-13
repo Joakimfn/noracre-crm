@@ -1,12 +1,12 @@
 import { socialDiagnostic } from "@/lib/social-diagnostic";
 import { getDb } from "@/db";
 import { socialConnections, socialOAuth } from "@/db/schema";
-import { and, eq, gt } from "drizzle-orm";
+import { notLike, and, eq, gt } from "drizzle-orm";
 import { AccessError, accessResponse } from "@/lib/tenant";
 import { PendingAccounts, pendingContext, permittedPlatforms, seal, socialAccess, tokenContext, unseal } from "@/lib/social-meta";
 async function flowFor(request:Request,id:string) {
   const ctx=await socialAccess(request,true);
-  const [flow]=await getDb().select().from(socialOAuth).where(and(eq(socialOAuth.id,id),eq(socialOAuth.organizationId,ctx.organizationId),eq(socialOAuth.membershipId,ctx.membershipId),gt(socialOAuth.expiresAt,Date.now()))).limit(1);
+  const [flow]=await getDb().select().from(socialOAuth).where(and(notLike(socialOAuth.id,"linkedin_%"),eq(socialOAuth.id,id),eq(socialOAuth.organizationId,ctx.organizationId),eq(socialOAuth.membershipId,ctx.membershipId),gt(socialOAuth.expiresAt,Date.now()))).limit(1);
   if(!flow)throw new AccessError(404,"Tilkoblingsforsøket er utløpt. Start på nytt.");
   return {ctx,flow};
 }
@@ -44,3 +44,4 @@ export async function POST(request:Request) {
     return Response.json({ok:true});
   } catch(e){return accessResponse(e);}
 }
+

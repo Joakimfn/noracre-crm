@@ -1,3 +1,4 @@
+import {LinkedInError,publishLinkedIn,requireLinkedInPage,unsealLinkedIn} from "@/lib/social-linkedin";
 import {validateImage} from "@/lib/safe-image";
 import { env } from "cloudflare:workers";
 import { and, eq } from "drizzle-orm";
@@ -22,7 +23,7 @@ export async function POST(request:Request){
     const [post]=await getDb().select().from(marketingPosts).where(and(eq(marketingPosts.id,Number(body.postId)),eq(marketingPosts.organizationId,ctx.organizationId))).limit(1);
     if(!post)throw new AccessError(404,"Innlegget finnes ikke.");
     const channels=JSON.parse(post.platforms) as string[];
-    if(!channels.length||channels.some(p=>!META_CHANNELS.includes(p as "Facebook"|"Instagram")))throw new AccessError(400,"Publisering støttes foreløpig bare for Facebook og Instagram. Lag en kladd med disse kanalene.");
+    if(!channels.length||channels.some(p=>![...META_CHANNELS,"LinkedIn"].includes(p)))throw new AccessError(400,"Velg Facebook, Instagram eller LinkedIn for publisering.");
     const images=await getDb().select().from(marketingPostImages).where(and(eq(marketingPostImages.postId,post.id),eq(marketingPostImages.organizationId,ctx.organizationId))).orderBy(marketingPostImages.id);
     if([...prepared.keys()].some(id=>!images.some(i=>i.id===id)))throw new AccessError(400,"Bildet tilhører ikke dette innlegget.");
     if(images.length>6)throw new AccessError(400,"Maks seks bilder per innlegg.");
@@ -43,6 +44,20 @@ export async function POST(request:Request){
           throw new AccessError(400,`Bildet «${image.filename}» må tilpasses. Åpne publiseringsvinduet på nytt.`);
       }
     }
+    const linkedinImages:{bytes:ArrayBuffer;contentType:string}[]=[];
+    if(channels.includes("LinkedIn")){
+      if([...post.content].length>3000)throw new AccessError(400,"LinkedIn-teksten kan være maks 3 000 tegn.");
+      for(const image of images){
+        const replacement=prepared.get(image.id),type=replacement?.type??image.contentType;
+        if(!["image/jpeg","image/png","image/gif"].includes(type))throw new AccessError(400,"LinkedIn støtter JPEG, PNG og GIF. Last opp bildet i et av disse formatene.");
+        const file=replacement??await (env.BUCKET as R2Bucket).get(image.objectKey);if(!file)throw new AccessError(404,"Et bilde mangler. Ingen innlegg er publisert.");
+        const bytes=await file.arrayBuffer();await validateImage(new File([bytes],image.filename,{type}),10*1024*1024);
+        const raw=new Uint8Array(bytes),v=new DataView(bytes);
+        const size=type==='image/jpeg'?jpegDimensions(raw):type==='image/png'&&bytes.byteLength>=24?{width:v.getUint32(16),height:v.getUint32(20)}:type==='image/gif'&&bytes.byteLength>=10?{width:v.getUint16(6,true),height:v.getUint16(8,true)}:null;
+        if(!size||!size.width||!size.height||size.width*size.height>=36152320)throw new AccessError(400,"LinkedIn-bildene må ha færre enn 36 millioner piksler.");
+        linkedinImages.push({bytes,contentType:type});
+      }
+    }
     const accounts=[];
     for(const platform of channels){
       const [c]=await getDb().select().from(socialConnections).where(and(eq(socialConnections.organizationId,ctx.organizationId),eq(socialConnections.platform,platform))).limit(1);
@@ -50,9 +65,9 @@ export async function POST(request:Request){
       const expected = Array.isArray(body.targets) ? body.targets.find((t: {platform?:string})=>t?.platform===platform) : undefined;
       if(!expected || expected.id!==c.id || expected.accountId!==c.accountId)
         throw new AccessError(409,"Kontotilkoblingen er endret. Åpne publiseringsbekreftelsen på nytt.");
-      const token=await unseal<string>(c.token,tokenContext(ctx.organizationId,platform,c.accountId));
-      const account=await graph<{id:string}>(c.accountId,token,{fields:"id"});
-      if(account.id!==c.accountId)throw new AccessError(409,"Kontoen må kobles til på nytt.");
+      const token=await (platform==="LinkedIn"?unsealLinkedIn<string>(c.token,tokenContext(ctx.organizationId,platform,c.accountId)):unseal<string>(c.token,tokenContext(ctx.organizationId,platform,c.accountId)));
+      if(platform==="LinkedIn")await requireLinkedInPage(token,c.accountId);
+      else {const account=await graph<{id:string}>(c.accountId,token,{fields:"id"});if(account.id!==c.accountId)throw new AccessError(409,"Kontoen må kobles til på nytt.");}
       accounts.push({...c,plainToken:token});
     }
     // Atomic post claim prevents parallel requests and retried HTTP calls from duplicating posts.
@@ -81,13 +96,12 @@ export async function POST(request:Request){
         await socialAccess(request);
         const [current]=await getDb().select({token:socialConnections.token}).from(socialConnections).where(and(eq(socialConnections.id,account.id),eq(socialConnections.organizationId,ctx.organizationId))).limit(1);
         if(current?.token!==account.token)throw new AccessError(409,"Tilkoblingen ble endret. Publiseringen er stoppet.");
-        const urls=await Promise.all(images.map(i=>mediaUrl(ctx.organizationId,i.id,post.id)));
-        const remoteId=await publishMeta(account.platform,account.accountId,account.plainToken,post.content,urls);
+        const remoteId=account.platform==="LinkedIn" ? await publishLinkedIn(account.accountId,account.plainToken,post.content,linkedinImages) : await publishMeta(account.platform,account.accountId,account.plainToken,post.content,await Promise.all(images.map(i=>mediaUrl(ctx.organizationId,i.id,post.id))));
         await getDb().update(socialDeliveries).set({status:"published",remoteId}).where(eq(socialDeliveries.id,delivery.id));
         results.push({platform:account.platform,status:"published",remoteId});
       }catch(error){
-        const status=error instanceof MetaError&&!error.uncertain||error instanceof AccessError&&!(error instanceof MetaError)?"failed":"unknown";
-        const message=error instanceof AccessError?error.message:"Uklart resultat. Kontroller kontoen hos Meta før du publiserer innholdet på nytt.";
+        const status=(error instanceof MetaError||error instanceof LinkedInError)&&!error.uncertain||error instanceof AccessError&&!(error instanceof MetaError)&&!(error instanceof LinkedInError)?"failed":"unknown";
+        const message=error instanceof AccessError?error.message:"Uklart resultat. Kontroller kontoen på den aktuelle kanalen før du publiserer innholdet på nytt.";
         if(deliveryId)await getDb().update(socialDeliveries).set({status,error:message}).where(eq(socialDeliveries.id,deliveryId));
         results.push({platform:account.platform,status,error:message});
       }

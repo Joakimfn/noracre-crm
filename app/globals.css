@@ -3550,3 +3550,5 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 [data-slot="dialog-content"].content-plan-detail{max-width:700px;}
 @media(max-width:900px){.content-plan-row{gap:12px;flex-wrap:wrap;}.content-plan-preview{flex-basis:calc(100% - 190px);}.content-plan-actions{flex-basis:100%;}.content-plan-row{padding:14px 2px;}.content-plan-dialog .content-plan-toolbar{align-items:stretch;flex-direction:column;gap:12px;}.content-plan-search{flex-basis:auto;}.content-plan-tabs{align-self:flex-start;}}
 @media(max-width:540px){[data-slot="dialog-content"].content-plan-dialog{width:calc(100vw - 20px);height:calc(100dvh - 24px);max-height:calc(100dvh - 24px);padding:20px 14px;gap:16px;}.content-plan-launcher{gap:10px;padding:14px;}.content-plan-launcher small{display:none;}.content-plan-launcher-count{font-size:12px;}.content-plan-preview{flex-basis:100%;}.content-plan-date{flex:1;}.content-plan-actions{flex:0 0 auto;}.content-plan-thumbnail{width:48px;height:48px;}.content-plan-footer{font-size:11px;}}
+
+.linkedin-connection-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}

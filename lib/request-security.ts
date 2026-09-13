@@ -8,7 +8,7 @@ export async function guardRequest(request: Request): Promise<Request | Response
       return new Response(null, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     return request;
   }
-  const publicGet = request.method === "GET" && ["/api/social/meta/callback", "/api/social/media", "/api/email/callback"].includes(url.pathname);
+  const publicGet = request.method === "GET" && ["/api/social/linkedin/callback", "/api/social/meta/callback", "/api/social/media", "/api/email/callback"].includes(url.pathname);
   if (!publicGet && url.pathname !== "/api/auth/config" && !/^Bearer \S+$/i.test(request.headers.get("authorization") ?? ""))
     return Response.json({ error: "Du må være logget inn." }, { status: 401 });
   if (["GET", "HEAD", "OPTIONS"].includes(request.method)) return request;
