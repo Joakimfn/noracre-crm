@@ -3507,6 +3507,6 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .marketing-publish-previews img {width:128px;max-height:160px;object-fit:contain;border:1px solid var(--border);border-radius:10px;background:#fff;}
 .marketing-delete-excerpt {white-space:pre-wrap;overflow-wrap:anywhere;max-height:25vh;overflow:auto;}
 .customer-history .history-list { padding: 0 15px; border: 0; border-radius: 0; }
-.customer-history .history-row { padding: 14px 0; }
+.customer-history .history-row { padding: 14px 0; background: var(--card); }
 .customer-history-pages { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 15px; border-top: 1px solid var(--border); }
 .customer-history-pages > span { font-size: .8rem; color: var(--muted-foreground); }
