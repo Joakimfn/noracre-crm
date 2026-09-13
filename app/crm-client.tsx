@@ -3465,10 +3465,6 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
       ),
     ];
   return (
-    <AdminCard
-      title="Send e-post til kunder"
-      ico={<Mail />}
-    >
       <div className="bulk-email">
         <div>
           <Label>Kundegruppe</Label>
@@ -3515,7 +3511,6 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
         </div>
       </div>
 
-    </AdminCard>
   );
 }
 function OfferTemplateManager({ organizationId }: { organizationId: number }) {
