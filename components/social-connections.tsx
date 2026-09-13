@@ -107,11 +107,13 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     catch(e){toast.error(e instanceof Error?e.message:"Kunne ikke koble til LinkedIn.");}finally{setBusy(false);}
   }
   async function disconnect(){
-    if(!disconnectId||busy)return;setBusy(true);
-    try{const r=await apiFetch(`/api/social/connections?id=${disconnectId}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success("LinkedIn er koblet fra.");}
-    catch{toast.error("Kunne ikke koble fra LinkedIn.");}finally{setBusy(false);}
+    const connection=data.connections.find(c=>c.id===disconnectId);
+    if(!connection||busy)return;setBusy(true);
+    try{const r=await apiFetch(`/api/social/connections?id=${connection.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success(`${connection.platform} er koblet fra CRM-et.`);}
+    catch{toast.error(`Kunne ikke logge av ${connection.platform}. Prøv igjen.`);}finally{setBusy(false);}
   }
   const chosen=pages.find(p=>p.id===pageId);
+  const disconnecting=data.connections.find(c=>c.id===disconnectId);
   return <section className="surface">
     <div className="surface-head"><h3>Kanaler</h3></div>
     <p className="form-hint">{loading?"Henter kontotilkoblinger …":error||(!data.ready?"Kontotilkoblingene venter på at Noracre fullfører oppsettet.":"Koble til bedriftens kontoer på Facebook, Instagram og LinkedIn. Kun administratorer kan endre tilkoblingene.")}</p>
@@ -128,8 +130,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           {profileUrl ? <a className="social-profile-link" href={profileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Åpne ${connection!.accountName} på ${channel} (ny fane)`}><SocialChannelIcon channel={channel}/></a> : <SocialChannelIcon channel={channel}/>}
           <strong>{channel}</strong>
           <span>{connection?`${connection.accountName}${connection.expired?" · Tilgang utløpt":" · Tilkoblet"}`:meta?"Ikke tilkoblet":linkedin?(ready?"Ikke tilkoblet":"Venter på oppsett"):"Kommer senere"}</span>
-          {meta&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||!ready||Boolean(error)} onClick={connect}>{busy?"Venter …":connection?"Koble til på nytt":"Koble til"}</Button>}
-          {linkedin&&admin&&<div className="linkedin-connection-actions"><Button size="sm" variant="outline" disabled={busy||loading||!ready||Boolean(error)} onClick={connectLinkedIn}>{busy?"Venter …":connection?"Koble til på nytt":"Koble til"}</Button>{connection&&<Button size="sm" variant="ghost" disabled={busy} onClick={()=>setDisconnectId(connection.id)}>Koble fra</Button>}</div>}
+          {(meta||linkedin)&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||(!connection&&!ready)||Boolean(error)} onClick={()=>connection?setDisconnectId(connection.id):linkedin?connectLinkedIn():connect()}>{connection?"Logg av":busy?"Venter …":"Koble til"}</Button>}
 
         </div>;
       })}
@@ -146,6 +147,6 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       {!linkedinPages.length?<p>Ingen bedriftssider med publiseringstilgang ble funnet. Kontroller rollen din på LinkedIn-siden og tillatelsene du ga Noracre.</p>:<Select value={linkedinPage} onValueChange={setLinkedinPage}><SelectTrigger><SelectValue placeholder="Velg LinkedIn-side"/></SelectTrigger><SelectContent>{linkedinPages.map(page=><SelectItem key={page.id} value={page.id}>{page.name}</SelectItem>)}</SelectContent></Select>}
       <Button disabled={busy||!linkedinPage} onClick={saveLinkedIn}>{busy?"Kobler til …":"Koble til bedriftssiden"}</Button>
     </DialogContent></Dialog>
-    <Dialog open={disconnectId!==null} onOpenChange={open=>{if(!open&&!busy)setDisconnectId(null);}}><DialogContent><DialogHeader><DialogTitle>Koble fra LinkedIn?</DialogTitle><DialogDescription>Tilgangsnøkkelen fjernes fra CRM-et. Publiserte innlegg på LinkedIn beholdes.</DialogDescription></DialogHeader><Button variant="outline" disabled={busy} onClick={()=>setDisconnectId(null)}>Avbryt</Button><Button disabled={busy} onClick={disconnect}>{busy?"Kobler fra …":"Koble fra LinkedIn"}</Button></DialogContent></Dialog>
+    <Dialog open={Boolean(disconnecting)} onOpenChange={open=>{if(!open&&!busy)setDisconnectId(null);}}><DialogContent><DialogHeader><DialogTitle>Logge av {disconnecting?.platform}?</DialogTitle><DialogDescription>{disconnecting?.accountName} kobles fra CRM-et. Publiserte innlegg beholdes. Du kan koble til igjen senere.</DialogDescription></DialogHeader><Button variant="outline" disabled={busy} onClick={()=>setDisconnectId(null)}>Avbryt</Button><Button disabled={busy} onClick={disconnect}>{busy?"Logger av …":"Logg av"}</Button></DialogContent></Dialog>
   </section>;
 }
