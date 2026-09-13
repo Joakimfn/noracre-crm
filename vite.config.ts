@@ -15,6 +15,11 @@ const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   keep_vars: true,
+  routes: [
+    { pattern: "crm.noracre.no", custom_domain: true },
+    { pattern: "noracre.no", custom_domain: true },
+    { pattern: "www.noracre.no", custom_domain: true },
+  ],
   triggers: { crons: ["* * * * *"] },
   vars: {
     APP_URL: "https://crm.noracre.no",
@@ -70,4 +75,3 @@ export default defineConfig(async () => {
     ],
   };
 });
-
