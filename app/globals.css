@@ -3584,7 +3584,7 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .marketing-email-dialog .surface,.marketing-email-dialog .admin-card {border:0;box-shadow:none;padding:0;margin:0;}
 .email-timing {display:grid;gap:10px;}
 .social-channel-art {border-radius:16px;}
-.social-app-linkedin {border-radius:16px;overflow:hidden;background:#0a66c2;}
+.social-app-linkedin {border-radius:16px;overflow:hidden;background:#fff;}
 .social-app-linkedin img {border-radius:inherit;}
 .social-channel-choice.is-unavailable {cursor:not-allowed;opacity:.4;}
 .social-channel-choice.is-unavailable .social-channel-art {filter:grayscale(1);}
