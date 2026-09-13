@@ -1,5 +1,4 @@
 "use client";
-import { SocialInsights } from "@/components/social-insights";
 import {prepareInstagramImage} from "@/lib/instagram-image";
 import {PhoneLink} from "@/components/phone-link";
 
@@ -3446,7 +3445,9 @@ function Admin(p: {
     </div>
   );
 }
-function BulkEmail({ companies, organizationId }: { companies: Company[]; organizationId: number }) {
+function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]; organizationId: number; onSent:()=>void }) {
+  const [emailAt,setEmailAt]=useState("");
+  const [sendLater,setSendLater]=useState(false);
   const [files,setFiles]=useState<File[]>([]);
   const [segment, setSegment] = useState("all"),
     [subject, setSubject] = useState(""),
@@ -3507,9 +3508,10 @@ function BulkEmail({ companies, organizationId }: { companies: Company[]; organi
           {files.map((file,index)=><div className="offer-file" key={`${file.name}-${index}`}><span>{file.name} · {fileSize(file.size)}</span><Button size="sm" variant="ghost" onClick={()=>setFiles(current=>current.filter((_,i)=>i!==index))}><X/>Fjern</Button></div>)}
           <p className="form-hint">Maks 10 vedlegg, 10 MB samlet og 49 mottakere per utsending.</p>
         </div>
+        <div className="full email-timing"><Label>Sendetidspunkt</Label><Select value={sendLater?"later":"now"} onValueChange={v=>{setSendLater(v==="later");setEmailAt("");}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="now">Send nå</SelectItem><SelectItem value="later">Planlegg til senere</SelectItem></SelectContent></Select>{sendLater&&<><DateTimePicker label="Send e-post" value={emailAt} onChange={setEmailAt}/><p className="form-hint">Velg dato og tid. E-posten sendes automatisk selv om CRM-et er lukket. Tidssone: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p></>}</div>
         <div className="bulk-email-foot">
           <span>{emails.length} mottakere med e-postadresse</span>
-          <EmailSend organizationId={organizationId} companyIds={targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk recipientLabel={`${emails.length} mottakere · ${segment === "all"?"Alle kunder":segment}`} />
+          <EmailSend organizationId={organizationId} companyIds={sendLater&&!emailAt?[]:targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk scheduledAt={sendLater?emailAt:undefined} onSent={onSent} recipientLabel={`${emails.length} mottakere · ${segment === "all"?"Alle kunder":segment}`} />
         </div>
       </div>
 
@@ -4854,6 +4856,7 @@ function Marketing({
     [posts, setPosts] = useState<
       {
         id: number;
+        kind?: string; subject?:string; sender?:string; recipientCount?:number; sentAt?:string; error?:string; canManage?:boolean; files?:{filename:string}[];
         content: string;
         platforms: string;
         scheduledAt: string;
@@ -4872,7 +4875,9 @@ function Marketing({
     [platforms, setPlatforms] = useState<string[]>([]),
     [images, setImages] = useState<File[]>([]),
     [savingPost, setSavingPost] = useState(false);
+  const [emailOpen,setEmailOpen]=useState(false);
   const [planOpen,setPlanOpen] = useState(false);
+  useEffect(()=>{if(!planOpen)return;const timer=setInterval(()=>setPlanRevision(n=>n+1),30000);return()=>clearInterval(timer);},[planOpen]);
   const [planView,setPlanView] = useState<"upcoming"|"history">("upcoming");
   const [planQuery,setPlanQuery] = useState("");
   const [planPage,setPlanPage] = useState(1);
@@ -4885,7 +4890,6 @@ function Marketing({
   function changePlanView(view:"upcoming"|"history") {if(view===planView)return;setPlanView(view);setPlanPage(1);setPlanLoading(true);}
   function showPlan() {setPlanView("upcoming");setPlanQuery("");setPlanPage(1);setPlanRevision(n=>n+1);setPlanLoading(true);setPlanOpen(true);}
   const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
-  const [insightsRevision,setInsightsRevision] = useState(0);
   const [publishId,setPublishId] = useState<number|null>(null);
   const [publishing,setPublishing] = useState(false);
   const [deleteId,setDeleteId]=useState<number|null>(null),[deleting,setDeleting]=useState(false);
@@ -4924,16 +4928,16 @@ function Marketing({
   async function deletePost(){
     if(!deleteId||deleting)return;setDeleting(true);
     try{
-      const r=await apiFetch('/api/marketing',{method:'DELETE',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({id:deleteId,confirm:true})});
+      const r=await apiFetch(deleteId<0?'/api/content-plan':'/api/marketing',{method:'DELETE',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({id:deleteId,confirm:true})});
       const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke fjerne innlegget.');
-      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setDeleteId(null);toast.success('Innlegget er fjernet fra innholdsplanen.');
+      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setDeleteId(null);toast.success(deleteId<0?'E-posten er avbrutt eller fjernet fra historikken.':'Innlegget er fjernet fra innholdsplanen.');
     }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke fjerne innlegget.');}
     finally{setDeleting(false);}
   }
   const publishPost = posts.find(post=>post.id===publishId);
   function canPublish(post: typeof posts[number]) {
     const selected=JSON.parse(post.platforms) as string[];
-    return social.ready && post.status === "Kladd" && selected.length>0 && selected.every(channel=>
+    return post.kind!=="email" && social.ready && post.status === "Kladd" && selected.length>0 && selected.every(channel=>
       ["Facebook","Instagram","LinkedIn"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
   }
   async function publishNow() {
@@ -4954,7 +4958,7 @@ function Marketing({
       const r=await apiFetch("/api/marketing",{headers:{"x-organization-id":String(organizationId)}}).catch(()=>null);
       if(r?.ok){const d=await r.json();setPosts(d.posts??[]);}
       setPublishId(null);
-    } finally {setPublishing(false);setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setInsightsRevision(n=>n+1);}
+    } finally {setPublishing(false);setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);}
   }
   const imagePreviews = useMemo(
     () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -4966,6 +4970,7 @@ function Marketing({
     [imagePreviews],
   );
   const channels = SOCIAL_CHANNELS;
+  useEffect(()=>{setPlatforms(current=>current.filter(channel=>social.connections.some(c=>c.platform===channel&&!c.expired)));},[social]);
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
@@ -4973,7 +4978,7 @@ function Marketing({
     const timer = window.setTimeout(async()=>{
       try {
         const params = new URLSearchParams({view:planView,q:planQuery,page:String(planPage)});
-        const r = await apiFetch(`/api/marketing?${params}`, {headers:{"x-organization-id":String(organizationId)},signal:controller.signal});
+        const r = await apiFetch(`/api/content-plan?${params}`, {headers:{"x-organization-id":String(organizationId)},signal:controller.signal});
         const d = await r.json();if(!r.ok)throw Error(d.error ?? "Kunne ikke hente innholdsplanen.");
         if(controller.signal.aborted)return;
         setPosts(d.posts ?? []);setPlanMeta(d.pagination);setPlanCounts(d.counts);
@@ -5136,7 +5141,7 @@ function Marketing({
       <div className="operations-head">
         <div>
           <p className="eyebrow">MARKEDSFØRING</p>
-          <h2>Innhold og resultater</h2>
+          <h2>Innhold og utsendinger</h2>
         </div>
         {role !== "Bruker" && (
           <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
@@ -5145,8 +5150,11 @@ function Marketing({
           </Button>
         )}
       </div>
-      <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
-      <SocialInsights key={organizationId} organizationId={organizationId} connections={social} revision={insightsRevision}/>
+      <div className="marketing-top-grid">
+        <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
+        <section className="surface marketing-email-card"><span className="marketing-email-icon"><Mail size={28}/></span><h3>Send e-post til kunder</h3><p>Velg kundegruppe og send fra din egen e-postkonto, nå eller senere.</p><Button onClick={()=>setEmailOpen(true)}><Mail size={18}/>Lag e-post</Button><small>Sendte og planlagte e-poster vises i innholdsplanen.</small></section>
+      </div>
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}><DialogContent className="marketing-email-dialog"><DialogHeader><DialogTitle>E-post til kunder</DialogTitle><DialogDescription>Skriv en melding og velg når den skal sendes.</DialogDescription></DialogHeader><BulkEmail companies={companies} organizationId={organizationId} onSent={()=>{setEmailOpen(false);setPlanRevision(n=>n+1);}}/></DialogContent></Dialog>
       <section className="surface marketing-composer">
         <div className="surface-head">
           <h3>Lag ett innlegg</h3>
@@ -5189,11 +5197,12 @@ function Marketing({
           <legend>Velg kanaler</legend>
           <div className="channel-picks social-channel-picks">
             {channels.map((channel) => (
-              <label key={channel} className="social-channel-choice">
+              <label key={channel} className={`social-channel-choice${social.connections.some(c=>c.platform===channel&&!c.expired)?"":" is-unavailable"}`} title={social.connections.some(c=>c.platform===channel&&!c.expired)?channel:`${channel} er ikke tilkoblet`}>
                 <input
                   type="checkbox"
                   className="social-channel-input"
-                  checked={platforms.includes(channel)}
+                  disabled={!social.connections.some(c=>c.platform===channel&&!c.expired)}
+                  checked={platforms.includes(channel)&&social.connections.some(c=>c.platform===channel&&!c.expired)}
                   onChange={(e) => setPlatforms((items) => e.target.checked
                     ? [...items, channel] : items.filter((item) => item !== channel))}
                 />
@@ -5217,36 +5226,36 @@ function Marketing({
       </section>
       <button type="button" className="content-plan-launcher" onClick={showPlan} aria-haspopup="dialog">
         <span className="content-plan-launcher-icon"><CalendarCheck2 size={22}/></span>
-        <span><strong>Innholdsplan</strong><small>Kommende innlegg og kladder samlet på ett sted</small></span>
-        <span className="content-plan-launcher-count">{planCounts.upcoming} innlegg</span><ChevronRight size={20}/>
+        <span><strong>Innholdsplan</strong><small>Innlegg og e-poster · kommende og historikk</small></span>
+        <span className="content-plan-launcher-count">{planCounts.upcoming} kommende</span><ChevronRight size={20}/>
       </button>
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent className="content-plan-dialog">
-          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Kommende innlegg og kladder. Publiserte innlegg finner du i Historikk.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Innlegg, kladder og planlagte e-poster. Publiserte innlegg og sendte e-poster finner du i Historikk.</DialogDescription></DialogHeader>
           <div className="content-plan-toolbar">
-            <div className="content-plan-tabs" role="group" aria-label="Vis innlegg">
+            <div className="content-plan-tabs" role="group" aria-label="Vis innhold">
               <button type="button" aria-pressed={planView==='upcoming'} onClick={()=>changePlanView('upcoming')}>Kommende <span>{planCounts.upcoming}</span></button>
               <button type="button" aria-pressed={planView==='history'} onClick={()=>changePlanView('history')}>Historikk <span>{planCounts.history}</span></button>
             </div>
-            <label className="content-plan-search"><Search size={18}/><Input type="search" aria-label="Søk i innleggsteksten" placeholder="Søk i innleggsteksten …" value={planQuery} onChange={e=>{setPlanQuery(e.target.value);setPlanPage(1);setPlanLoading(true);}}/></label>
+            <label className="content-plan-search"><Search size={18}/><Input type="search" aria-label="Søk i innlegg og e-poster" placeholder="Søk i innlegg og e-poster …" value={planQuery} onChange={e=>{setPlanQuery(e.target.value);setPlanPage(1);setPlanLoading(true);}}/></label>
           </div>
           <div className="content-plan-list" aria-busy={planLoading}>
-            {planLoading ? <p className="content-plan-empty" role="status">Henter innlegg …</p> : planError ? <div className="content-plan-empty" role="alert"><p>{planError}</p><Button variant="outline" onClick={()=>setPlanRevision(n=>n+1)}>Prøv igjen</Button></div> : !posts.length ? <p className="content-plan-empty" role="status">{planQuery ? `Ingen innlegg inneholder «${planQuery}». Prøv et annet søk eller bytt fane.` : planView==='history' ? 'Ingen publiserte innlegg ennå.' : 'Ingen kommende innlegg eller kladder. Lag et innlegg i markedsføringsmodulen.'}</p> : posts.map(post=>(
+            {planLoading ? <p className="content-plan-empty" role="status">Henter innhold …</p> : planError ? <div className="content-plan-empty" role="alert"><p>{planError}</p><Button variant="outline" onClick={()=>setPlanRevision(n=>n+1)}>Prøv igjen</Button></div> : !posts.length ? <p className="content-plan-empty" role="status">{planQuery ? `Ingen innlegg eller e-poster inneholder «${planQuery}». Prøv et annet søk eller bytt fane.` : planView==='history' ? 'Ingen publiserte innlegg eller sendte e-poster ennå.' : 'Ingen kommende innlegg, kladder eller e-poster.'}</p> : posts.map(post=>(
               <article className="content-plan-row" key={post.id}>
                 <button type="button" className="content-plan-preview" aria-label={`Vis innlegg: ${post.content.slice(0,60)}`} onClick={()=>setDetailId(post.id)}>
-                  <span className="content-plan-thumbnail">{post.images?.[0] ? <MarketingPostImage id={post.images[0].id} filename={post.images[0].filename} organizationId={organizationId}/> : <Megaphone size={24}/>}</span>
-                  <span className="content-plan-copy"><span className="content-plan-post-text">{post.content}</span><small>{JSON.parse(post.platforms).join(' · ')}{post.images?.length ? ` · ${post.images.length} bilder` : ''}</small></span>
+                  <span className="content-plan-thumbnail">{post.images?.[0] ? <MarketingPostImage id={post.images[0].id} filename={post.images[0].filename} organizationId={organizationId}/> : post.kind==="email"?<Mail size={24}/>:<Megaphone size={24}/>}</span>
+                  <span className="content-plan-copy"><span className="content-plan-post-text">{post.subject?`${post.subject} · `:""}{post.content}</span><small>{JSON.parse(post.platforms).join(' · ')}{post.images?.length ? ` · ${post.images.length} bilder` : ''}</small></span>
                 </button>
-                <div className="content-plan-date"><strong>{post.status==='Planlagt'?'Kladd':post.status}</strong><small>{post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
-                <div className="content-plan-actions">{canPublish(post)&&<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
+                <div className="content-plan-date"><strong>{post.kind==='email'?post.status:post.status==='Planlagt'?'Kladd':post.status}</strong><small>{post.sentAt ? date(post.sentAt,true) : post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
+                <div className="content-plan-actions">{canPublish(post)&&<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'||post.status==='Sender'||post.canManage===false} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
               </article>
             ))}
           </div>
-          <div className="content-plan-footer"><span aria-live="polite">{planLoading?'Henter …':`${planMeta.total} ${planQuery?'treff':'innlegg'} · Side ${planMeta.page} av ${planMeta.pages}`}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}>Forrige</Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}>Neste</Button></div></div>
+          <div className="content-plan-footer"><span aria-live="polite">{planLoading?'Henter …':`${planMeta.total} ${planQuery?'treff':'oppføringer'} · Side ${planMeta.page} av ${planMeta.pages}`}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}>Forrige</Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}>Neste</Button></div></div>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>Innlegg</DialogTitle><DialogDescription>{detailPost?.status==='Planlagt'?'Kladd':detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
-        {detailPost&&<><p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
+      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:"Innlegg"}</DialogTitle><DialogDescription>{detailPost?.kind==='email'?detailPost.status:detailPost?.status==='Planlagt'?'Kladd':detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
+        {detailPost&&<>{detailPost.kind==="email"&&<><p>Fra: {detailPost.sender} · {detailPost.recipientCount} mottakere</p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint">Vedlegg: {f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
       </DialogContent></Dialog>
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
         <DialogContent><DialogHeader><DialogTitle>Publiser innlegget nå?</DialogTitle><DialogDescription>Innlegget blir synlig på kontoene nedenfor med en gang. Et eventuelt planlagt tidspunkt blir ikke brukt.</DialogDescription></DialogHeader>
@@ -5259,8 +5268,7 @@ function Marketing({
           <Button disabled={publishing||preparing||Boolean(prepareError)} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>Slett fra innholdsplanen?</DialogTitle><DialogDescription>Innlegget fjernes fra oversikten i CRM-et. Innlegg som allerede er publisert på Facebook eller Instagram, blir ikke slettet der.</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}>Avbryt</Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?'Sletter …':'Slett fra innholdsplanen'}</Button></div></DialogContent></Dialog>
-      <BulkEmail companies={companies} organizationId={organizationId} />
+      <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>{deleteId!==null&&deleteId<0?"Avbryt eller fjern e-post?":"Slett fra innholdsplanen?"}</DialogTitle><DialogDescription>{deleteId!==null&&deleteId<0?"En planlagt e-post avbrytes og blir liggende i historikken. En tidligere utsending fjernes bare fra CRM-oversikten, ikke fra mottakerens postkasse.":"Innlegget fjernes fra oversikten i CRM-et. Publiserte innlegg beholdes hos kanalen."}</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}>Avbryt</Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?'Behandler …':deleteId!==null&&deleteId<0?'Bekreft':'Slett fra innholdsplanen'}</Button></div></DialogContent></Dialog>
       {chooser}
     </div>
   );
