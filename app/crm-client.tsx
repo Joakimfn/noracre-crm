@@ -2623,6 +2623,18 @@ function Customers(p: {
   const [openHistory, setOpenHistory] = useState<Activity | null>(null);
   const [historyDraft, setHistoryDraft] = useState("");
   const [savingHistory, setSavingHistory] = useState(false);
+  const historyScope = `${p.organizationId}:${p.selected.id}`;
+  const [historyPaging, setHistoryPaging] = useState({scope: historyScope, page: 0, count: p.history.length});
+  useEffect(() => {
+    setHistoryPaging({scope: historyScope, page: 0, count: p.history.length});
+  }, [historyScope, p.history.length]);
+  const historyPages = Math.max(1, Math.ceil(p.history.length / 5));
+  const historyPage = historyPaging.scope === historyScope && historyPaging.count === p.history.length
+    ? Math.min(historyPaging.page, historyPages - 1) : 0;
+  const pageHistory = p.history.slice(historyPage * 5, (historyPage + 1) * 5);
+  function changeHistoryPage(page: number) {
+    setHistoryPaging({scope: historyScope, page, count: p.history.length});
+  }
   async function saveHistoryNote() {
     if (!openHistory || savingHistory) return;
     setSavingHistory(true);
@@ -2876,15 +2888,14 @@ function Customers(p: {
             </div>
           </div>
         </details>
-        <section>
-          <div className="section-label">
-            <Clock3 size={18} />
-            <span>HISTORIKK</span>
-            <small>{p.history.length} hendelser</small>
-          </div>
+        <details className="compact-section customer-history" key={historyScope}>
+          <summary>
+            <span><Clock3 size={18} />Historikk</span>
+            <span className="customer-history-count">{p.history.length} {p.history.length === 1 ? "hendelse" : "hendelser"}<ChevronRight className="customer-history-chevron" size={18} /></span>
+          </summary>
           {p.history.length ? (
             <div className="history-list">
-              {p.history.map((a) => {
+              {pageHistory.map((a) => {
                 const contact = p.contacts.find((x) => x.id === a.contactId);
                 return (
                   <button
@@ -2912,7 +2923,12 @@ function Customers(p: {
           ) : (
             <p className="empty-line">Ingen hendelser er registrert ennå.</p>
           )}
-        </section>
+          {historyPages > 1 && <nav className="customer-history-pages" aria-label="Sider i kundehistorikken">
+            <Button variant="outline" size="sm" disabled={historyPage === 0} onClick={() => changeHistoryPage(historyPage - 1)} aria-label="Forrige side i historikken">Forrige</Button>
+            <span aria-live="polite">Side {historyPage + 1} av {historyPages}</span>
+            <Button variant="outline" size="sm" disabled={historyPage === historyPages - 1} onClick={() => changeHistoryPage(historyPage + 1)} aria-label="Neste side i historikken">Neste</Button>
+          </nav>}
+        </details>
         <Sheet
           open={!!openHistory}
           onOpenChange={(open) => !open && setOpenHistory(null)}
