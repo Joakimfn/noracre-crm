@@ -2891,7 +2891,7 @@ function Customers(p: {
         <details className="compact-section customer-history" key={historyScope}>
           <summary>
             <span><Clock3 size={18} />Historikk</span>
-            <span className="customer-history-count">{p.history.length} {p.history.length === 1 ? "hendelse" : "hendelser"}<ChevronRight className="customer-history-chevron" size={18} /></span>
+            <strong>{p.history.length} {p.history.length === 1 ? "hendelse" : "hendelser"}</strong>
           </summary>
           {p.history.length ? (
             <div className="history-list">
