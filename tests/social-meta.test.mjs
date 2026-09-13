@@ -44,6 +44,8 @@ globalThis.fetch=async(input,init)=>{
  if(p==='oauth/access_token')return Response.json({access_token:'private-user-token',expires_in:5000000});
  if(p==='me/permissions')return Response.json({data:permissions.map(permission=>({permission,status:'granted'}))});
  if(p==='me/accounts')return Response.json({data:[{id:'111',name:'Org page',access_token:'private-page-token',tasks:['CREATE_CONTENT'],instagram_business_account:{id:'222',username:'org_instagram'}}]});
+ if(p==='debug_token')return Response.json({data:{is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',expires_at:0,data_access_expires_at:0}});
+ if(p==='me')return Response.json({id:'111'});
  if(p==='111'||p==='222')return Response.json({id:p});
  if(p==='111/feed')return Response.json({id:'111_333'});
  if(p==='111/photos')return Response.json({id:'444'});
@@ -134,10 +136,48 @@ test('pending accounts omit secrets and are scoped to initiating member and orga
 test('explicit choice persists only encrypted scoped credentials',async()=>{
  assert.equal((await route('meta/accounts').POST(req('meta/accounts',1,1,{id:flow.id,pageId:'111',platforms:['Facebook','Instagram']}))).status,200);
  const c=sql.prepare('select * from social_connections limit 1').get();assert.notEqual(c.token,'private-page-token');
+ assert.equal(c.expires_at,app.meta.META_NO_SCHEDULED_EXPIRY);
+ assert.equal(sql.prepare("select expires_at from social_connections where platform='Instagram'").get().expires_at,app.meta.META_NO_SCHEDULED_EXPIRY);
  assert.equal(await app.meta.unseal(c.token,app.meta.tokenContext(1,c.platform,c.account_id)),'private-page-token');
  await assert.rejects(app.meta.unseal(c.token,app.meta.tokenContext(2,c.platform,c.account_id)));
  assert.equal(sql.prepare('select count(*) n from social_oauth').get().n,0);
  const response=await route('connections').GET(req('connections',3,1));const d=await response.json();assert.equal(d.connections.length,2);assert.ok(!JSON.stringify(d).includes('token'));
+});
+test('Page expiry follows verified Meta deadlines, not the user token or a 60-day cap',async()=>{
+ const normal=globalThis.fetch, now=Math.floor(Date.now()/1000);
+ let debug={is_valid:true,app_id:'123',type:'PAGE',profile_id:'111',expires_at:now+120*86400,data_access_expires_at:now+90*86400};
+ globalThis.fetch=async(input,init)=>{
+  const u=new URL(String(input));
+  if(u.pathname.endsWith('/debug_token')) {
+   assert.equal(u.searchParams.get('input_token'),'private-page-token');
+   return Response.json({data:debug});
+  }
+  return normal(input,init);
+ };
+ try {
+  assert.equal(await app.meta.pageTokenExpiry('private-page-token','111'),(now+90*86400)*1000);
+  debug={...debug,expires_at:now+1000};
+  assert.equal(await app.meta.pageTokenExpiry('private-page-token','111'),(now+1000)*1000);
+  for(const patch of [{is_valid:false},{app_id:'other'},{type:'USER'},{profile_id:'999'},{expires_at:now-1},{data_access_expires_at:now-1},{expires_at:undefined},{data_access_expires_at:undefined},{expires_at:-1},{expires_at:'0'},{expires_at:1e30}]) {
+   const saved=debug;debug={...saved,...patch};
+   await assert.rejects(app.meta.pageTokenExpiry('private-page-token','111'),app.meta.MetaError);debug=saved;
+  }
+  debug={...debug,profile_id:undefined,expires_at:0,data_access_expires_at:0};
+  assert.equal(await app.meta.pageTokenExpiry('private-page-token','111'),app.meta.META_NO_SCHEDULED_EXPIRY);
+  await assert.rejects(app.meta.pageTokenExpiry('private-page-token','999'),app.meta.MetaError);
+ }finally{globalThis.fetch=normal;}
+});
+test('failed Page validation keeps the previous connection and permits retry without leaking credentials',async()=>{
+ const f=await start();await callback(f);
+ const before=sql.prepare('select * from social_connections order by id').all(),normal=globalThis.fetch;
+ globalThis.fetch=async(input,init)=>String(input).includes('/debug_token')?Response.json({error:{code:190,message:'private-page-token'}},{status:400}):normal(input,init);
+ try {
+  const result=await route('meta/accounts').POST(req('meta/accounts',1,1,{id:f.id,pageId:'111',platforms:['Facebook','Instagram']}));
+  assert.equal(result.status,502);assert.doesNotMatch(await result.text(),/private-page-token/);
+  assert.deepEqual(sql.prepare('select * from social_connections order by id').all(),before);
+  assert.equal(sql.prepare('select status from social_oauth where id=?').get(f.id).status,'ready');
+ }finally{globalThis.fetch=normal;}
+ assert.equal((await route('meta/accounts').POST(req('meta/accounts',1,1,{id:f.id,pageId:'111',platforms:['Facebook','Instagram']}))).status,200);
 });
 test('deactivated administrators cannot complete OAuth',async()=>{
  const f=await start();sql.exec('update memberships set active=0 where id=1');const n=calls.length;
@@ -237,5 +277,4 @@ test('disconnect is tenant-scoped and removes stored credential',async()=>{
  assert.equal(sql.prepare('select id from social_connections where id=?').get(row.id),undefined);
 });
 test.after(()=>{globalThis.fetch=original;sql.close();return rm(dir,{recursive:true,force:true});});
-
 
