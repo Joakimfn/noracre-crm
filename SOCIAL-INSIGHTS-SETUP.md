@@ -12,7 +12,7 @@ All result pages are consumed. Missing values, revoked access, unsupported metri
 
 Alongside the existing publishing scopes, enable `read_insights` and `instagram_manage_insights` with the appropriate Meta app access level. If `META_LOGIN_CONFIG_ID` is configured, add these permissions to that **Facebook Login for Business configuration** in Meta as well. A configured login uses that configuration's permissions; adding scopes to source code does not alter it.
 
-An administrator then chooses **Koble til på nytt** in the CRM, grants the requested access and selects the same Facebook Page / Instagram account. Existing connections are retained until the new selection is confirmed. Do not revoke working publishing access to troubleshoot missing analytics. Customer accounts outside app roles may require Meta App Review / advanced access for these permissions.
+An administrator connects using **Koble til**, grants the requested access and selects the Facebook Page / Instagram account. Connected channels show **Logg av**, which asks for confirmation and removes only that channel's stored CRM credential. It does not delete external posts or log the user out of the provider's website. To reconnect, choose **Logg av**, then **Koble til**. Publishing and statistics for that channel are unavailable between those steps. Customer accounts outside app roles require the appropriate Meta App Review / advanced access for these permissions.
 
 ## Durable Meta connections and customer rollout
 
