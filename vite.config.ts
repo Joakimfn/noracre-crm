@@ -23,6 +23,7 @@ const localBindingConfig = {
   triggers: { crons: ["* * * * *"] },
   vars: {
     APP_URL: "https://crm.noracre.no",
+    GOOGLE_DEMO_BOOKING_URL: "https://calendar.app.google/CnNDypHGrKHS5hg18",
     SUPABASE_URL: "https://elxxbhelzlpevdvxlxba.supabase.co",
     SUPABASE_ANON_KEY: "sb_publishable_lFjFqfL2IFPo_ZqQVSzIGA_QXjtNiCp",
   },
