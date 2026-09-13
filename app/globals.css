@@ -3572,3 +3572,21 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
   .social-insights-heading { align-items:flex-start; flex-direction:column; }
   .social-insights-metrics { grid-template-columns:1fr; }
 }
+
+/* Marketing work area: compact channels and a separate email entry point. */
+.marketing-top-grid {display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:20px;align-items:stretch;margin-bottom:24px;}
+.marketing-top-grid>.surface {margin:0;min-width:0;}
+.marketing-email-card {display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:16px;}
+.marketing-email-card p,.marketing-email-card small {color:var(--muted-foreground);line-height:1.55;}
+.marketing-email-card h3,.marketing-email-card p {margin:0;}
+.marketing-email-icon {display:grid;place-items:center;width:52px;height:52px;border-radius:14px;background:var(--secondary);color:var(--foreground);}
+.marketing-email-dialog {width:min(760px,calc(100vw - 32px));max-width:760px!important;max-height:90dvh;overflow-y:auto;}
+.marketing-email-dialog .surface,.marketing-email-dialog .admin-card {border:0;box-shadow:none;padding:0;margin:0;}
+.email-timing {display:grid;gap:10px;}
+.social-channel-art {border-radius:16px;}
+.social-app-linkedin {border-radius:16px;overflow:hidden;background:#0a66c2;}
+.social-app-linkedin img {border-radius:inherit;}
+.social-channel-choice.is-unavailable {cursor:not-allowed;opacity:.4;}
+.social-channel-choice.is-unavailable .social-channel-art {filter:grayscale(1);}
+.social-channel-choice.is-unavailable:hover .social-channel-art {transform:none;}
+@media(max-width:850px){.marketing-top-grid{grid-template-columns:minmax(0,1fr);}.marketing-email-card{gap:12px;}}

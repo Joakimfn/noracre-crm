@@ -6,6 +6,7 @@ import { companies, contacts, attachments } from "@/db/schema";
 import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
 import { requireModuleAccess } from "@/lib/module-access";
 import { Buffer } from "node:buffer";
+import {createCampaign,dispatchCampaign,campaignOutcome} from "@/lib/email-campaigns";
 
 const runtime = env as unknown as { BUCKET: R2Bucket };
 const maxBytes = 10 * 1024 * 1024;
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const ctx = await requireTenant(request);
     if (Number(request.headers.get("content-length") || 0) > maxBytes + 1024 * 1024) throw new AccessError(413, "Vedleggene kan samlet være maks 10 MB.");
     const form = await request.formData(), companyIds = ids(form.get("companyIds")), attachmentIds = ids(form.get("attachmentIds"));
-    const bulk = form.get("mode") === "bulk";
+    const campaign = form.get("mode") === "campaign", bulk = campaign || form.get("mode") === "bulk";
     if (bulk) await requireModuleAccess(ctx.organizationId, ctx.membershipId, "markedsforing");
     if (!companyIds.length || companyIds.length > 500 || (!bulk && companyIds.length !== 1)) throw new AccessError(400, "Velg kunder som skal motta e-posten.");
     const subject = String(form.get("subject") ?? "").trim(), message = String(form.get("message") ?? "").trim();
@@ -59,7 +60,15 @@ export async function POST(request: Request) {
     const addFile = (name: string, data: ArrayBuffer) => payloadFiles.push({filename: name.replace(/[\r\n\x00/\\]/g, "_").slice(0,180) || "vedlegg", content: Buffer.from(data).toString("base64")});
     for (const file of files) addFile(file.name, await file.arrayBuffer());
     for (const file of stored) { const object = await runtime.BUCKET.get(file.objectKey); if (!object) throw new AccessError(404, "Et vedlegg er utilgjengelig."); addFile(file.filename, await object.arrayBuffer()); }
-    await sendFromMailbox(account,{to:bulk?[account.email]:recipients,bcc:bulk?recipients:[],subject,message,files:payloadFiles,key});
+    const input={to:bulk?[account.email]:recipients,bcc:bulk?recipients:[],subject,message,files:payloadFiles,key};
+    if(campaign){
+      const scheduledAt=String(form.get("scheduledAt")??"");
+      const row=await createCampaign(account,input,companyIds,scheduledAt);
+      if(!scheduledAt){await dispatchCampaign(row.id);const outcome=await campaignOutcome(row.id);if(outcome?.status!=="Sendt")return Response.json({id:row.id,error:outcome?.error||"Sendingen behandles. Kontroller innholdsplanen før et nytt forsøk."},{status:409});}
+      if(scheduledAt&&!["Planlagt","Sender","Sendt"].includes(row.status))return Response.json({id:row.id,error:"Denne utsendingen er avbrutt eller har feilet. Se innholdsplanen."},{status:409});
+      return Response.json({accepted:true,scheduled:Boolean(scheduledAt),count:recipients.length,id:row.id});
+    }
+    await sendFromMailbox(account,input);
     return Response.json({accepted:true,count:recipients.length});
   } catch(e) { return accessResponse(e); }
 }
