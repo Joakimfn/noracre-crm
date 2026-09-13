@@ -1,7 +1,7 @@
 import { and, eq, gt, or } from "drizzle-orm";
 import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { getDb } from "@/db";
-import { memberships, organizations, supportSessions, teamMembers } from "@/db/schema";
+import { memberships, organizations, supportSessions, teamMembers, userProfiles } from "@/db/schema";
 
 export const ownerAccounts = [
   { email: "joakimfn@gmail.com", name: "Joakim Ferdinand Nygård" },
@@ -27,6 +27,9 @@ export async function requireTenant(request: Request) {
   const user = await getChatGPTUser(request);
   if (!user) throw new AccessError(401, "Du må være logget inn.");
   const db = getDb();
+  const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId,user.id)).limit(1);
+  const profileName = profile?.displayName?.trim();
+  if(profileName)user.displayName=profileName;
   const ownerAccount = ownerAccounts.find(
     (account) => account.email === user.email.trim().toLowerCase(),
   );
@@ -47,7 +50,6 @@ export async function requireTenant(request: Request) {
       ownerOrganizationId = owner.organizationId;
       if (
         owner.userId !== user.id ||
-        owner.name !== ownerAccount.name ||
         owner.role !== "Superadmin" ||
         !owner.active
       ) {
@@ -55,7 +57,7 @@ export async function requireTenant(request: Request) {
           .update(memberships)
           .set({
             userId: user.id,
-            name: ownerAccount.name,
+            name: profileName || ownerAccount.name,
             role: "Superadmin",
             active: true,
           })
@@ -65,7 +67,7 @@ export async function requireTenant(request: Request) {
             ? {
                 ...item,
                 userId: user.id,
-                name: ownerAccount.name,
+                name: profileName || ownerAccount.name,
                 role: "Superadmin",
                 active: true,
               }
@@ -91,7 +93,7 @@ export async function requireTenant(request: Request) {
         organizationId: org.id,
         userId: user.id,
         email: ownerAccount.email,
-        name: ownerAccount.name,
+        name: profileName || ownerAccount.name,
         role: "Superadmin",
         active: true,
         createdAt: now,
@@ -177,7 +179,7 @@ export async function requireTenant(request: Request) {
         "ORGANIZATION_DISABLED",
       );
     return {
-      user: { ...user, displayName: direct.name.trim() || user.displayName },
+      user: { ...user, displayName: profileName || direct.name.trim() || user.displayName },
       organizationId: requested,
       role: direct.role,
       membershipId: direct.id,

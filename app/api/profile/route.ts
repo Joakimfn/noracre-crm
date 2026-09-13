@@ -1,3 +1,4 @@
+import { renameProfile } from "@/lib/actor-names";
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
       await bucket().put(avatarKey, await avatar.arrayBuffer(), { httpMetadata: { contentType: avatarType } });
     }
     const values = { userId: ctx.user.id, displayName, contactEmail, theme, avatarKey, avatarType, avatarX, avatarY, avatarZoom, browserNotifications, updatedAt: now };
-    if (existing) await db.update(userProfiles).set(values).where(eq(userProfiles.userId, ctx.user.id)); else await db.insert(userProfiles).values(values);
+    await renameProfile(ctx.user,values,existing);
     if (existing?.avatarKey && existing.avatarKey !== avatarKey) await bucket().delete(existing.avatarKey);
     return Response.json({ profile: values });
   } catch (error) { return accessResponse(error); }

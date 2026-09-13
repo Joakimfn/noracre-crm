@@ -1,3 +1,4 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { activities,companies,contacts } from "@/db/schema";
@@ -11,6 +12,6 @@ export async function GET(request:Request){
    db.select().from(contacts).where(eq(contacts.organizationId,ctx.organizationId)),
    db.select().from(activities).where(eq(activities.organizationId,ctx.organizationId))
   ]);
-  return Response.json({exportedAt:new Date().toISOString(),companies:companyRows,contacts:contactRows,activities:activityRows});
+  return await actorJson(ctx,{exportedAt:new Date().toISOString(),companies:companyRows,contacts:contactRows,activities:activityRows});
  }catch(e){return accessResponse(e)}
 }

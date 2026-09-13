@@ -767,7 +767,6 @@ export default function Home() {
     const previousUser = user;
     setUser(current => ({...current, displayName: profile.displayName, email: profile.contactEmail}));
     setProfileOpen(false);
-    toast.success("Innstillingene er lagret");
     const form = new FormData();
     form.set("displayName", profile.displayName);
     form.set("contactEmail", profile.contactEmail);
@@ -793,6 +792,12 @@ export default function Home() {
     if (profilePreview) URL.revokeObjectURL(profilePreview);
     setProfilePreview("");
     setAvatarVersion((v) => v + 1);
+    toast.success("Innstillingene er lagret");
+    await refreshCrmData();
+    const adminResponse = await api("/api/admin");
+    if(adminResponse.ok){const adminData=await adminResponse.json();setMembers(adminData.members??[]);}
+    callListCache.delete(activeOrgId);
+    window.dispatchEvent(new Event("crm-profile-updated"));
   }
   const filtered = useMemo(
       () =>
@@ -962,7 +967,7 @@ export default function Home() {
         employees: draft.employees,
         revenue: draft.revenue,
         source: isPerson ? "Manuelt" : draft.source,
-        assignedTo: "Joakim",
+        assignedTo: user.displayName,
       };
     try {
       const r = await api("/api/companies", {
@@ -1164,7 +1169,7 @@ export default function Home() {
           email: pick("e-post", "epost", "email"),
           note: pick("notat", "kommentar", "note"),
           stage: "Ny kunde",
-          assignedTo: "Joakim",
+          assignedTo: user.displayName,
           source: "Excel-import",
         };
       })
@@ -3990,6 +3995,18 @@ function CallLists({
     setEntries((current) => [...(d.entries ?? []), ...current]);
     toast.success(`${d.added} bedrifter ble importert`);
   }
+  useEffect(()=>{
+    let cancelled=false;
+    const refresh=async()=>{
+      if(!active)return;
+      try {const d=await loadCallListInitial(organizationId,true);if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
+        const r=await apiFetch("/api/call-lists?view=history",{headers:{"x-organization-id":String(organizationId)}});
+        if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
+      }catch{if(!cancelled)toast.error("Kunne ikke oppdatere navnene i ringelisten.");}
+    };
+    window.addEventListener("crm-profile-updated",refresh);
+    return ()=>{cancelled=true;window.removeEventListener("crm-profile-updated",refresh);};
+  },[active,organizationId]);
   async function loadHistory() {
     if (historyLoaded) return;
     const d = await apiFetch("/api/call-lists?view=history", {
@@ -4854,6 +4871,18 @@ function Marketing({
     [platforms, setPlatforms] = useState<string[]>([]),
     [images, setImages] = useState<File[]>([]),
     [savingPost, setSavingPost] = useState(false);
+  const [planOpen,setPlanOpen] = useState(false);
+  const [planView,setPlanView] = useState<"upcoming"|"history">("upcoming");
+  const [planQuery,setPlanQuery] = useState("");
+  const [planPage,setPlanPage] = useState(1);
+  const [planRevision,setPlanRevision] = useState(0);
+  const [planLoading,setPlanLoading] = useState(true), [planError,setPlanError] = useState("");
+  const [planMeta,setPlanMeta] = useState({page:1,pages:1,total:0});
+  const [planCounts,setPlanCounts] = useState({upcoming:0,history:0});
+  const [detailId,setDetailId] = useState<number|null>(null);
+  const detailPost = posts.find(post=>post.id===detailId);
+  function changePlanView(view:"upcoming"|"history") {if(view===planView)return;setPlanView(view);setPlanPage(1);setPlanLoading(true);}
+  function showPlan() {setPlanView("upcoming");setPlanQuery("");setPlanPage(1);setPlanRevision(n=>n+1);setPlanLoading(true);setPlanOpen(true);}
   const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
   const [publishId,setPublishId] = useState<number|null>(null);
   const [publishing,setPublishing] = useState(false);
@@ -4895,7 +4924,7 @@ function Marketing({
     try{
       const r=await apiFetch('/api/marketing',{method:'DELETE',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({id:deleteId,confirm:true})});
       const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke fjerne innlegget.');
-      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDeleteId(null);toast.success('Innlegget er fjernet fra innholdsplanen.');
+      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setDeleteId(null);toast.success('Innlegget er fjernet fra innholdsplanen.');
     }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke fjerne innlegget.');}
     finally{setDeleting(false);}
   }
@@ -4923,7 +4952,7 @@ function Marketing({
       const r=await apiFetch("/api/marketing",{headers:{"x-organization-id":String(organizationId)}}).catch(()=>null);
       if(r?.ok){const d=await r.json();setPosts(d.posts??[]);}
       setPublishId(null);
-    } finally {setPublishing(false);}
+    } finally {setPublishing(false);setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);}
   }
   const imagePreviews = useMemo(
     () => images.map((file) => ({ file, url: URL.createObjectURL(file) })),
@@ -4936,14 +4965,21 @@ function Marketing({
   );
   const channels = SOCIAL_CHANNELS;
   useEffect(() => {
-    if (active)
-      apiFetch("/api/marketing", {
-        headers: { "x-organization-id": String(organizationId) },
-      })
-        .then((r) => r.json())
-        .then((d) => setPosts(d.posts ?? []))
-        .catch(() => undefined);
-  }, [active, organizationId]);
+    if (!active) return;
+    const controller = new AbortController();
+    setPlanLoading(true);setPlanError("");
+    const timer = window.setTimeout(async()=>{
+      try {
+        const params = new URLSearchParams({view:planView,q:planQuery,page:String(planPage)});
+        const r = await apiFetch(`/api/marketing?${params}`, {headers:{"x-organization-id":String(organizationId)},signal:controller.signal});
+        const d = await r.json();if(!r.ok)throw Error(d.error ?? "Kunne ikke hente innholdsplanen.");
+        if(controller.signal.aborted)return;
+        setPosts(d.posts ?? []);setPlanMeta(d.pagination);setPlanCounts(d.counts);
+      } catch(error) {if(!controller.signal.aborted)setPlanError(error instanceof Error?error.message:"Kunne ikke hente innholdsplanen.");}
+      finally {if(!controller.signal.aborted)setPlanLoading(false);}
+    }, planQuery ? 250 : 0);
+    return ()=>{window.clearTimeout(timer);controller.abort();};
+  }, [active, organizationId,planView,planQuery,planPage,planRevision]);
   useEffect(() => {
     if (!purchaseOpen || role === "Bruker") return;
     apiFetch("/api/admin", {
@@ -4990,7 +5026,7 @@ function Marketing({
       });
       const d = await r.json();
       if (!r.ok) return toast.error(d.error ?? "Kunne ikke lagre innlegget");
-      setPosts((rows) => [d.post, ...rows]);
+      setPlanRevision(n=>n+1);
       setContent("");
       setScheduledAt("");
       setImages([]);
@@ -5112,7 +5148,7 @@ function Marketing({
         {["Visninger","Engasjement","Klikk"].map(label=><div className="metric" key={label}><span>{label}</span><strong>—</strong><small>Statistikk kommer senere</small></div>)}
         <Metric
           label="Publisert"
-          value={posts.filter((post) => post.status === "Publisert").length}
+          value={planCounts.history}
         />
       </div>
       <section className="surface marketing-composer">
@@ -5183,40 +5219,39 @@ function Marketing({
           Innlegget lagres som kladd. Publiser til tilkoblede Facebook- og Instagram-kontoer fra innholdsplanen. Tidspunktet er kun til planlegging og starter ingen automatisk publisering.
         </p>
       </section>
-      <section className="surface">
-        <div className="surface-head">
-          <h3>Innholdsplan</h3>
-          <span>{posts.length}</span>
-        </div>
-        {posts.length ? (
-          posts.map((post) => (
-            <div className="marketing-post" key={post.id}>
-              <strong>{post.status === "Planlagt" ? "Kladd" : post.status}</strong>
-              <span>{post.content}</span>
-              {post.images?.length ? (
-                <div className="marketing-post-images">
-                  {post.images.map((image) => (
-                    <MarketingPostImage
-                      key={image.id}
-                      id={image.id}
-                      filename={image.filename}
-                      organizationId={organizationId}
-                    />
-                  ))}
-                </div>
-              ) : null}
-              <small>
-                {JSON.parse(post.platforms).join(", ")}
-                {post.scheduledAt ? ` · ${date(post.scheduledAt, true)}` : ""}
-              </small>
-              {post.deliveries?.map(delivery=><small key={delivery.platform}>{delivery.platform}: {delivery.status === "published" ? "Publisert" : delivery.error || "Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres."}</small>)}
-              <div className="marketing-post-actions">{canPublish(post) && <Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" disabled={post.status==='Publiserer'} aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} onClick={()=>setDeleteId(post.id)}><Trash2 size={16}/>Slett</Button></div>
+      <button type="button" className="content-plan-launcher" onClick={showPlan} aria-haspopup="dialog">
+        <span className="content-plan-launcher-icon"><CalendarCheck2 size={22}/></span>
+        <span><strong>Innholdsplan</strong><small>Kommende innlegg og kladder samlet på ett sted</small></span>
+        <span className="content-plan-launcher-count">{planCounts.upcoming} innlegg</span><ChevronRight size={20}/>
+      </button>
+      <Dialog open={planOpen} onOpenChange={setPlanOpen}>
+        <DialogContent className="content-plan-dialog">
+          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Kommende innlegg og kladder. Publiserte innlegg finner du i Historikk.</DialogDescription></DialogHeader>
+          <div className="content-plan-toolbar">
+            <div className="content-plan-tabs" role="group" aria-label="Vis innlegg">
+              <button type="button" aria-pressed={planView==='upcoming'} onClick={()=>changePlanView('upcoming')}>Kommende <span>{planCounts.upcoming}</span></button>
+              <button type="button" aria-pressed={planView==='history'} onClick={()=>changePlanView('history')}>Historikk <span>{planCounts.history}</span></button>
             </div>
-          ))
-        ) : (
-          <p className="empty-line">Ingen innlegg planlagt ennå.</p>
-        )}
-      </section>
+            <label className="content-plan-search"><Search size={18}/><Input type="search" aria-label="Søk i innleggsteksten" placeholder="Søk i innleggsteksten …" value={planQuery} onChange={e=>{setPlanQuery(e.target.value);setPlanPage(1);setPlanLoading(true);}}/></label>
+          </div>
+          <div className="content-plan-list" aria-busy={planLoading}>
+            {planLoading ? <p className="content-plan-empty" role="status">Henter innlegg …</p> : planError ? <div className="content-plan-empty" role="alert"><p>{planError}</p><Button variant="outline" onClick={()=>setPlanRevision(n=>n+1)}>Prøv igjen</Button></div> : !posts.length ? <p className="content-plan-empty" role="status">{planQuery ? `Ingen innlegg inneholder «${planQuery}». Prøv et annet søk eller bytt fane.` : planView==='history' ? 'Ingen publiserte innlegg ennå.' : 'Ingen kommende innlegg eller kladder. Lag et innlegg i markedsføringsmodulen.'}</p> : posts.map(post=>(
+              <article className="content-plan-row" key={post.id}>
+                <button type="button" className="content-plan-preview" aria-label={`Vis innlegg: ${post.content.slice(0,60)}`} onClick={()=>setDetailId(post.id)}>
+                  <span className="content-plan-thumbnail">{post.images?.[0] ? <MarketingPostImage id={post.images[0].id} filename={post.images[0].filename} organizationId={organizationId}/> : <Megaphone size={24}/>}</span>
+                  <span className="content-plan-copy"><span className="content-plan-post-text">{post.content}</span><small>{JSON.parse(post.platforms).join(' · ')}{post.images?.length ? ` · ${post.images.length} bilder` : ''}</small></span>
+                </button>
+                <div className="content-plan-date"><strong>{post.status==='Planlagt'?'Kladd':post.status}</strong><small>{post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
+                <div className="content-plan-actions">{canPublish(post)&&<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
+              </article>
+            ))}
+          </div>
+          <div className="content-plan-footer"><span aria-live="polite">{planLoading?'Henter …':`${planMeta.total} ${planQuery?'treff':'innlegg'} · Side ${planMeta.page} av ${planMeta.pages}`}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}>Forrige</Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}>Neste</Button></div></div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>Innlegg</DialogTitle><DialogDescription>{detailPost?.status==='Planlagt'?'Kladd':detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
+        {detailPost&&<><p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
+      </DialogContent></Dialog>
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
         <DialogContent><DialogHeader><DialogTitle>Publiser innlegget nå?</DialogTitle><DialogDescription>Innlegget blir synlig på kontoene nedenfor med en gang. Et eventuelt planlagt tidspunkt blir ikke brukt.</DialogDescription></DialogHeader>
           {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0} bilder</p>

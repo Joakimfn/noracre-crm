@@ -1,8 +1,9 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { requireModuleAccess } from "@/lib/module-access";
 import { env } from "cloudflare:workers";
 import { validateImage } from "@/lib/safe-image";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql, inArray, count } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   marketingPostImages,
@@ -20,12 +21,24 @@ export async function GET(request: Request) {
   try {
     const ctx = await requireTenant(request);
     await requireMarketing(ctx.organizationId, ctx.membershipId);
-    const posts = await getDb()
-      .select()
-      .from(marketingPosts)
-      .where(and(eq(marketingPosts.organizationId, ctx.organizationId),ne(marketingPosts.status,"Slettet")))
-      .orderBy(desc(marketingPosts.id))
-      .limit(100);
+    const db = getDb(), params = new URL(request.url).searchParams;
+    const view = params.get("view"), paginated = view === "upcoming" || view === "history";
+    const scope = and(eq(marketingPosts.organizationId, ctx.organizationId), ne(marketingPosts.status, "Slettet"));
+    const totals = await db.select({status:marketingPosts.status, total:count()}).from(marketingPosts).where(scope).groupBy(marketingPosts.status);
+    const published = totals.find(row=>row.status === "Publisert")?.total ?? 0;
+    const upcoming = totals.filter(row=>row.status !== "Publisert").reduce((sum,row)=>sum+row.total,0);
+    // Literal substring search, including % and _. Norwegian letters are case folded too.
+    const query = (params.get("q") ?? "").trim().toLocaleLowerCase("nb-NO");
+    const filter = and(scope, paginated ? (view === "history" ? eq(marketingPosts.status,"Publisert") : ne(marketingPosts.status,"Publisert")) : undefined,
+      paginated && query ? sql`instr(lower(replace(replace(replace(${marketingPosts.content}, 'Æ', 'æ'), 'Ø', 'ø'), 'Å', 'å')), ${query}) > 0` : undefined);
+    const [{total}] = await db.select({total:count()}).from(marketingPosts).where(filter);
+    const pageSize = 5, pages = Math.max(1, Math.ceil(total/pageSize));
+    const requestedPage = Number(params.get("page"));
+    const page = Math.min(pages, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
+    const posts = await db.select().from(marketingPosts).where(filter)
+      .orderBy(...(view === "upcoming" ? [sql`case when ${marketingPosts.scheduledAt} = '' then 1 else 0 end`, marketingPosts.scheduledAt, desc(marketingPosts.id)] : [desc(marketingPosts.id)]))
+      .limit(paginated ? pageSize : 100).offset(paginated ? (page-1)*pageSize : 0);
+    const postIds = posts.map(post=>post.id);
     const imageRows = await getDb()
       .select({
         id: marketingPostImages.id,
@@ -35,7 +48,7 @@ export async function GET(request: Request) {
         size: marketingPostImages.size,
       })
       .from(marketingPostImages)
-      .where(eq(marketingPostImages.organizationId, ctx.organizationId))
+      .where(and(eq(marketingPostImages.organizationId, ctx.organizationId),inArray(marketingPostImages.postId,postIds)))
       .orderBy(marketingPostImages.id);
     const imagesByPost = new Map<number, typeof imageRows>();
     imageRows.forEach((image) => {
@@ -44,19 +57,21 @@ export async function GET(request: Request) {
       imagesByPost.set(image.postId, current);
     });
     const deliveries = await getDb().select({postId:socialDeliveries.postId,platform:socialDeliveries.platform,status:socialDeliveries.status,error:socialDeliveries.error})
-      .from(socialDeliveries).where(eq(socialDeliveries.organizationId, ctx.organizationId));
-    return Response.json({
+      .from(socialDeliveries).where(and(eq(socialDeliveries.organizationId, ctx.organizationId),inArray(socialDeliveries.postId,postIds)));
+    return await actorJson(ctx,{
       posts: posts.map((post) => ({
         ...post,
         deliveries: deliveries.filter(d => d.postId === post.id),
         images: imagesByPost.get(post.id) ?? [],
       })),
+      pagination: {page, pageSize, pages, total},
+      counts: {upcoming, history:published},
       connections: [],
       stats: {
         impressions: 0,
         engagement: 0,
         clicks: 0,
-        published: posts.filter((post) => post.status === "Publisert").length,
+        published,
       },
     });
   } catch (error) {
@@ -84,17 +99,17 @@ export async function POST(request: Request) {
       .getAll("images")
       .filter((image): image is File => image instanceof File);
     if (!content)
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Skriv innholdet som skal publiseres." },
         { status: 400 },
       );
     if (platforms.some((platform) => !SOCIAL_CHANNELS.includes(platform as typeof SOCIAL_CHANNELS[number])))
-      return Response.json({ error: "Velg en av de tilgjengelige kanalene." }, { status: 400 });
+      return await actorJson(ctx,{ error: "Velg en av de tilgjengelige kanalene." }, { status: 400 });
     platforms = [...new Set(platforms)];
     if (!platforms.length)
-      return Response.json({ error: "Velg minst én kanal." }, { status: 400 });
+      return await actorJson(ctx,{ error: "Velg minst én kanal." }, { status: 400 });
     if (images.length > 6)
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Du kan legge til opptil seks bilder per innlegg." },
         { status: 400 },
       );
@@ -106,7 +121,7 @@ export async function POST(request: Request) {
           !image.type.startsWith("image/"),
       )
     )
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Bildene må være bildefiler på maksimalt 10 MB hver." },
         { status: 400 },
       );
@@ -123,7 +138,7 @@ export async function POST(request: Request) {
         platforms: JSON.stringify(platforms),
         scheduledAt,
         status: "Kladd",
-        createdBy: ctx.user.displayName,
+        createdBy: actorRef(ctx.user),
         createdAt: now,
         updatedAt: now,
       })
@@ -179,7 +194,7 @@ export async function POST(request: Request) {
         .where(eq(marketingPosts.id, post.id));
       throw error;
     }
-    return Response.json(
+    return await actorJson(ctx,
       { post: { ...post, images: createdImages } },
       { status: 201 },
     );
@@ -196,6 +211,6 @@ export async function DELETE(request:Request){
   const body=await request.json();if(body.confirm!==true)throw new AccessError(400,"Bekreft sletting først.");
   const [post]=await getDb().update(marketingPosts).set({status:"Slettet",updatedAt:new Date().toISOString()}).where(and(eq(marketingPosts.organizationId,ctx.organizationId),eq(marketingPosts.id,Number(body.id)),ne(marketingPosts.status,"Publiserer"),ne(marketingPosts.status,"Slettet"))).returning({id:marketingPosts.id});
   if(!post)throw new AccessError(409,"Innlegget finnes ikke eller publiseres nå. Oppdater innholdsplanen.");
-  return Response.json({deletedId:post.id});
+  return await actorJson(ctx,{deletedId:post.id});
  }catch(error){return accessResponse(error);}
 }

@@ -1,3 +1,4 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { canManageModules } from "@/lib/module-access";
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
         .from(moduleLicenses)
         .where(eq(moduleLicenses.organizationId, ctx.organizationId)),
     ]);
-    if (!canManageModules(ctx.role)) return Response.json({
+    if (!canManageModules(ctx.role)) return await actorJson(ctx,{
       pricing: prices,
       members: [], audit: [], supportRequests: [], activeSupport: false,
       modules: Object.fromEntries(modules.filter(item => item.active && licenses.some(license =>
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
       )).map(item => [item.moduleKey, { currentUserActive: true }])),
       role: ctx.role, membershipId: ctx.membershipId,
     });
-    return Response.json({
+    return await actorJson(ctx,{
       pricing: prices,
       memberModuleCosts: Object.fromEntries(licenses.map(l => [l.membershipId, licenses.filter(x => x.membershipId === l.membershipId && x.active && modules.some(m => m.moduleKey === x.moduleKey && m.active)).reduce((sum, x) => sum + x.pricePerUser, 0)])),
       members: await db
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
         requestedRole = String(data.adminRole ?? "Administrator"),
         role = requestedRole === "Bruker" ? "Bruker" : "Administrator";
       if (orgNumber && orgNumber.length !== 9)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
         );
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
         organization: org.name,
         role,
       }).catch(() => ({ sent: false, reason: "provider_error" as const }));
-      return Response.json(
+      return await actorJson(ctx,
         { organization: org, invitationSent: invitation.sent },
         { status: 201 },
       );
@@ -194,7 +195,7 @@ export async function POST(request: Request) {
           .toLowerCase(),
         name = String(data.name ?? "").trim();
       if (!name || !email.includes("@"))
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Navn og gyldig e-postadresse må fylles ut." },
           { status: 400 },
         );
@@ -217,7 +218,7 @@ export async function POST(request: Request) {
         )
         .limit(1);
       if (duplicate.length)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Denne e-postadressen er allerede registrert i bedriften." },
           { status: 409 },
         );
@@ -246,7 +247,7 @@ export async function POST(request: Request) {
         .returning();
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
-        actor: ctx.user.displayName,
+        actor: actorRef(ctx.user),
         action: "Aktiverte bruker",
         detail: `${name} · ${price} kr per måned`,
         createdAt: now,
@@ -262,7 +263,7 @@ export async function POST(request: Request) {
         organization: organization?.name || "din organisasjon",
         role,
       }).catch(() => ({ sent: false, reason: "provider_error" as const }));
-      return Response.json(
+      return await actorJson(ctx,
         { member, monthlyPrice: price, invitationSent: invitation.sent },
         { status: 201 },
       );
@@ -286,7 +287,7 @@ export async function POST(request: Request) {
         )
         .limit(1);
       if (!target)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Brukeren finnes ikke." },
           { status: 404 },
         );
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
           "Bare en eierkonto kan endre en superadministrator.",
         );
       if (target.email === ctx.user.email && !active)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Du kan ikke deaktivere din egen bruker." },
           { status: 400 },
         );
@@ -328,12 +329,12 @@ export async function POST(request: Request) {
         );
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
-        actor: ctx.user.displayName,
+        actor: actorRef(ctx.user),
         action: active ? "Aktiverte bruker" : "Deaktiverte bruker",
         detail: target.email,
         createdAt: now,
       });
-      return Response.json({ member });
+      return await actorJson(ctx,{ member });
     }
     if (data.type === "moduleStatus") {
       if (!canManageModules(ctx.role))
@@ -344,7 +345,7 @@ export async function POST(request: Request) {
           : [],
         active = requestedIds.length > 0;
       if (!["ringelister", "markedsforing"].includes(moduleKey))
-        return Response.json({ error: "Ukjent modul." }, { status: 400 });
+        return await actorJson(ctx,{ error: "Ukjent modul." }, { status: 400 });
       const [existing, eligible, currentLicenses] = await Promise.all([
         db
           .select()
@@ -378,7 +379,7 @@ export async function POST(request: Request) {
       const prices = await organizationPricing(ctx.organizationId);
       const allowedIds = new Set(eligible.map((member) => member.id));
       if (requestedIds.some((id) => !allowedIds.has(id)))
-        return Response.json(
+        return await actorJson(ctx,
           { error: "En eller flere valgte brukere er ikke aktive." },
           { status: 400 },
         );
@@ -438,14 +439,14 @@ export async function POST(request: Request) {
             .returning();
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
-        actor: ctx.user.displayName,
+        actor: actorRef(ctx.user),
         action: active
           ? `Aktiverte ${moduleKey === "ringelister" ? "ringelistemodul" : "markedsføringsmodul"}`
           : `Deaktiverte ${moduleKey === "ringelister" ? "ringelistemodul" : "markedsføringsmodul"}`,
         detail: `${requestedIds.length} brukerlisenser · ${requestedIds.length * price} kr per måned`,
         createdAt: now,
       });
-      return Response.json({
+      return await actorJson(ctx,{
         module,
         licensedMemberIds: requestedIds,
         monthlyAmount: requestedIds.length * price,
@@ -483,12 +484,12 @@ export async function POST(request: Request) {
         );
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
-        actor: ctx.user.displayName,
+        actor: actorRef(ctx.user),
         action: "Godkjente supporttilgang",
         detail: "Tilgang i 24 timer",
         createdAt: now,
       });
-      return Response.json({ ok: true });
+      return await actorJson(ctx,{ ok: true });
     }
     if (data.type === "support") {
       if (!canManageModules(ctx.role))
@@ -524,21 +525,21 @@ export async function POST(request: Request) {
       }
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
-        actor: ctx.user.displayName,
+        actor: actorRef(ctx.user),
         action: enabled ? "Aktiverte supporttilgang" : "Stengte supporttilgang",
         detail: enabled ? "Tilgang i 24 timer" : "Tilgang avsluttet",
         createdAt: now,
       });
-      return Response.json({ session });
+      return await actorJson(ctx,{ session });
     }
     await db.insert(auditLogs).values({
       organizationId: ctx.organizationId,
-      actor: ctx.user.displayName,
+      actor: actorRef(ctx.user),
       action: String(data.action ?? "Endring"),
       detail: String(data.detail ?? ""),
       createdAt: now,
     });
-    return Response.json({ ok: true });
+    return await actorJson(ctx,{ ok: true });
   } catch (e) {
     return accessResponse(e);
   }

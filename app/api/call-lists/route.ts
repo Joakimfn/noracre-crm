@@ -1,3 +1,4 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
 import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -116,7 +117,7 @@ export async function GET(request: Request) {
     ]);
     if (!module?.active || !license.length) {
       if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
-      return Response.json({ active: false, entries: [] });
+      return await actorJson(ctx,{ active: false, entries: [] });
     }
     const condition =
       view === "history"
@@ -134,7 +135,7 @@ export async function GET(request: Request) {
       .where(condition)
       .orderBy(desc(callListEntries.id))
       .limit(view === "history" ? 500 : 150);
-    return Response.json({
+    return await actorJson(ctx,{
       active: true,
       pricePerUser: module.pricePerUser,
       entries: view === "queue" ? shuffle(rows) : rows,
@@ -169,7 +170,7 @@ export async function POST(request: Request) {
         )
         .limit(1);
       if (!current)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Bedriften finnes ikke." },
           { status: 404 },
         );
@@ -179,7 +180,7 @@ export async function POST(request: Request) {
           ? String(data.meetingAt ?? "")
           : current.meetingAt;
       const meetingNote=String(data.meetingNote??"").trim();
-      if(status==="Møte booket"&&meetingNote.length>5000)return Response.json({error:"Møtenotatet kan være maks 5 000 tegn."},{status:400});
+      if(status==="Møte booket"&&meetingNote.length>5000)return await actorJson(ctx,{error:"Møtenotatet kan være maks 5 000 tegn."},{status:400});
       const contactName = String(
           data.contactName ?? current.contactName ?? "",
         ).trim(),
@@ -196,7 +197,7 @@ export async function POST(request: Request) {
         data.type === "addCustomer"
       ) {
         if (status === "Møte booket" && (!meetingAt || Number.isNaN(new Date(meetingAt).getTime())))
-          return Response.json(
+          return await actorJson(ctx,
             { error: "Velg dato og tidspunkt for møtet." },
             { status: 400 },
           );
@@ -233,7 +234,7 @@ export async function POST(request: Request) {
               nextAction: status === "Møte booket" ? "Gjennomfør møte" : "",
               nextActionDate: meetingAt,
               source: current.source,
-              assignedTo: ctx.user.displayName,
+              assignedTo: actorRef(ctx.user),
               createdAt: now,
               updatedAt: now,
             })
@@ -300,7 +301,7 @@ export async function POST(request: Request) {
             note: meetingNote || "Møte booket fra ringelisten",
             dueAt: meetingAt,
             completedAt: "",
-            createdBy: ctx.user.displayName,
+            createdBy: actorRef(ctx.user),
             createdAt: now,
           });
         }
@@ -330,7 +331,7 @@ export async function POST(request: Request) {
           contactName,
           contactEmail,
           contactPhone,
-          handledBy: ctx.user.displayName,
+          handledBy: actorRef(ctx.user),
           updatedAt: now,
         })
         .where(
@@ -340,7 +341,7 @@ export async function POST(request: Request) {
           ),
         )
         .returning();
-      return Response.json({ entry: row, company: customer });
+      return await actorJson(ctx,{ entry: row, company: customer });
     }
     if (data.type === "import") {
       const rows = Array.isArray(data.rows)
@@ -359,7 +360,7 @@ export async function POST(request: Request) {
             .values(rows.slice(i, i + 5))
             .returning()),
         );
-      return Response.json(
+      return await actorJson(ctx,
         { entries: inserted, added: inserted.length },
         { status: 201 },
       );
@@ -378,17 +379,17 @@ export async function POST(request: Request) {
         .filter((form) => /^[A-Z0-9]{2,8}$/.test(form))
         .slice(0, 100);
     if (!forms.length)
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Velg minst én organisasjonsform." },
         { status: 400 },
       );
     if (municipalityCode && !/^\d{4}$/.test(municipalityCode))
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Velg et gyldig sted fra listen." },
         { status: 400 },
       );
     if (industryCode && !/^\d{2}(\.\d{1,3})?$/.test(industryCode))
-      return Response.json(
+      return await actorJson(ctx,
         { error: "Velg en gyldig bransje fra listen." },
         { status: 400 },
       );
@@ -503,7 +504,7 @@ export async function POST(request: Request) {
         ),
       );
     if (!candidates.length)
-      return Response.json(
+      return await actorJson(ctx,
         {
           error:
             "Fant ingen nye bedrifter med disse filtrene. Prøv et større område eller færre krav.",
@@ -526,7 +527,7 @@ export async function POST(request: Request) {
           .values(candidates.slice(i, i + 5))
           .returning()),
       );
-    return Response.json({
+    return await actorJson(ctx,{
       entries: shuffle(inserted),
       added: inserted.length,
     });

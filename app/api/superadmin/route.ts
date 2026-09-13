@@ -1,3 +1,4 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { and, desc, eq } from "drizzle-orm";
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
         retainUntil: org.retainUntil,
       };
     });
-    return Response.json({
+    return await actorJson(ctx,{
       summary: {
         activeOrganizations: rows.filter((o) => o.status === "Aktiv").length,
         lostOrganizations: rows.filter((o) => o.status === "Deaktivert").length,
@@ -180,25 +181,25 @@ export async function POST(request: Request) {
           ),
         )
         .limit(1);
-      if (pending.length) return Response.json({ request: pending[0] });
+      if (pending.length) return await actorJson(ctx,{ request: pending[0] });
       const [created] = await db
         .insert(supportRequests)
         .values({
           organizationId,
-          requestedBy: ctx.user.displayName,
+          requestedBy: actorRef(ctx.user),
           status: "Venter",
           createdAt: now,
           resolvedAt: "",
         })
         .returning();
-      return Response.json({ request: created }, { status: 201 });
+      return await actorJson(ctx,{ request: created }, { status: 201 });
     }
     if (data.type === "organizationStatus") {
       const scheduledDisableAt = data.status === "Deaktivert" ? disableAt(data.effectiveAt) : "";
       if (scheduledDisableAt) {
         const [org] = await db.update(organizations).set({scheduledDisableAt}).where(eq(organizations.id,organizationId)).returning();
         if(!org) throw new AccessError(404,"Bedriften finnes ikke");
-        return Response.json({organization:org});
+        return await actorJson(ctx,{organization:org});
       }
       const status = data.status === "Deaktivert" ? "Deaktivert" : "Aktiv",
         deactivatedAt = status === "Deaktivert" ? now : "",
@@ -211,12 +212,12 @@ export async function POST(request: Request) {
         .set({ status, deactivatedAt, retainUntil, scheduledDisableAt: "" })
         .where(eq(organizations.id, organizationId))
         .returning();
-      return Response.json({ organization: org });
+      return await actorJson(ctx,{ organization: org });
     }
     if (data.type === "organizationDetails") {
       const orgNumber = String(data.orgNumber ?? "").replace(/\D/g, "");
       if (orgNumber && orgNumber.length !== 9)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
         );
@@ -243,13 +244,13 @@ export async function POST(request: Request) {
         .where(eq(organizations.id, organizationId))
         .returning();
       if (!org)
-        return Response.json(
+        return await actorJson(ctx,
           { error: "Kundeorganisasjonen finnes ikke." },
           { status: 404 },
         );
-      return Response.json({ organization: org });
+      return await actorJson(ctx,{ organization: org });
     }
-    return Response.json({ error: "Ukjent handling" }, { status: 400 });
+    return await actorJson(ctx,{ error: "Ukjent handling" }, { status: 400 });
   } catch (e) {
     return accessResponse(e);
   }

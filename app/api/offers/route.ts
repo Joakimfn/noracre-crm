@@ -1,3 +1,4 @@
+import { actorJson, actorRef } from "@/lib/actor-names";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { offerTemplates } from "@/db/schema";
@@ -11,7 +12,7 @@ function requireAdmin(ctx: Awaited<ReturnType<typeof requireTenant>>) {
 export async function GET(request: Request) {
   try {
     const ctx = await requireTenant(request);
-    return Response.json({
+    return await actorJson(ctx,{
       templates: await getDb()
         .select()
         .from(offerTemplates)
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       name = String(data.name ?? "").trim();
     requireAdmin(ctx);
     if (!name)
-      return Response.json({ error: "Malnavn må fylles ut." }, { status: 400 });
+      return await actorJson(ctx,{ error: "Malnavn må fylles ut." }, { status: 400 });
     const [template] = await getDb()
       .insert(offerTemplates)
       .values({
@@ -39,12 +40,12 @@ export async function POST(request: Request) {
         name,
         subject: String(data.subject ?? ""),
         body: String(data.body ?? ""),
-        createdBy: ctx.user.displayName,
+        createdBy: actorRef(ctx.user),
         createdAt: now,
         updatedAt: now,
       })
       .returning();
-    return Response.json({ template }, { status: 201 });
+    return await actorJson(ctx,{ template }, { status: 201 });
   } catch (e) {
     return accessResponse(e);
   }
@@ -56,14 +57,14 @@ export async function PATCH(request: Request) {
       id = Number(data.id),
       name = String(data.name ?? "").trim();
     requireAdmin(ctx);
-    if (!id || !name) return Response.json({ error: "Malnavn må fylles ut." }, { status: 400 });
+    if (!id || !name) return await actorJson(ctx,{ error: "Malnavn må fylles ut." }, { status: 400 });
     const [template] = await getDb().update(offerTemplates).set({
       name,
       subject: String(data.subject ?? ""),
       body: String(data.body ?? ""),
       updatedAt: new Date().toISOString(),
     }).where(and(eq(offerTemplates.id, id), eq(offerTemplates.organizationId, ctx.organizationId))).returning();
-    return template ? Response.json({ template }) : Response.json({ error: "Malen finnes ikke." }, { status: 404 });
+    return template ? actorJson(ctx,{ template }) : actorJson(ctx,{ error: "Malen finnes ikke." }, { status: 404 });
   } catch (e) {
     return accessResponse(e);
   }
@@ -81,7 +82,7 @@ export async function DELETE(request: Request) {
           eq(offerTemplates.organizationId, ctx.organizationId),
         ),
       );
-    return Response.json({ ok: true });
+    return await actorJson(ctx,{ ok: true });
   } catch (e) {
     return accessResponse(e);
   }

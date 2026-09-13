@@ -29,6 +29,8 @@ for(const table of Object.values(app.schema)){
  sql.exec(`CREATE TABLE "${c.name}" (${cols.join(',')})`);
 }
 globalThis.testDb=drizzle(async(query,params,method)=>{const s=sql.prepare(query);s.setReturnArrays(true);return {rows:method==='run'?(s.run(...params),[]):method==='get'?s.get(...params):s.all(...params)}});
+// Match D1's atomic batch semantics using the local SQLite transaction.
+globalThis.testDb.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(await statement);sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}};
 const add=(table,values)=>{const keys=Object.keys(values);sql.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...Object.values(values));};
 for(const id of [1,2]){add('organizations',{id,name:'Org '+id,crm_price:id===1?199:299,ring_price:29,marketing_price:69,created_at:'2026-01-01'});add('companies',{id,organization_id:id,name:'Customer '+id});add('contacts',{id,organization_id:id,company_id:id,name:'Contact '+id,created_at:'2026-01-01'});add('activities',{id,organization_id:id,company_id:id,kind:'Telefon'});}
 for(const [id,org,role] of [[1,1,'Administrator'],[2,2,'Administrator'],[3,1,'Bruker'],[4,1,'Bruker']])add('memberships',{id,organization_id:org,user_id:String(id),email:`${id}@test.no`,name:'User '+id,role,created_at:'2026-01-01'});
@@ -295,7 +297,7 @@ test('booked meetings retain their own notes and return the updated customer for
  const body={type:'status',id:999,status:'Møte booket',meetingAt:'2026-10-15T13:30',meetingNote:'Behovsanalyse\nDiskutere budsjett og videre fremdrift.',contactName:'Contact',contactEmail:'meeting@test.no'};
  const response=await route('call-lists').POST(request(99,99,body));assert.equal(response.status,200);
  const data=await response.json();assert.equal(data.company.id,999);assert.equal(data.company.stage,'Møte avtalt');assert.equal(data.company.nextActionDate,body.meetingAt);
- const saved=sql.prepare('SELECT * FROM activities WHERE organization_id=99').get();assert.equal(saved.note,body.meetingNote);assert.equal(saved.due_at,body.meetingAt);assert.equal(saved.created_by,'Booker');assert.ok(saved.contact_id);
+ const saved=sql.prepare('SELECT * FROM activities WHERE organization_id=99').get();assert.equal(saved.note,body.meetingNote);assert.equal(saved.due_at,body.meetingAt);assert.equal((await (await route('activities').GET(request(99,99))).json()).activities[0].createdBy,'Booker');assert.ok(saved.contact_id);
  assert.equal(sql.prepare('SELECT note FROM companies WHERE id=999').get().note,'Existing customer note');
  body.meetingAt='2026-10-20T10:00';body.meetingNote='';
  assert.equal((await route('call-lists').POST(request(99,99,body))).status,200);
@@ -318,4 +320,54 @@ test('removing plan entries is tenant scoped, requires confirmation and preserve
  assert.equal(sql.prepare('SELECT status FROM marketing_posts WHERE id=999').get().status,'Slettet');
  assert.equal(sql.prepare('SELECT remote_id FROM social_deliveries WHERE post_id=999').get().remote_id,'external-post');
  assert.equal((await (await route('marketing').GET(request(99,99))).json()).posts.length,0);
+});
+
+test('content plan searches all tenant posts, paginates five and separates published history',async()=>{
+ for(let i=0;i<112;i++)add('marketing_posts',{id:2000+i,organization_id:99,content:i===0?'Hei, velkommen til Noracre CRM. ÆØÅ 10%_':`Innlegg ${i}`,created_by:'Booker',platforms:'["Facebook"]',status:i<6?'Publisert':i===6?'Delvis publisert':'Kladd',scheduled_at:i===7?'2026-10-01T12:00':'',created_at:'2026-01-01',updated_at:'2026-01-01'});
+ add('marketing_posts',{id:2200,organization_id:2,content:'Hei velkommen',created_by:'Other',status:'Kladd',created_at:'now',updated_at:'now'});
+ const get=async(query)=>{const r=await route('marketing').GET(request(99,99,undefined,'?'+query));assert.equal(r.status,200);return r.json();};
+ const first=await get('view=upcoming');assert.equal(first.posts.length,5);assert.equal(first.posts[0].id,2007);assert.equal(first.pagination.total,106);assert.deepEqual(first.counts,{upcoming:106,history:6});
+ const second=await get('view=upcoming&page=2');assert.equal(second.posts.length,5);assert.ok(second.posts.every(p=>!first.posts.some(f=>f.id===p.id)));
+ const clamped=await get('view=upcoming&page=99999');assert.equal(clamped.pagination.page,22);assert.equal(clamped.posts.length,1);
+ assert.equal((await get('view=history&page=2')).posts.length,1);
+ for(const q of ['velkommen','HEI','æøå','%_']){const found=await get('view=history&q='+encodeURIComponent(q));assert.equal(found.posts.length,1);assert.equal(found.posts[0].id,2000);}
+ assert.equal((await get('view=upcoming&q=velkommen')).pagination.total,0);
+ assert.equal((await get('view=history&q=Delete')).pagination.total,0);
+ assert.equal((await get('view=upcoming&page=NaN')).pagination.page,1);
+});
+
+
+test('profile rename follows stable identities across history, attachments, owners and organizations',async()=>{
+ for(const id of [301,302]){add('organizations',{id,name:'Rename '+id,created_at:'now'});add('memberships',{id,organization_id:id,user_id:'301',email:'301@test.no',name:'Old Name',role:'Administrator',created_at:'now'});add('companies',{id,organization_id:id,name:'Customer',assigned_to:'Old Name',note:'Old Name is quoted in this note'});}
+ add('activities',{id:3001,organization_id:301,company_id:301,kind:'Telefon',created_by:'Old Name',note:'Old Name is quoted'});
+ add('activities',{id:3002,organization_id:302,company_id:302,kind:'Telefon',created_by:'301@test.no'});
+ add('activities',{id:3003,organization_id:2,company_id:2,kind:'Telefon',created_by:'Old Name'});
+ add('attachments',{id:3001,organization_id:301,company_id:301,filename:'test.txt',object_key:'test',size:1,uploaded_by:'Old Name',created_at:'now'});
+ add('offer_templates',{id:3001,organization_id:301,name:'Template',created_by:'Old Name',created_at:'now',updated_at:'now'});
+ add('call_list_entries',{id:3001,organization_id:301,name:'Prospect',handled_by:'Old Name',created_at:'now',updated_at:'now'});
+ add('audit_logs',{id:3001,organization_id:301,actor:'Old Name',action:'Test',created_at:'now'});
+ add('support_requests',{id:3001,organization_id:301,requested_by:'Old Name',created_at:'now'});
+ const rename=async name=>{const form=new FormData();form.set('displayName',name);form.set('contactEmail','301@test.no');const r=await route('profile').POST(new Request('https://crm.test/api/profile',{method:'POST',headers:{authorization:'Bearer 301','x-organization-id':'301'},body:form}));assert.equal(r.status,200,await r.text());};
+ await rename('New Name');
+ assert.equal((await (await route('activities').GET(request(301,301))).json()).activities[0].createdBy,'New Name');
+ assert.equal((await (await route('activities').GET(request(301,302))).json()).activities[0].createdBy,'New Name');
+ assert.equal(sql.prepare('SELECT created_by FROM activities WHERE id=3003').get().created_by,'Old Name');
+ assert.equal((await (await route('attachments').GET(request(301,301,undefined,'?companyId=301'))).json()).attachments[0].uploadedBy,'New Name');
+ assert.equal((await (await route('offers').GET(request(301,301))).json()).templates[0].createdBy,'New Name');
+ let admin=await (await route('admin').GET(request(301,301))).json();assert.equal(admin.audit[0].actor,'New Name');assert.equal(admin.supportRequests[0].requestedBy,'New Name');assert.equal(admin.members[0].name,'New Name');
+ assert.equal((await (await route('session').GET(request(301,301))).json()).user.displayName,'New Name');
+ // A later namesake must never take ownership of already identified history.
+ add('memberships',{id:303,organization_id:301,user_id:'303',email:'303@test.no',name:'New Name',role:'Administrator',created_at:'now'});
+ const created=await (await route('activities').POST(request(301,301,{companyId:301,kind:'Telefon'}))).json();assert.equal(created.activity.createdBy,'New Name');
+ const other=await (await route('activities').POST(request(303,301,{companyId:301,kind:'Telefon'}))).json();
+ add('activities',{id:3100,organization_id:301,company_id:301,kind:'Telefon',created_by:'New Name'});
+ const company=await (await route('companies').GET(request(301,301))).json();assert.equal(company.companies[0].assignedTo,'New Name');
+ assert.equal((await route('companies').PATCH(request(301,301,{...company.companies[0],note:'Edited note'}))).status,200);
+ await rename('Newest Name');
+ const history=(await (await route('activities').GET(request(301,301))).json()).activities;
+ assert.equal(history.find(a=>a.id===3001).createdBy,'Newest Name');assert.equal(history.find(a=>a.id===created.activity.id).createdBy,'Newest Name');
+ assert.equal(history.find(a=>a.id===other.activity.id).createdBy,'New Name');assert.equal(history.find(a=>a.id===3100).createdBy,'New Name');
+ assert.equal(history.find(a=>a.id===3001).note,'Old Name is quoted');
+ assert.equal((await (await route('companies').GET(request(301,301))).json()).companies[0].assignedTo,'Newest Name');
+ const exported=await (await route('export').GET(request(301,301))).json();assert.ok(exported.activities.some(a=>a.id===3001&&a.createdBy==='Newest Name'));assert.ok(!JSON.stringify(exported).includes('crm-actor:v1:'));
 });
