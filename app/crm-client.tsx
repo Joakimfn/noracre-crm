@@ -831,12 +831,11 @@ export default function Home() {
   useEffect(() => {
     if (
       !sessionReady ||
-      !profile.browserNotifications ||
-      !("Notification" in window) ||
-      Notification.permission !== "granted"
+      !("Notification" in window)
     )
       return;
     const check = () => {
+      if(Notification.permission !== "granted")return;
       const now = Date.now();
       for (const activity of activities) {
         const offset = activeReminder(activity, now);
@@ -856,7 +855,7 @@ export default function Home() {
     const timer = window.setInterval(check, 15_000);
     window.addEventListener("focus", check);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", check); };
-  }, [sessionReady, profile.browserNotifications, activities, activeOrgId, user.id]);
+  }, [sessionReady, activities, activeOrgId, user.id]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
@@ -1651,25 +1650,6 @@ export default function Home() {
                 <SelectItem value="dark">Mørk modus</SelectItem>
               </SelectContent>
             </Select>
-            <div className="setting-row">
-              <div>
-                <strong>Nettleservarsler</strong>
-                <span>Varsle 15 minutter før oppfølgingen. CRM-et må være åpent og nettleservarsler tillatt.</span>
-              </div>
-              <Switch
-                checked={profile.browserNotifications}
-                onCheckedChange={async (enabled) => {
-                  if (enabled && !("Notification" in window)) return toast.error("Denne nettleseren støtter ikke nettleservarsler. Du kan fortsatt bruke CRM-et.");
-                  if (
-                    enabled &&
-                    "Notification" in window &&
-                    (await Notification.requestPermission()) !== "granted"
-                  )
-                    return toast.error("Tillat varsler i nettleseren først");
-                  setProfile({ ...profile, browserNotifications: enabled });
-                }}
-              />
-            </div>
             <p className="form-hint">
               Kontaktadressen endrer ikke kontoen du bruker til innlogging.
             </p>
@@ -3784,6 +3764,7 @@ function CallLists({
     } | null>(null),
     [meeting, setMeeting] = useState({
       meetingAt: "",
+        reminderMinutes: [15] as number[],
         meetingNote: "",
       contactName: "",
       contactEmail: "",
@@ -3970,7 +3951,7 @@ function CallLists({
   async function saveStatus(
     row: CallListEntry,
     status: string,
-    extra: Record<string, string> = {},
+    extra: Record<string, string | number[]> = {},
   ) {
     const r = await apiFetch("/api/call-lists", {
         method: "POST",
@@ -4005,6 +3986,7 @@ function CallLists({
       setMeetingEntry(row);
       setMeeting({
         meetingAt: "",
+        reminderMinutes: [15] as number[],
         meetingNote: "",
         contactName: row.contactName ?? "",
         contactEmail: row.contactEmail ?? row.email ?? "",
@@ -4016,6 +3998,7 @@ function CallLists({
       setOfferEntry(row);
       setMeeting({
         meetingAt: "",
+        reminderMinutes: [15] as number[],
         meetingNote: "",
         contactName: row.contactName ?? "",
         contactEmail: row.contactEmail ?? row.email ?? "",
@@ -4396,6 +4379,7 @@ function CallLists({
           <div className="meeting-form">
             <Label>Dato og tidspunkt</Label>
             <DateTimePicker label="Møtetidspunkt" value={meeting.meetingAt} onChange={value => setMeeting({ ...meeting, meetingAt: value })}/>
+            <ReminderFields value={meeting.reminderMinutes} onChange={reminderMinutes=>setMeeting({...meeting,reminderMinutes})}/>
             <Label>Kontaktperson</Label>
             <Input
               value={meeting.contactName}

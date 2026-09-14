@@ -1,3 +1,4 @@
+import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
 import { and, desc, eq, ne } from "drizzle-orm";
@@ -179,6 +180,8 @@ export async function POST(request: Request) {
         status === "Møte booket"
           ? String(data.meetingAt ?? "")
           : current.meetingAt;
+      let reminderMinutes="[15]";
+      if(status==="Møte booket"){try{reminderMinutes=JSON.stringify(validateReminderMinutes(data.reminderMinutes??[15]));}catch(e){throw new AccessError(400,(e as Error).message);}}
       const meetingNote=String(data.meetingNote??"").trim();
       if(status==="Møte booket"&&meetingNote.length>5000)return await actorJson(ctx,{error:"Møtenotatet kan være maks 5 000 tegn."},{status:400});
       const contactName = String(
@@ -300,6 +303,7 @@ export async function POST(request: Request) {
             kind: "Møte",
             note: meetingNote || "Møte booket fra ringelisten",
             dueAt: meetingAt,
+            reminderMinutes,
             completedAt: "",
             createdBy: actorRef(ctx.user),
             createdAt: now,

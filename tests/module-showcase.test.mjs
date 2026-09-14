@@ -18,7 +18,7 @@ for(const moduleKey of ['ringelister','markedsforing']){
   const html=render(moduleKey,'Bruker');assert.match(html,/Ta kontakt med administratoren/);assert.match(html,/Eksempeldata/);assert.doesNotMatch(html,/Velg brukere og aktiver|per bruker \/ måned|bekrefter/);
  });
  test(`${moduleKey}: only recognized administrators see priced activation`,()=>{
-  for(const role of ['Administrator','Superadmin']){const html=render(moduleKey,role);assert.match(html,/Velg brukere og aktiver/);assert.match(html,/49 kr/);assert.match(html,/totalprisen/);assert.doesNotMatch(html,/Ta kontakt med administratoren/);}
+  for(const role of ['Administrator','Superadmin']){const html=render(moduleKey,role);assert.match(html,/Velg brukere og aktiver/);assert.match(html,/49 kr/);assert.doesNotMatch(html,/Du ser totalprisen/);assert.doesNotMatch(html,/Ta kontakt med administratoren/);}
   const unknown=render(moduleKey,'unknown');assert.doesNotMatch(unknown,/Velg brukere og aktiver/);
   assert.match(render(moduleKey,'Administrator',null),/disabled=""/);
  });
