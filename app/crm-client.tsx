@@ -1,5 +1,6 @@
 "use client";
-import { canManageModules } from "@/lib/roles";
+import { ModuleShowcase } from "@/components/module-showcase";
+import { canManageModules, canViewAdministration } from "@/lib/roles";
 import { CompanyUserCreate } from "@/components/company-user-create";
 import { useAutosave } from "@/hooks/use-autosave";
 import {prepareInstagramImage} from "@/lib/instagram-image";
@@ -676,6 +677,7 @@ export default function Home() {
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
     setRolePreview(ad.role ?? "Bruker");
+    if(!canViewAdministration(ad.role ?? "Bruker"))setView(current=>current==="admin"?"overview":current);
     setCompanies(c.companies ?? []);
     setActivities(a.activities ?? []);
     setMembers(ad.members ?? []);
@@ -1456,23 +1458,19 @@ export default function Home() {
             ico={<BarChart3 size={20} />}
             text="Rapporter"
           />
-          {(["Administrator", "Superadmin"].includes(rolePreview) || ringModuleActive) && (
           <Nav
             a={view === "calllists"}
             click={() => setView("calllists")}
             ico={<Phone size={20} />}
             text="Ringelister"
           />
-          )}
-          {(["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
           <Nav
             a={view === "marketing"}
             click={() => setView("marketing")}
             ico={<Megaphone size={20} />}
             text="Markedsføring"
           />
-          )}
-          {rolePreview !== "Bruker" && (
+          {canViewAdministration(rolePreview) && (
             <Nav
               a={view === "admin"}
               click={() => {
@@ -1821,7 +1819,7 @@ export default function Home() {
             currentUser={user.displayName}
           />
         )}{" "}
-        {view === "calllists" && (["Administrator", "Superadmin"].includes(rolePreview) || ringModuleActive) && (
+        {view === "calllists" && (
           <CallListBoundary>
             <CallLists
             agreedPrice={pricing.ringPrice}
@@ -1843,7 +1841,7 @@ export default function Home() {
             />
           </CallListBoundary>
         )}{" "}
-        {view === "marketing" && (["Administrator", "Superadmin"].includes(rolePreview) || marketingModuleActive) && (
+        {view === "marketing" && (
           <Marketing
             agreedPrice={pricing.marketingPrice}
             key={activeOrgId}
@@ -1856,7 +1854,7 @@ export default function Home() {
             onActivated={setMarketingModuleActive}
           />
         )}{" "}
-        {view === "admin" && (
+        {view === "admin" && canViewAdministration(rolePreview) && (
           <Admin
             members={members}
             role={rolePreview}
@@ -3858,7 +3856,7 @@ function CallLists({
       .catch(() => undefined);
   }, [purchaseOpen, role, organizationId]);
   async function activate() {
-    if (purchaseBusy) return;
+    if (purchaseBusy || !canManageModules(role)) return;
     if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
     if (!licensedMemberIds.length) return toast.error("Velg minst én bruker");
     setPurchaseBusy(true);
@@ -4068,24 +4066,8 @@ function CallLists({
   if (!active)
     return (
       <div className="page-pad">
-        <section className="surface module-lock">
-          <Phone />
-          <p className="eyebrow">TILLEGGSMODUL</p>
-          <h2>Ringelister</h2>
-          <p>
-            Lag målrettede ringelister fra Brønnøysundregistrene eller importer
-            lister du allerede har kjøpt.
-          </p>
-          <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
-          {canManageModules(role) ? (
-            <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
-              Velg brukere og aktiver
-            </Button>
-          ) : (
-            <p>Be administratoren i bedriften aktivere modulen.</p>
-          )}
-        </section>
-        <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+        <ModuleShowcase moduleKey="ringelister" role={role} price={unitPrice} onPurchase={() => setPurchaseOpen(true)} />
+        <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Aktiver Ringelister</DialogTitle>
@@ -4173,7 +4155,7 @@ function CallLists({
             </label>
           </div>
         </div>
-        <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+        <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Ringelister for ansatte</DialogTitle>
@@ -4951,7 +4933,7 @@ function Marketing({
       .catch(() => undefined);
   }, [organizationId, purchaseOpen, role]);
   async function activate() {
-    if (purchaseBusy) return;
+    if (purchaseBusy || !canManageModules(role)) return;
     if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
     if (!licensed.length) return toast.error("Velg minst én bruker");
     setPurchaseBusy(true);
@@ -5012,7 +4994,7 @@ function Marketing({
     setImages((current) => [...current, ...selected]);
   }
   const chooser = (
-    <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+    <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Markedsføring for ansatte</DialogTitle>
@@ -5067,23 +5049,7 @@ function Marketing({
   if (!active)
     return (
       <div className="page-pad">
-        <section className="surface module-lock">
-          <Megaphone />
-          <p className="eyebrow">TILLEGGSMODUL</p>
-          <h2>Markedsføring</h2>
-          <p>
-            Planlegg innhold på tvers av kanaler og samle nøkkeltall på ett
-            sted.
-          </p>
-          <strong>{unitPrice == null ? "Kontakt Noracre for avtalt pris" : `${unitPrice} kr per valgt bruker per måned eks. mva.`}</strong>
-          {canManageModules(role) ? (
-            <Button disabled={unitPrice == null} onClick={() => setPurchaseOpen(true)}>
-              Velg brukere og aktiver
-            </Button>
-          ) : (
-            <p>Be administratoren aktivere modulen.</p>
-          )}
-        </section>
+        <ModuleShowcase moduleKey="markedsforing" role={role} price={unitPrice} onPurchase={() => setPurchaseOpen(true)} />
         {chooser}
       </div>
     );
