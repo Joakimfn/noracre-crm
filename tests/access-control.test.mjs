@@ -29,6 +29,7 @@ for(const table of Object.values(app.schema)){
  const cols=c.columns.map(col=>`"${col.name}" ${col.getSQLType()}${col.primary?' PRIMARY KEY':''}${col.notNull?' NOT NULL':''}${col.default!==undefined?' DEFAULT '+(typeof col.default==='string'?"'"+col.default.replaceAll("'","''")+"'":Number(col.default)):''}`);
  sql.exec(`CREATE TABLE "${c.name}" (${cols.join(',')})`);
 }
+sql.exec('CREATE UNIQUE INDEX test_org_module_unique ON organization_modules(organization_id,module_key); CREATE UNIQUE INDEX test_member_module_unique ON module_licenses(organization_id,membership_id,module_key)');
 globalThis.testDb=drizzle(async(query,params,method)=>{const s=sql.prepare(query);s.setReturnArrays(true);return {rows:method==='run'?(s.run(...params),[]):method==='get'?s.get(...params):s.all(...params)}});
 // Match D1's atomic batch semantics using the local SQLite transaction.
 globalThis.testDb.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(await statement);sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}};
@@ -432,4 +433,53 @@ test('profile rename follows stable identities across history, attachments, owne
  assert.equal(history.find(a=>a.id===3001).note,'Old Name is quoted');
  assert.equal((await (await route('companies').GET(request(301,301))).json()).companies[0].assignedTo,'Newest Name');
  const exported=await (await route('export').GET(request(301,301))).json();assert.ok(exported.activities.some(a=>a.id===3001&&a.createdBy==='Newest Name'));assert.ok(!JSON.stringify(exported).includes('crm-actor:v1:'));
+});
+test('superadmin creates a customer employee with both modules and preserves existing licenses',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ add('organizations',{id:950,name:'Module customer',crm_price:499,ring_price:49,marketing_price:79,created_at:'now'});
+ add('memberships',{id:950,organization_id:950,user_id:'950',email:'950@test.no',name:'Existing employee',role:'Bruker',created_at:'now'});
+ add('organization_modules',{organization_id:950,module_key:'ringelister',active:1,price_per_user:49,activated_at:'old'});
+ add('module_licenses',{organization_id:950,membership_id:950,module_key:'ringelister',active:1,price_per_user:39,activated_at:'old'});
+ const r=await route('admin').POST(request('owner',own,{type:'member',organizationId:950,name:'Module employee',email:'951@test.no',role:'Bruker',acceptedPrice:499,moduleKeys:['ringelister','markedsforing'],acceptedModulePrices:{ringelister:49,markedsforing:79}}));
+ assert.equal(r.status,201);const d=await r.json();assert.equal(d.monthlyPrice,627);assert.deepEqual(d.modules,['ringelister','markedsforing']);
+ const licenses=sql.prepare('SELECT module_key,price_per_user,active FROM module_licenses WHERE membership_id=? AND organization_id=950 ORDER BY module_key').all(d.member.id);
+ assert.deepEqual(licenses.map(x=>({...x})),[{module_key:'markedsforing',price_per_user:79,active:1},{module_key:'ringelister',price_per_user:49,active:1}]);
+ assert.equal(sql.prepare("SELECT active FROM module_licenses WHERE membership_id=950 AND module_key='ringelister'").get().active,1);
+ assert.equal(sql.prepare("SELECT price_per_user FROM module_licenses WHERE membership_id=950 AND module_key='ringelister'").get().price_per_user,39);
+ assert.equal((await route('marketing').GET(request(951,950))).status,200);
+ assert.equal((await route('call-lists').GET(request(951,950))).status,200);
+ assert.equal((await route('companies').GET(request(951,1))).status,403);
+});
+
+test('module choices and every agreed price must validate before any customer user is inserted',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const base={type:'member',organizationId:950,name:'Invalid modules',email:'invalid-modules@test.no',acceptedPrice:499,moduleKeys:['ringelister'],acceptedModulePrices:{ringelister:49}};
+ for(const [change,status] of [[{moduleKeys:['unknown']},400],[{moduleKeys:'ringelister'},400],[{acceptedModulePrices:{}},409],[{acceptedModulePrices:{ringelister:0}},409],[{acceptedModulePrices:{ringelister:'49'}},409]])
+  assert.equal((await route('admin').POST(request('owner',own,{...base,...change}))).status,status);
+ sql.exec('UPDATE organizations SET marketing_price=NULL WHERE id=950');
+ assert.equal((await route('admin').POST(request('owner',own,{...base,moduleKeys:['markedsforing'],acceptedModulePrices:{markedsforing:0}}))).status,409);
+ sql.exec('UPDATE organizations SET marketing_price=79 WHERE id=950');
+ assert.equal(sql.prepare("SELECT count(*) n FROM memberships WHERE email='invalid-modules@test.no'").get().n,0);
+});
+
+test('included modules cost zero and reactivation does not revive other employees licenses',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ add('organizations',{id:952,name:'Included customer',crm_price:499,ring_price:0,created_at:'now'});
+ add('memberships',{id:952,organization_id:952,user_id:'952',email:'952@test.no',name:'Old employee',created_at:'now'});
+ add('organization_modules',{organization_id:952,module_key:'ringelister',active:0,activated_at:'old'});
+ add('module_licenses',{organization_id:952,membership_id:952,module_key:'ringelister',active:1,activated_at:'old'});
+ const r=await route('admin').POST(request('owner',own,{type:'member',organizationId:952,name:'Included employee',email:'included@test.no',acceptedPrice:499,moduleKeys:['ringelister','ringelister'],acceptedModulePrices:{ringelister:0}}));
+ assert.equal(r.status,201);const d=await r.json();assert.equal(d.monthlyPrice,499);assert.equal(d.modules.length,1);
+ assert.equal(sql.prepare('SELECT active FROM module_licenses WHERE membership_id=952').get().active,0);
+ assert.equal(sql.prepare('SELECT price_per_user FROM module_licenses WHERE membership_id=?').get(d.member.id).price_per_user,0);
+});
+
+test('module failure rolls back the new membership and module activation together',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ add('organizations',{id:954,name:'Rollback modules',crm_price:499,ring_price:49,created_at:'now'});
+ sql.exec("CREATE TRIGGER fail_module BEFORE INSERT ON module_licenses WHEN NEW.organization_id=954 BEGIN SELECT RAISE(ABORT,'module failure'); END");
+ const r=await route('admin').POST(request('owner',own,{type:'member',organizationId:954,name:'Rollback modules',email:'module-rollback@test.no',acceptedPrice:499,moduleKeys:['ringelister'],acceptedModulePrices:{ringelister:49}}));
+ assert.equal(r.status,500);
+ for(const table of ['memberships','team_members','organization_modules','module_licenses','audit_logs'])assert.equal(sql.prepare(`SELECT count(*) n FROM ${table} WHERE organization_id=954`).get().n,0);
+ sql.exec('DROP TRIGGER fail_module');
 });

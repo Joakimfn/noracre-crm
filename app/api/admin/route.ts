@@ -2,7 +2,8 @@ import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { canManageModules } from "@/lib/module-access";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { moduleCatalog } from "@/lib/module-catalog";
 import { getDb } from "@/db";
 import {
   auditLogs,
@@ -213,17 +214,40 @@ export async function POST(request: Request) {
         throw new AccessError(403, "Superadmintilgang må gis av eierkontoen under Superadministratorer.");
       const phone = String(data.phone ?? "").trim().slice(0, 50);
       const price = confirmPrice(organization.crmPrice, data.acceptedPrice);
+      const requestedModules = data.moduleKeys ?? [];
+      if (!Array.isArray(requestedModules) || requestedModules.some(key => !moduleCatalog.some(module => module.key === key)))
+        throw new AccessError(400, "Velg gyldige tilleggsmoduler.");
+      if (requestedModules.length && !canManageModules(ctx.role))
+        throw new AccessError(403, "Bare administrator og superadmin kan tildele moduler.");
+      const acceptedModulePrices = data.acceptedModulePrices as Record<string, unknown> | undefined;
+      const selectedModules = moduleCatalog.filter(module => requestedModules.includes(module.key)).map(module => ({
+        ...module, price: confirmPrice(organization[module.priceKey], acceptedModulePrices?.[module.key]),
+      }));
+      const monthlyPrice = price + selectedModules.reduce((sum, module) => sum + module.price, 0);
       const duplicate = await db.select().from(memberships).where(and(eq(memberships.organizationId, organizationId), eq(memberships.email, email))).limit(1);
       if (duplicate.length)
         throw new AccessError(409, "Denne e-postadressen er allerede registrert i bedriften.");
       const [[member]] = await db.batch([
         db.insert(memberships).values({organizationId, userId: `invite:${email}`, email, name, phone, role, active: true, createdAt: now}).returning(),
         db.insert(teamMembers).values({organizationId, email, name, phone, role, active: true, createdAt: now}),
-        db.insert(auditLogs).values({organizationId, actor: actorRef(ctx.user), action: "Aktiverte bruker", detail: `${name} · ${price} kr per måned`, createdAt: now}),
+        db.insert(auditLogs).values({organizationId, actor: actorRef(ctx.user), action: "Aktiverte bruker", detail: `${name} · ${monthlyPrice} kr per måned${selectedModules.length ? ` · CRM + ${selectedModules.map(module => module.name).join(", ")}` : ""}`, createdAt: now}),
+        ...selectedModules.flatMap(module => [
+          // Reactivating an organization module must not restore old users' access.
+          db.update(moduleLicenses).set({active: false, deactivatedAt: now}).where(and(
+            eq(moduleLicenses.organizationId, organizationId), eq(moduleLicenses.moduleKey, module.key),
+            sql`NOT EXISTS (SELECT 1 FROM organization_modules WHERE organization_id = ${organizationId} AND module_key = ${module.key} AND active = 1)`,
+          )),
+          db.insert(organizationModules).values({organizationId, moduleKey: module.key, active: true, pricePerUser: module.price, activatedAt: now})
+            .onConflictDoUpdate({target: [organizationModules.organizationId, organizationModules.moduleKey], set: {active: true, pricePerUser: module.price, activatedAt: now, deactivatedAt: ""}}),
+          db.insert(moduleLicenses).values({organizationId,
+            membershipId: sql`(SELECT id FROM memberships WHERE organization_id = ${organizationId} AND email = ${email} ORDER BY id DESC LIMIT 1)`,
+            moduleKey: module.key, active: true, pricePerUser: module.price, activatedAt: now,
+          }),
+        ]),
       ]);
       const invitation = await sendInvitation({ to: email, name, organization: organization.name, role })
         .catch(() => ({ sent: false, reason: "provider_error" as const }));
-      return await actorJson(ctx, { member, monthlyPrice: price, invitationSent: invitation.sent }, { status: 201 });
+      return await actorJson(ctx, { member, monthlyPrice, modules: selectedModules.map(module => module.key), invitationSent: invitation.sent }, { status: 201 });
     }
     if (data.type === "memberStatus") {
       if (!ctx.isSuperadmin && ctx.role !== "Administrator")
