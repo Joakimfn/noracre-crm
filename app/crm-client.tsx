@@ -1,5 +1,6 @@
 "use client";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
+import {NorwegianDateInput} from '@/components/norwegian-date-input';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
 import {Sparkles} from 'lucide-react';
 
@@ -885,7 +886,7 @@ export default function Home() {
         if (controller.signal.aborted) return;
         const rows = contactData.contacts ?? [];
         setContacts(rows);
-        setSelectedContactId(rows[0]?.id ?? 0);
+        setSelectedContactId(0);
         setAttachments(fileData.attachments ?? []);
       })
       .catch(() => {
@@ -1764,7 +1765,7 @@ export default function Home() {
               onFollowupsChanged={refreshCrmData}
               activityRevision={activities}
               contacts={contacts}
-              onContactsChanged={async()=>{const r=await api(`/api/contacts?companyId=${selected.id}`);if(!r.ok)throw Error("Kunne ikke hente kontakter");const d=await r.json();setContacts(d.contacts);setSelectedContactId(current=>d.contacts.some((c:Contact)=>c.id===current)?current:d.contacts[0]?.id??0);await refreshCrmData();}}
+              onContactsChanged={async()=>{const r=await api(`/api/contacts?companyId=${selected.id}`);if(!r.ok)throw Error("Kunne ikke hente kontakter");const d=await r.json();setContacts(d.contacts);setSelectedContactId(current=>d.contacts.some((c:Contact)=>c.id===current)?current:0);await refreshCrmData();}}
               selectedContactId={selectedContactId}
               selectContact={setSelectedContactId}
               addContact={() => setPersonOpen(true)}
@@ -2617,8 +2618,7 @@ function Customers(p: {
   const c = p.selected,
     currentContacts = p.contacts.filter((x) => x.companyId === c.id),
     person =
-      currentContacts.find((x) => x.id === p.selectedContactId) ??
-      currentContacts[0],
+      currentContacts.find((x) => x.id === p.selectedContactId),
     isPerson = c.customerType === "Person",
     historyContact = openHistory
       ? p.contacts.find((x) => x.id === openHistory.contactId)
@@ -2697,10 +2697,11 @@ function Customers(p: {
               <Label>Kontaktperson</Label>
               <div>
                 <select
-                  value={p.selectedContactId || ""}
+                  aria-label="Velg ansatt"
+                  value={person?.id ?? ""}
                   onChange={(e) => p.selectContact(Number(e.target.value))}
                 >
-                  <option value="" disabled>
+                  <option value="">
                     Velg ansatt
                   </option>
                   {currentContacts.map((x) => (
@@ -2710,15 +2711,15 @@ function Customers(p: {
                     </option>
                   ))}
                 </select>
+                <div className="contact-picker-actions">{person?<ContactEditor key={person.id} contact={person} organizationId={p.organizationId} onChanged={p.onContactsChanged}/>:<Button variant="outline" disabled>Endre kontaktperson</Button>}
                 <Button variant="outline" onClick={p.addContact}>
                   <UserPlus />
                   Ny ansatt
-                </Button>
+                </Button></div>
               </div>
             </div>
           )}
         </div>
-        {!isPerson&&person&&<div className="contact-edit-action"><ContactEditor key={person.id} contact={person} organizationId={p.organizationId} onChanged={p.onContactsChanged}/></div>}
         <p className="activity-label">Registrer aktivitet</p>
         <div className="contact-actions" role="group" aria-label="Registrer aktivitet">
           {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
@@ -3629,10 +3630,11 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const [aiPrompt,setAiPrompt]=useState(''),[aiBusy,setAiBusy]=useState(false),[aiMessage,setAiMessage]=useState(''),[aiError,setAiError]=useState('');
+  const callListImportRef=useRef<HTMLInputElement>(null);
   async function interpretSearch(){
-    if(aiBusy||busy)return;
+    if(aiBusy||busy||aiPrompt.trim().length<8)return;
     setAiBusy(true);setAiMessage('');setAiError('');
-    try{const response=await apiFetch('/api/call-list-ai',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({prompt:aiPrompt})});const data=await response.json();if(!response.ok)throw Error(data.error??'Kunne ikke tolke søket.');setFilters(data.filters);setAiMessage('Filtrene er klare. Se over valgene nedenfor og trykk Hent bedrifter.');}
+    try{const response=await apiFetch('/api/call-list-ai',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({prompt:aiPrompt})});const data=await response.json();if(!response.ok)throw Error(data.error??'Kunne ikke tolke søket.');setFilters(data.filters);setAiMessage((data.period?data.period+'. ':'')+'Filtrene er klare. Se over valgene nedenfor og trykk Hent bedrifter.');}
     catch(error){setAiError(error instanceof Error?error.message:'Kunne ikke tolke søket.');}
     finally{setAiBusy(false);}
   }
@@ -3960,22 +3962,16 @@ function CallLists({
             <p className="eyebrow">RINGELISTER</p>
             <h3>Lag en målrettet liste</h3>
           </div>
-          <div className="offer-actions">
+          <div className="offer-actions call-list-actions">
             {canManageModules(role) && (
               <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
                 <UsersRound />
                 Administrer brukere
               </Button>
             )}
-            <label className="import-button">
-              <Upload size={18} />
-              Importer egen liste
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={importFile}
-              />
-            </label>
+            <Button variant="outline" onClick={()=>callListImportRef.current?.click()}><Upload size={18}/>Importer egen liste</Button>
+            <input ref={callListImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importFile}/>
+
           </div>
         </div>
         <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
@@ -4038,7 +4034,7 @@ function CallLists({
             </Button>
           </DialogContent>
         </Dialog>
-        <section className="call-ai-search" aria-labelledby="call-ai-title"><div><span className="call-ai-label"><Sparkles size={16}/> AI-SØK</span><h3 id="call-ai-title">Hvem vil du nå?</h3><p>Beskriv bedriftene du ønsker å kontakte.</p></div><div className="call-ai-prompt"><Textarea aria-label="Beskriv bedriftene du leter etter" value={aiPrompt} onChange={e=>{setAiPrompt(e.target.value);setAiMessage('');setAiError('');}} maxLength={1000} rows={3} disabled={aiBusy} placeholder="Jeg ønsker en liste over 20 bedrifter i Nord-Norge med 1–15 ansatte som ble etablert i 2025 eller 2026."/><Button type="button" onClick={interpretSearch} disabled={aiBusy||busy||aiPrompt.trim().length<8}><Sparkles size={16}/>{aiBusy?'Tolker søket …':'Finn filtre med AI'}</Button>{aiMessage&&<p role="status" className="call-ai-result">{aiMessage}</p>}{aiError&&<p role="alert" className="call-ai-error">{aiError}</p>}</div></section>
+        <section className="call-ai-search" aria-labelledby="call-ai-title"><div><span className="call-ai-label"><Sparkles size={16}/> AI-SØK</span><h3 id="call-ai-title">Hvem vil du nå?</h3><p>Beskriv bedriftene du ønsker å kontakte.</p></div><div className="call-ai-prompt"><Textarea onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(!e.repeat)void interpretSearch();}}} aria-label="Beskriv bedriftene du leter etter" value={aiPrompt} onChange={e=>{setAiPrompt(e.target.value);setAiMessage('');setAiError('');}} maxLength={1000} rows={3} disabled={aiBusy} placeholder="Jeg ønsker en liste over 20 bedrifter i Nord-Norge med 1–15 ansatte som ble etablert i 2025 eller 2026."/><Button type="button" onClick={interpretSearch} disabled={aiBusy||busy||aiPrompt.trim().length<8}><Sparkles size={16}/>{aiBusy?'Tolker søket …':'Finn filtre med AI'}</Button>{aiMessage&&<p role="status" className="call-ai-result">{aiMessage}</p>}{aiError&&<p role="alert" className="call-ai-error">{aiError}</p>}</div></section>
         <fieldset className="call-filter-fields" disabled={aiBusy||busy}><legend className="sr-only">Søkefiltre</legend><div className="call-filter-grid">
           <div>
             <Label>Min. ansatte</Label>
@@ -4087,8 +4083,8 @@ function CallLists({
             <Label>Organisasjonsform</Label>
             <CallListMultiPicker values={filters.organizationForms} onChange={organizationForms=>setFilters({...filters,organizationForms})} groups={[{heading:'Vanlige organisasjonsformer',options:options.organizationForms.filter(x=>['AS','ENK'].includes(x.value))},{heading:'Andre organisasjonsformer',options:options.organizationForms.filter(x=>!['AS','ENK'].includes(x.value))}]} placeholder="Søk etter organisasjonsform" allLabel="Alle organisasjonsformer" noun="organisasjonsformer" allMeansEmpty={false}/>
           </div>
-          <div><Label htmlFor="call-established-from">Etablert fra</Label><Input id="call-established-from" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div>
-          <div><Label htmlFor="call-established-to">Etablert til</Label><Input id="call-established-to" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div>
+          <div><Label htmlFor="call-established-from">Etablert fra</Label><NorwegianDateInput id="call-established-from" label="Etablert fra" value={filters.establishedFrom} onChange={establishedFrom=>setFilters({...filters,establishedFrom})}/></div>
+          <div><Label htmlFor="call-established-to">Etablert til</Label><NorwegianDateInput id="call-established-to" label="Etablert til" value={filters.establishedTo} onChange={establishedTo=>setFilters({...filters,establishedTo})}/></div>
         </div>
         <div className="contact-requirements">
           <label>

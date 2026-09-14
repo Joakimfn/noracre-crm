@@ -585,13 +585,13 @@ test('AI call-list search requires the assigned module and enforces tenant isola
 });
 
 test('AI validates output, preserves all requested filters and limits usage before inference',async()=>{
- let calls=0;const output={count:20,minEmployees:1,maxEmployees:15,locationCodes:['county:18','county:55','county:56'],industryCodes:[],organizationForms:['AS'],establishedFrom:'2025-01-01',establishedTo:'2026-12-31',requirePhone:false,requireEmail:false,unsupported:[]};
+ let calls=0;const output={count:20,minEmployees:1,maxEmployees:15,locationCodes:['county:18','county:55','county:56'],industryCodes:[],organizationForms:['AS'],establishedFrom:'2025-01-01',establishedTo:'2026-12-31',requirePhone:false,requireEmail:false,clarifications:[]};
  globalThis.testAI={run:async(model,input)=>{calls++;assert.match(model,/llama/);assert.equal(input.messages.length,2);return {response:output};}};
  let r=await route('call-list-ai').POST(request(980,980,{prompt:'20 bedrifter i Nord-Norge med 1–15 ansatte etablert i 2025 eller 2026'}));assert.equal(r.status,200);let result=await r.json();assert.deepEqual(result.filters.locationCodes,output.locationCodes);assert.equal(result.filters.establishedFrom,'2025-01-01');assert.equal(result.filters.count,20);
  output.locationCodes=['county:00'];r=await route('call-list-ai').POST(request(980,980,{prompt:'Find companies in nowhere'}));assert.equal(r.status,422);
- output.locationCodes=[];output.unsupported=['Omsetning støttes ikke'];r=await route('call-list-ai').POST(request(980,980,{prompt:'Bedrifter med 10 millioner i omsetning'}));assert.equal(r.status,422);assert.match((await r.json()).error,/Omsetning/);
+ output.locationCodes=[];output.clarifications=[{kind:'revenue',phrase:'omsetning'}];r=await route('call-list-ai').POST(request(980,980,{prompt:'Bedrifter med 10 millioner i omsetning'}));assert.equal(r.status,422);assert.match((await r.json()).error,/Omsetning/);
  sql.prepare('UPDATE call_list_ai_usage SET count=30 WHERE membership_id=980').run();const before=calls;assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Finn 20 bedrifter'}))).status,429);assert.equal(calls,before);
- sql.prepare('UPDATE call_list_ai_usage SET window_started=0 WHERE membership_id=980').run();output.unsupported=[];output.locationCodes=['county:18'];assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Finn 20 bedrifter'}))).status,200);
+ sql.prepare('UPDATE call_list_ai_usage SET window_started=0 WHERE membership_id=980').run();output.clarifications=[];output.locationCodes=['county:18'];assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Finn 20 bedrifter'}))).status,200);
  globalThis.testAI=undefined;
 });
 

@@ -2916,11 +2916,13 @@ textarea {
 }
 .call-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 .call-filter-grid > div {
   display: grid;
+  align-content: start;
+  min-width: 0;
   gap: 6px;
 }
 .contact-requirements {
@@ -3605,7 +3607,8 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .search-picker-popover [data-slot="command-input-wrapper"]{height:44px;padding:0 12px;margin:3px;border-radius:6px;}
 .search-picker-popover [data-slot="command-input-wrapper"]:focus-within{box-shadow:inset 0 0 0 2px var(--ring);}
 .search-picker-popover input[cmdk-input]{height:38px;min-width:0;padding:0;border:0!important;outline:none!important;box-shadow:none!important;background:transparent;}
-.search-picker>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.call-multi-picker{min-width:0;}
+.search-picker>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .search-picker>svg{flex-shrink:0;}
 .call-picker-selections{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;max-height:100px;overflow:auto;}
 .call-picker-selections button{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;background:var(--muted);padding:3px 7px;font-size:11px;text-align:left;max-width:100%;}
@@ -3624,3 +3627,15 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .module-preview-ai{margin:0 24px 15px;padding:12px 14px;background:var(--muted);border:1px solid var(--border);border-radius:9px;font-size:12px;line-height:1.6;}
 .module-preview-ai strong{display:block;font-size:10px;letter-spacing:.1em;margin-bottom:3px;}
 @media(max-width:700px){.call-ai-search{grid-template-columns:1fr;padding:18px;gap:12px;}.call-ai-prompt>button{width:100%;}}
+
+.contact-picker{min-width:0;max-width:100%;}
+.detail-head{flex-wrap:wrap;row-gap:16px;}
+.contact-picker>div{flex-wrap:wrap;}
+.contact-picker-actions{display:flex;gap:7px;align-items:center;}
+.contact-picker select{min-width:150px;max-width:100%;}
+.call-list-actions{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);max-width:100%;}
+.call-list-actions>button{height:40px;width:100%;font-size:13px;font-weight:600;}
+.norwegian-date-input{display:flex;align-items:center;position:relative;min-width:0;}
+.norwegian-date-input>input{padding-right:34px;min-width:0;}
+.norwegian-date-input>button{position:absolute;right:2px;width:30px;height:30px;padding:0;}
+@media(max-width:700px){.call-list-actions{grid-auto-flow:row;width:100%;}.contact-picker{width:100%;}.contact-picker-actions{flex-wrap:wrap;}}
