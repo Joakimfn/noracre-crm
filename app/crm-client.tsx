@@ -15,7 +15,10 @@ import { SocialConnections, type SocialState } from "@/components/social-connect
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { SocialChannelIcon } from "@/components/social-channel-icon";
 
-import { reminderIsDue } from "@/lib/followup-reminder";
+import {ContactEditor} from "@/components/contact-editor";
+import {ReminderFields} from "@/components/reminder-fields";
+import {matchesCustomer} from "@/lib/customer-search";
+import { activeReminder } from "@/lib/followup-reminder";
 
 import {
   ChangeEvent,
@@ -25,6 +28,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { DataImporter } from "@/components/data-importer";
 import * as XLSX from "xlsx";
 import {
   BarChart3,
@@ -138,6 +142,7 @@ type Company = {
   name: string;
   orgNumber: string;
   contactName: string;
+  searchContacts?: {name:string;title?:string;email?:string;phone?:string}[];
   phone: string;
   email: string;
   stage: string;
@@ -159,6 +164,7 @@ type Company = {
   updatedAt?: string;
 };
 type Activity = {
+  reminderMinutes?: string;
   id: number;
   companyId: number;
   contactId?: number | null;
@@ -559,8 +565,6 @@ export default function Home() {
     }),
     [rolePreview, setRolePreview] = useState("Bruker"),
     [supportAccess, setSupportAccess] = useState(false),
-    [importRows, setImportRows] = useState<Partial<Company>[]>([]),
-    [importName, setImportName] = useState(""),
     [newMember, setNewMember] = useState({
       name: "",
       email: "",
@@ -655,6 +659,7 @@ export default function Home() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [sessionReady, avatarIdentity, activeOrgId, profile.avatarKey, avatarVersion]);
+  const [nextReminders,setNextReminders] = useState<number[]>([15]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const api = (url: string, init: RequestInit = {}) => {
     const h = new Headers(init.headers);
@@ -812,11 +817,7 @@ export default function Home() {
   }
   const filtered = useMemo(
       () =>
-        companies.filter((c) =>
-          `${c.name} ${c.contactName} ${c.orgNumber}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-        ),
+        companies.filter((c) => matchesCustomer(c, query)),
       [companies, query],
     ),
     selected = companies.find((c) => c.id === selectedId) ?? companies[0],
@@ -836,12 +837,13 @@ export default function Home() {
     const check = () => {
       const now = Date.now();
       for (const activity of activities) {
-        if (!reminderIsDue(activity, now)) continue;
+        const offset = activeReminder(activity, now);
+        if (offset === null) continue;
         const due = new Date(activity.dueAt).getTime();
-        const key = `noracre-reminder:${user.id}:${activeOrgId}:${activity.id}:${activity.dueAt}`;
+        const key = `noracre-reminder:${user.id}:${activeOrgId}:${activity.id}:${activity.dueAt}:${offset}`;
         if (localStorage.getItem(key)) continue;
         const notification = new Notification("Kommende oppfølging", {
-          body: `${activity.companyName}: ${activity.note || "Følg opp"} – kl. ${new Date(due).toLocaleTimeString("nb-NO", {hour: "2-digit", minute: "2-digit"})}`,
+          body: `${activity.companyName}: ${activity.note || "Følg opp"} – kl. ${new Date(due).toLocaleString("nb-NO", {day:"2-digit",month:"2-digit",hour: "2-digit", minute: "2-digit"})}`,
           tag: key,
         });
         notification.onclick = () => { window.focus(); setView("followup"); notification.close(); };
@@ -1059,6 +1061,7 @@ export default function Home() {
             kind,
             note: `Følg opp etter ${kind.toLowerCase()}`,
             dueAt: due,
+            reminderMinutes: JSON.stringify(nextReminders),
             completedAt: "",
             createdBy: user.displayName,
             createdAt: now,
@@ -1092,6 +1095,7 @@ export default function Home() {
           nextAction: followup?.note ?? "",
           nextActionDate: due,
           followupKind: kind,
+          reminderMinutes: nextReminders,
         }),
       });
       if (!r.ok) throw new Error();
@@ -1151,53 +1155,6 @@ export default function Home() {
     setCompanies((x) => x.map((y) => (y.id === c.id ? u : y)));
     await persist(u);
     toast.success("Bedriftsdata er oppdatert");
-  }
-  async function readExcel(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) return toast.error("Importfilen kan være maks 5 MB.");
-    setImportName(f.name);
-    const b = XLSX.read(await f.arrayBuffer(), { sheetRows: 501, sheets: 0 }),
-      raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        b.Sheets[b.SheetNames[0]],
-        { defval: "" },
-      );
-    const rows = raw
-      .slice(0, 500)
-      .map((r) => {
-        const pick = (...ks: string[]) => {
-          for (const k of ks) {
-            const h = Object.keys(r).find((x) => x.toLowerCase().includes(k));
-            if (h && r[h]) return String(r[h]);
-          }
-          return "";
-        };
-        return {
-          name: pick("bedrift", "firmanavn", "kunde", "company"),
-          orgNumber: pick("org", "organisasjon"),
-          contactName: pick("kontakt", "contact"),
-          phone: pick("telefon", "mobil", "phone"),
-          email: pick("e-post", "epost", "email"),
-          note: pick("notat", "kommentar", "note"),
-          stage: "Ny kunde",
-          assignedTo: user.displayName,
-          source: "Excel-import",
-        };
-      })
-      .filter((r) => r.name);
-    setImportRows(rows);
-    toast.success(`${rows.length} kunder klare for import`);
-  }
-  async function doImport() {
-    const r = await api("/api/companies", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ companies: importRows }),
-    });
-    const rows = r.ok ? (await r.json()).companies : [];
-    setCompanies((x) => [...rows, ...x]);
-    setImportRows([]);
-    toast.success(`${rows.length} kunder er importert`);
   }
   function calendar() {}
   async function addMember(confirmed = false) {
@@ -1287,12 +1244,13 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(c),
       });
-      if (r.ok) c.id = (await r.json()).contact.id;
-    } catch {}
+      const data=await r.json();if(!r.ok)throw Error(data.error||"Kunne ikke lagre kontaktpersonen");c.id=data.contact.id;
+    } catch(e) {toast.error(e instanceof Error?e.message:"Kunne ikke lagre kontaktpersonen");return;}
     setContacts((x) => [...x, c]);
     setSelectedContactId(c.id);
     setNewContact({ name: "", title: "", phone: "", email: "" });
     setPersonOpen(false);
+    await refreshCrmData();
     toast.success("Kontaktpersonen er lagt til");
   }
   async function addOrganization() {
@@ -1821,6 +1779,7 @@ export default function Home() {
               onFollowupsChanged={refreshCrmData}
               activityRevision={activities}
               contacts={contacts}
+              onContactsChanged={async()=>{const r=await api(`/api/contacts?companyId=${selected.id}`);if(!r.ok)throw Error("Kunne ikke hente kontakter");const d=await r.json();setContacts(d.contacts);setSelectedContactId(current=>d.contacts.some((c:Contact)=>c.id===current)?current:d.contacts[0]?.id??0);await refreshCrmData();}}
               selectedContactId={selectedContactId}
               selectContact={setSelectedContactId}
               addContact={() => setPersonOpen(true)}
@@ -1906,10 +1865,7 @@ export default function Home() {
             support={support}
             supportRequests={supportRequests}
             approveSupport={approveSupport}
-            readExcel={readExcel}
-            rows={importRows}
-            importName={importName}
-            doImport={doImport}
+            onImported={refreshCrmData}
             newMember={newMember}
             setNewMember={setNewMember}
             addMember={addMember}
@@ -1998,6 +1954,7 @@ export default function Home() {
           />
           <Label>Når skal kunden følges opp igjen?</Label>
           <DateTimePicker label="Neste oppfølging" value={nextAt} onChange={setNextAt}/>
+          {nextAt&&<ReminderFields value={nextReminders} onChange={setNextReminders}/>}
           <Button onClick={register}>Lagre kontakten</Button>
         </DialogContent>
       </Dialog>
@@ -2459,14 +2416,17 @@ function OfferComposer({
       `Hei,\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`,
     );
   useEffect(() => {
+    let cancelled=false;
+    setTemplates([]);
     apiFetch("/api/offers", {
       headers: { "x-organization-id": String(organizationId) },
     })
       .then((r) => r.json())
       .then((d) => {
-        setTemplates(d.templates ?? []);
+        if(!cancelled)setTemplates(d.templates ?? []);
       })
       .catch(() => undefined);
+    return ()=>{cancelled=true;};
   }, [organizationId]);
   const effectiveContactId = contacts.some(
       (item) => String(item.id) === contactId,
@@ -2488,12 +2448,11 @@ function OfferComposer({
     ]);
   }, [attachments]);
   useEffect(() => {
-    setTemplateId("new");
-    setSubject(`Tilbud til ${company.name}`);
-    setBody(
-      `Hei ${contactName},\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`,
-    );
-  }, [company.id]);
+    const first=templates[0];
+    setTemplateId(first?String(first.id):"new");
+    setSubject(first?.subject ?? `Tilbud til ${company.name}`);
+    setBody(first?.body ?? `Hei ${contactName},\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`);
+  }, [company.id, templates]);
   function selectTemplate(id: string) {
     setTemplateId(id);
     const template = templates.find((item) => String(item.id) === id);
@@ -2520,7 +2479,7 @@ function OfferComposer({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="new">Standardtekst</SelectItem>
+                {!templates.length&&<SelectItem value="new">Standardtekst</SelectItem>}
                 {templates.map((item) => (
                   <SelectItem key={item.id} value={String(item.id)}>
                     {item.name}
@@ -2628,6 +2587,7 @@ function Customers(p: {
   contact: (k: string) => void;
   refresh?: (c: Company) => void;
   contacts: Contact[];
+  onContactsChanged: () => Promise<void>;
   selectedContactId: number;
   selectContact: (id: number) => void;
   addContact: () => void;
@@ -2686,8 +2646,8 @@ function Customers(p: {
           <div className="search-box">
             <Search size={19} />
             <input
-              aria-label="Søk etter kunde eller kontakt"
-              placeholder="Søk etter kunde eller kontakt …"
+              aria-label="Søk etter kunde, kontakt eller telefon"
+              placeholder="Søk etter kunde, kontakt eller telefon …"
               value={p.query}
               onChange={(e) => p.setQuery(e.target.value)}
             />
@@ -2773,6 +2733,7 @@ function Customers(p: {
             </div>
           )}
         </div>
+        {!isPerson&&person&&<div className="contact-edit-action"><ContactEditor key={person.id} contact={person} organizationId={p.organizationId} onChanged={p.onContactsChanged}/></div>}
         <p className="activity-label">Registrer aktivitet</p>
         <div className="contact-actions" role="group" aria-label="Registrer aktivitet">
           {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
@@ -3319,10 +3280,7 @@ function Admin(p: {
   support: (v: boolean) => void;
   supportRequests: SupportRequest[];
   approveSupport: (id: number) => void;
-  readExcel: (e: ChangeEvent<HTMLInputElement>) => void;
-  rows: Partial<Company>[];
-  importName: string;
-  doImport: () => void;
+  onImported: () => Promise<void>;
   newMember: { name: string; email: string; role: string };
   setNewMember: (v: { name: string; email: string; role: string }) => void;
   addMember: () => void;
@@ -3342,30 +3300,10 @@ function Admin(p: {
       )}
       <AdminCard
         eye="KUNDEIMPORT"
-        title="Importer fra Excel"
+        title="Importer data"
         ico={<FileSpreadsheet />}
       >
-        <p>
-          Vi finner automatisk bedrift, kontakt, telefon, e-post og notater.
-        </p>
-        <label className="upload-box">
-          <Upload />
-          <strong>{p.importName || "Velg Excel-fil"}</strong>
-          <span>.xlsx, .xls eller .csv · maks 500 kunder</span>
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={p.readExcel} />
-        </label>
-        {p.rows.length > 0 && (
-          <div className="import-preview">
-            <strong>{p.rows.length} kunder klare</strong>
-            <span>
-              {p.rows
-                .slice(0, 3)
-                .map((r) => r.name)
-                .join(", ")}
-            </span>
-            <Button onClick={p.doImport}>Importer kundene</Button>
-          </div>
-        )}
+        <DataImporter key={p.activeOrgId} organizationId={p.activeOrgId} onImported={p.onImported} />
       </AdminCard>
       <AdminCard
         eye="SIKKERHETSKOPI"

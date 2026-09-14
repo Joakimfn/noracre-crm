@@ -12,7 +12,7 @@ import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
 const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email'];
-await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
+await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as importRoute from './app/api/import/route';\nexport {matchesCustomer} from './lib/customer-search';\nexport {activeReminder,validateReminderMinutes} from './lib/followup-reminder';\nexport {guessColumns,mapImportRow,importDate} from './lib/data-import';\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/lib\/email-campaigns$/},()=>({path:'campaigns',namespace:'test'}));
  b.onResolve({filter:/^@\/lib\/user-mail$/},()=>({path:'user-mail',namespace:'test'}));
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
@@ -482,4 +482,91 @@ test('module failure rolls back the new membership and module activation togethe
  assert.equal(r.status,500);
  for(const table of ['memberships','team_members','organization_modules','module_licenses','audit_logs'])assert.equal(sql.prepare(`SELECT count(*) n FROM ${table} WHERE organization_id=954`).get().n,0);
  sql.exec('DROP TRIGGER fail_module');
+});
+
+test('search matches all contacts and formatted telephone numbers without combining unrelated numbers',()=>{
+ const customer={name:'Nordvik Bygg',phone:'+47 22 33 44 55',searchContacts:[{name:'Ingrid Hansen',phone:'900 12 345',email:'ingrid@example.no',title:'Daglig leder'},{name:'Per Olsen',phone:'888 99 000'}]};
+ for(const query of ['nordvik','ingrid hansen','PER OLSEN','daglig leder','90012345','900 12 345','+47 22334455','88899000','ingrid@example.no'])assert.equal(app.matchesCustomer(customer,query),true,query);
+ for(const query of ['nobody','455900','12345 name'])assert.equal(app.matchesCustomer(customer,query),false,query);
+});
+
+test('two reminders have separate windows, support no reminders and reject invalid offsets',()=>{
+ const due=Date.parse('2026-10-01T12:00:00Z'),task={dueAt:'2026-10-01T12:00:00Z',completedAt:'',reminderMinutes:'[1440,15]'};
+ assert.equal(app.activeReminder(task,due-1440*60000-1),null);
+ assert.equal(app.activeReminder(task,due-1440*60000),1440);
+ assert.equal(app.activeReminder(task,due-15*60000-1),1440);
+ assert.equal(app.activeReminder(task,due-15*60000),15);
+ assert.equal(app.activeReminder(task,due),null);
+ assert.equal(app.activeReminder({...task,completedAt:'done'},due-60000),null);
+ assert.equal(app.activeReminder({...task,reminderMinutes:'[]'},due-60000),null);
+ assert.deepEqual(app.validateReminderMinutes([15,1440]),[1440,15]);
+ for(const value of [[15,15],[0],[-1],[1,2,3],[1.5],['15'],[43201],null])assert.throws(()=>app.validateReminderMinutes(value));
+});
+
+test('followup reminders persist through creation and editing without crossing tenants',async()=>{
+ const response=await route('activities').POST(request(1,1,{companyId:1,isTask:true,dueAt:'2027-01-01T12:00:00',note:'Two reminders',reminderMinutes:[15,1440]}));
+ assert.equal(response.status,201);const {activity}=await response.json();assert.equal(activity.reminderMinutes,'[1440,15]');
+ assert.equal((await route('activities').PATCH(request(2,2,{id:activity.id,reminderMinutes:[]}))).status,404);
+ assert.equal((await route('activities').PATCH(request(1,1,{id:activity.id,reminderMinutes:[15,15]}))).status,400);
+ assert.equal((await route('activities').PATCH(request(1,1,{id:activity.id,reminderMinutes:[]}))).status,200);
+ assert.equal(sql.prepare('SELECT reminder_minutes FROM activities WHERE id=?').get(activity.id).reminder_minutes,'[]');
+});
+
+test('contact editing updates all fields and cannot move contacts between customers or tenants',async()=>{
+ add('companies',{id:970,organization_id:1,name:'Contact testing',contact_name:'Old Name',phone:'111',email:'old@example.no'});
+ add('contacts',{id:970,organization_id:1,company_id:970,name:'Old Name',phone:'111',email:'old@example.no',is_primary:1,created_at:'now'});
+ assert.equal((await route('contacts').PATCH(request(2,2,{id:970,name:'Wrong'}))).status,404);
+ assert.equal((await route('contacts').DELETE(request(2,2,undefined,'?id=970'))).status,404);
+ assert.equal((await route('contacts').PATCH(request(1,1,{id:970,name:'',email:'bad'}))).status,400);
+ const response=await route('contacts').PATCH(request(1,1,{id:970,name:'New Name',title:'CEO',phone:'222 33 444',email:'new@example.no',companyId:2,organizationId:2}));
+ assert.equal(response.status,200);const {contact}=await response.json();assert.equal(contact.companyId,970);assert.equal(contact.organizationId,1);assert.equal(contact.title,'CEO');assert.equal(contact.phone,'222 33 444');assert.equal(contact.email,'new@example.no');
+ assert.equal(sql.prepare('SELECT contact_name FROM companies WHERE id=970').get().contact_name,'New Name');
+ const list=await (await route('companies').GET(request(1))).json();assert.equal(app.matchesCustomer(list.companies.find(c=>c.id===970),'22233444'),true);
+});
+
+test('deleting contacts preserves history, promotes a replacement and never resurrects legacy contacts',async()=>{
+ add('contacts',{id:971,organization_id:1,company_id:970,name:'Replacement',is_primary:0,created_at:'now'});
+ add('activities',{id:970,organization_id:1,company_id:970,contact_id:970,note:'Keep this history',kind:'Telefon'});
+ assert.equal((await route('contacts').DELETE(request(1,1,undefined,'?id=970'))).status,200);
+ assert.equal(sql.prepare('SELECT contact_id FROM activities WHERE id=970').get().contact_id,null);
+ assert.equal(sql.prepare('SELECT is_primary FROM contacts WHERE id=971').get().is_primary,1);
+ assert.equal((await route('contacts').DELETE(request(1,1,undefined,'?id=971'))).status,200);
+ assert.deepEqual((await (await route('contacts').GET(request(1,1,undefined,'?companyId=970'))).json()).contacts,[]);
+ assert.equal(sql.prepare('SELECT note FROM activities WHERE id=970').get().note,'Keep this history');
+});
+
+const importRequest=(mode,rows,requestId=crypto.randomUUID(),org=1,user=1)=>request(user,org,{mode,source:'Migration test',requestId,rows});
+test('import infers CRM export columns without treating a company name as a contact',()=>{
+ const customerMap=app.guessColumns(['Name','id','orgNumber','contactName','email'],'customers');
+ assert.equal(customerMap.name,0);assert.equal(customerMap.externalId,1);assert.equal(customerMap.contactName,3);
+ assert.equal(app.guessColumns(['Name'],'customers').contactName,-1);
+ assert.equal(app.guessColumns(['name','companyId'],'contacts').companyReference,1);
+ assert.deepEqual(app.mapImportRow(['Acme','123'],{name:0,externalId:1,note:-1}),{name:'Acme',externalId:'123'});
+ assert.equal(app.importDate('24.09.2026 12:30'),'2026-09-24T12:30:00');
+ assert.throws(()=>app.importDate('not a date'));
+});
+
+test('customer import supports contacts, safe retries, separate history and atomic followup summaries',async()=>{
+ const body={name:'Imported customer',externalId:'old-001',contactName:'Imported person',contactEmail:'imported@example.no',phone:'12345678',dueAt:'2027-04-01T12:00:00'};
+ const key=crypto.randomUUID();let r=await app.importRoute.POST(importRequest('customers',[body],key));assert.equal(r.status,201);const first=await r.json();assert.equal(first.customers,1);assert.equal(first.contacts,1);assert.equal(first.activities,1);
+ r=await app.importRoute.POST(importRequest('customers',[body],key));assert.equal(r.status,200);assert.deepEqual(await r.json(),first);
+ assert.equal((await app.importRoute.POST(importRequest('customers',[{...body,name:'Changed'}],key))).status,409);
+ const customer=sql.prepare("SELECT * FROM companies WHERE import_id='old-001' AND organization_id=1").get();assert.equal(customer.next_action_date,body.dueAt);
+ r=await app.importRoute.POST(importRequest('customers',[body]));assert.equal(r.status,201);assert.equal((await r.json()).skipped,1);
+ r=await app.importRoute.POST(importRequest('contacts',[{companyReference:'old-001',contactName:'Second person',contactPhone:'999 88 777'}]));assert.equal(r.status,201);assert.equal((await r.json()).contacts,1);
+ r=await app.importRoute.POST(importRequest('activities',[{companyReference:'old-001',note:'Old conversation',createdAt:'12.09.2026',kind:'Telefon'}]));assert.equal(r.status,201);
+ const history=sql.prepare("SELECT * FROM activities WHERE company_id=? AND note='Old conversation'").get(customer.id);assert.equal(history.completed_at,'2026-09-12T09:00:00');
+});
+
+test('imports validate complete batches and cannot access another tenant',async()=>{
+ assert.equal((await app.importRoute.POST(importRequest('customers',[{name:'No access'}],crypto.randomUUID(),2,1))).status,403);
+ assert.equal((await app.importRoute.POST(importRequest('contacts',[{companyReference:'old-001',contactName:'Foreign'}],crypto.randomUUID(),2,2))).status,400);
+ assert.equal((await app.importRoute.POST(importRequest('customers',[{name:'Must roll back'},{name:''}]))).status,400);
+ assert.equal(sql.prepare("SELECT count(*) n FROM companies WHERE name='Must roll back'").get().n,0);
+ assert.equal((await app.importRoute.POST(importRequest('customers',Array.from({length:51},()=>({name:'Too many'}))))).status,400);
+ sql.exec("CREATE TRIGGER fail_import BEFORE INSERT ON contacts WHEN NEW.name='Fail import' BEGIN SELECT RAISE(ABORT,'import failure'); END");
+ const key=crypto.randomUUID();assert.equal((await app.importRoute.POST(importRequest('customers',[{name:'Atomic import',contactName:'Fail import'}],key))).status,500);
+ assert.equal(sql.prepare("SELECT count(*) n FROM companies WHERE name='Atomic import'").get().n,0);assert.equal(sql.prepare('SELECT count(*) n FROM data_imports WHERE id=?').get(`1:${key}`).n,0);
+ sql.exec('DROP TRIGGER fail_import');
+ assert.equal((await app.importRoute.POST(importRequest('customers',[{name:'Atomic import',contactName:'Fail import'}],key))).status,201);
 });

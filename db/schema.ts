@@ -11,6 +11,8 @@ export const companies = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     organizationId: integer("organization_id").notNull().default(1),
+    importId: text("import_id").notNull().default(""),
+    importSource: text("import_source").notNull().default(""),
     customerType: text("customer_type").notNull().default("Bedrift"),
     name: text("name").notNull(),
     orgNumber: text("org_number").notNull().default(""),
@@ -53,6 +55,7 @@ export const activities = sqliteTable(
     kind: text("kind").notNull(),
     note: text("note").notNull().default(""),
     dueAt: text("due_at").notNull().default(""),
+    reminderMinutes: text("reminder_minutes").notNull().default("[15]"),
     completedAt: text("completed_at").notNull().default(""),
     createdBy: text("created_by").notNull().default(""),
     createdAt: text("created_at").notNull().default(""),
@@ -408,3 +411,5 @@ export const backgroundJobs = sqliteTable("background_jobs", {
  leaseUntil: text("lease_until").notNull().default(""),
  failures: integer("failures").notNull().default(0),
 });
+
+export const dataImports=sqliteTable("data_imports",{id:text("id").primaryKey(),organizationId:integer("organization_id").notNull(),fingerprint:text("fingerprint").notNull(),result:text("result").notNull(),createdAt:text("created_at").notNull()});
