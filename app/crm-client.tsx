@@ -5323,7 +5323,7 @@ function Operations(p: {
         </div>
       </div>
       <OperationsInsights/>
-      <details className="surface customer-organizations-fold"><summary><span><strong>Kundeorganisasjoner</strong><small>Individuelt avtalte priser per bedrift</small></span><ChevronRight size={20}/></summary>
+      <details className="surface operations-fold customer-organizations-fold"><summary className="operations-fold-trigger"><span><strong>Kundeorganisasjoner</strong></span><ChevronRight size={20}/></summary><div className="operations-fold-body">
         <div className="operations-head">
           <div className="operations-toolbar">
             <DropdownMenu>
@@ -5447,7 +5447,7 @@ function Operations(p: {
             </div>
           ))}
         </div>
-      </details>
+      </div></details>
       <Dialog
         open={Boolean(selectedOrganization)}
         onOpenChange={(open) => {
