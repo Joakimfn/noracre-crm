@@ -6,24 +6,27 @@ import {callListAiUsage} from '@/db/schema';
 import {AccessError,accessResponse,requireTenant} from '@/lib/tenant';
 import {requireModuleAccess} from '@/lib/module-access';
 import {getCallListOptions} from '@/lib/call-list-options';
-import {CALL_LIST_AI_MODEL,callListAIInput,validateCallListAIResponse} from '@/lib/call-list-ai';
+import {simpleCallListSearch,CALL_LIST_AI_MODEL,callListAIInput,validateCallListAIResponse} from '@/lib/call-list-ai';
 export async function POST(request:Request){
  try{
   const ctx=await requireTenant(request);
   await requireModuleAccess(ctx.organizationId,ctx.membershipId,'ringelister');
+  if((env as unknown as {CALL_LIST_AI_ENABLED?:string}).CALL_LIST_AI_ENABLED!=='true')throw new AccessError(503,'AI-søk er midlertidig deaktivert. Bruk søkefiltrene i Ringelister.');
   if(Number(request.headers.get('content-length'))>6000)throw new AccessError(413,'Søket er for langt. Bruk maks 1000 tegn.');
   const data=await request.json().catch(()=>null);
   if(typeof data?.prompt!=='string'||data.prompt.trim().length<8||data.prompt.length>1000)throw new AccessError(400,'Beskriv bedriftene med 8–1000 tegn.');
   const today=osloToday();
   try{checkSearchScope(data.prompt);norwegianSearchDates(data.prompt,today);}catch(error){throw new AccessError(422,(error as Error).message);}
+  const options=await getCallListOptions();
+  const simple=simpleCallListSearch(data.prompt,options,today);
+  if(simple)return Response.json({filters:simple,period:""},{headers:{"cache-control":"no-store"}});
   const ai=(env as unknown as {AI?:{run:(model:string,input:unknown)=>Promise<{response?:unknown}>}}).AI;
   if(!ai)throw new AccessError(503,'AI-søk er midlertidig utilgjengelig. Du kan fortsatt bruke filtrene nedenfor.');
   const now=Math.floor(Date.now()/1000),usage=callListAiUsage;
   const [counter]=await getDb().insert(usage).values({membershipId:ctx.membershipId,windowStarted:now,count:1}).onConflictDoUpdate({target:usage.membershipId,set:{windowStarted:sql`CASE WHEN ${usage.windowStarted} <= ${now-3600} THEN ${now} ELSE ${usage.windowStarted} END`,count:sql`CASE WHEN ${usage.windowStarted} <= ${now-3600} THEN 1 ELSE ${usage.count}+1 END`}}).returning();
   if(counter.count>30)throw new AccessError(429,'Du har brukt mange AI-søk på kort tid. Prøv igjen senere, eller bruk filtrene manuelt.');
-  const options=await getCallListOptions();
   let response;
-  try{response=await ai.run(CALL_LIST_AI_MODEL,callListAIInput(data.prompt.trim(),options,today));}catch{throw new AccessError(502,'AI-en svarte ikke som forventet. Prøv igjen, eller bruk filtrene manuelt.');}
+  try{response=await ai.run(CALL_LIST_AI_MODEL,callListAIInput(data.prompt.trim(),options,today));}catch(error){if(/allocation|neurons|quota|4006/i.test(String(error)))throw new AccessError(503,'AI-søk har nådd dagens kapasitetsgrense. Enkle søk på antall, håndverksbransje og sted fungerer fortsatt. Du kan også bruke filtrene nedenfor.');throw new AccessError(502,'AI-en svarte ikke som forventet. Prøv igjen, eller bruk filtrene manuelt.');}
   let raw=response.response;
   if(typeof raw==='string'){try{raw=JSON.parse(raw);}catch{throw new AccessError(502,'AI-en klarte ikke å tolke søket. Prøv igjen.');}}
   try{const filters=validateCallListAIResponse(raw,options,data.prompt,today);const period=filters.establishedFrom&&filters.establishedTo?`Etablert ${norwegianDate(filters.establishedFrom)} – ${norwegianDate(filters.establishedTo)}`:filters.establishedFrom?`Etablert fra ${norwegianDate(filters.establishedFrom)}`:filters.establishedTo?`Etablert til ${norwegianDate(filters.establishedTo)}`:'';return Response.json({filters,period},{headers:{'cache-control':'no-store'}});}catch(error){throw new AccessError(422,(error as Error).message);}

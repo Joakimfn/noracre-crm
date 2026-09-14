@@ -1,3 +1,4 @@
+import {pathToFileURL} from 'node:url';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
@@ -5,8 +6,8 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 const dir=await mkdtemp(path.join(tmpdir(),'invoice-'));
-await build({entryPoints:['lib/invoice-report.ts'],bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'report.mjs')});
-const {invoiceReport,invoicePage}=await import(path.join(dir,'report.mjs'));
+await build({stdin:{contents:"export * from './lib/invoice-report';export * from './lib/billing-history';",resolveDir:path.resolve('.')},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'report.mjs')});
+const {invoiceReport,invoicePage,billingHistory}=await import(pathToFileURL(path.join(dir,'report.mjs')));
 let id=0;
 const e=(type,at,extra={})=>({id:++id,organizationId:1,entityType:type,entityId:1,membershipId:1,moduleKey:'markedsforing',label:'Bedrift',active:true,monthlyPrice:type==='user'?499:type==='license'?49:0,eventKind:'activated',occurredAt:at,referenceAt:'',...extra});
 const setup=at=>['organization','user','module','license'].map(type=>e(type,at));
@@ -55,3 +56,8 @@ test('companies never share rates; search paginates at 10 and clamps empty pages
  const other=setup('2026-03-31T10:00:00Z').map(x=>({...x,organizationId:2,monthlyPrice:x.entityType==='user'?100:0}));assert.equal(invoiceReport([...setup('2026-03-31T10:00:00Z'),...other],rows,new Date('2026-05-01T12:00:00Z')).rows[1].previousOre,10000);
 });
 process.on('exit',()=>rm(dir,{recursive:true,force:true}));
+
+test('company history preserves lifecycle, user identity, price changes and baseline uncertainty',()=>{
+ const events=[e('user','2026-04-01T12:00:00Z',{label:'Ola',eventKind:'baseline'}),e('license','2026-04-02T12:00:00Z'),e('license','2026-04-03T12:00:00Z',{monthlyPrice:79}),e('license','2026-04-04T12:00:00Z',{active:false,monthlyPrice:79}),e('user','2026-04-05T12:00:00Z',{organizationId:2,label:'Other tenant'})];
+ const rows=billingHistory(events,1);assert.equal(rows.length,4);assert.equal(rows[0].action,'Deaktivert');assert.equal(rows[1].action,'Pris endret');assert.equal(rows[1].previousPrice,49);assert.equal(rows[2].item,'Markedsføring · Ola');assert.equal(rows[3].action,'Registrert startstatus');assert.equal(events.length,5);
+});

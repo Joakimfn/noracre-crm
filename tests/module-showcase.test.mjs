@@ -27,3 +27,5 @@ test('administration is available only to customer administrators and superadmin
  for(const role of ['Bruker','','unknown'])assert.equal(canViewAdministration(role),false);
  for(const role of ['Administrator','Superadmin'])assert.equal(canViewAdministration(role),true);
 });
+
+test('paused AI search is absent from module previews',()=>assert.doesNotMatch(render('ringelister','Bruker'),/AI-SØK|med AI|module-preview-ai/));

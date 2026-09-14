@@ -1,3 +1,4 @@
+import {sendSupportRequest} from "@/lib/resend";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
         hasSupportAccess = sessions.some(
           (s) =>
             s.organizationId === org.id &&
-            !s.revokedAt &&
+            !s.revokedAt && (s.supportUserId === ctx.user.id || s.supportUserId === "*") &&
             new Date(s.expiresAt).getTime() > now,
         ),
         primary =
@@ -128,7 +129,7 @@ export async function GET(request: Request) {
           (a) => new Date(a.createdAt).getTime() > now - 30 * 86400000,
         ).length,
         lastActivity,
-        pendingAccessRequest: requests.some((r) => r.organizationId === org.id),
+        pendingAccessRequest: requests.some((r) => r.organizationId === org.id && r.requestedUserId === ctx.user.id && Boolean(r.notificationSentAt)),
         hasSupportAccess: hasDirectAccess || hasSupportAccess,
         primaryContactName: primary?.name ?? "Ikke registrert",
         primaryContactEmail: primary?.email ?? "",
@@ -171,28 +172,19 @@ export async function POST(request: Request) {
       db = getDb(),
       now = new Date().toISOString();
     if (data.type === "requestAccess") {
-      const pending = await db
-        .select()
-        .from(supportRequests)
-        .where(
-          and(
-            eq(supportRequests.organizationId, organizationId),
-            eq(supportRequests.status, "Venter"),
-          ),
-        )
-        .limit(1);
-      if (pending.length) return await actorJson(ctx,{ request: pending[0] });
-      const [created] = await db
-        .insert(supportRequests)
-        .values({
-          organizationId,
-          requestedBy: actorRef(ctx.user),
-          status: "Venter",
-          createdAt: now,
-          resolvedAt: "",
-        })
-        .returning();
-      return await actorJson(ctx,{ request: created }, { status: 201 });
+      if(!Number.isSafeInteger(organizationId)||organizationId<1)throw new AccessError(400,'Velg en gyldig bedrift.');
+      const [org]=await db.select().from(organizations).where(eq(organizations.id,organizationId)).limit(1);
+      if(!org||org.status!=='Aktiv')throw new AccessError(404,'Bedriften er ikke aktiv.');
+      const admins=await db.select().from(memberships).where(and(eq(memberships.organizationId,organizationId),eq(memberships.role,'Administrator'),eq(memberships.active,true)));
+      const emails=[...new Set(admins.filter(a=>!a.scheduledDisableAt||a.scheduledDisableAt>now).map(a=>a.email))];
+      if(!emails.length)throw new AccessError(409,'Bedriften har ingen aktiv administrator som kan godkjenne forespørselen.');
+      let [created]=await db.select().from(supportRequests).where(and(eq(supportRequests.organizationId,organizationId),eq(supportRequests.requestedUserId,ctx.user.id),eq(supportRequests.status,'Venter'))).limit(1);
+      if(!created)[created]=await db.insert(supportRequests).values({organizationId,requestedBy:actorRef(ctx.user),requestedUserId:ctx.user.id,status:'Venter',createdAt:now,resolvedAt:''}).returning();
+      if(created.notificationSentAt)return await actorJson(ctx,{request:created,notificationSent:true});
+      const sent=await Promise.all(emails.map(to=>sendSupportRequest({to,organization:org.name,requester:ctx.user.displayName,organizationId,requestId:created.id}).catch(()=>({sent:false}))));
+      const notificationSent=sent.every(r=>r.sent);
+      if(notificationSent)await db.update(supportRequests).set({notificationSentAt:now}).where(eq(supportRequests.id,created.id));
+      return await actorJson(ctx,{request:created,notificationSent}, {status:201});
     }
     if (data.type === "organizationStatus") {
       const scheduledDisableAt = data.status === "Deaktivert" ? disableAt(data.effectiveAt) : "";

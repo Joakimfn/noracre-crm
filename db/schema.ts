@@ -176,6 +176,8 @@ export const supportRequests = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     organizationId: integer("organization_id").notNull(),
     requestedBy: text("requested_by").notNull(),
+    requestedUserId: text("requested_user_id").notNull().default(""),
+    notificationSentAt: text("notification_sent_at").notNull().default(""),
     status: text("status").notNull().default("Venter"),
     createdAt: text("created_at").notNull(),
     resolvedAt: text("resolved_at").notNull().default(""),

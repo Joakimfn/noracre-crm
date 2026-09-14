@@ -18,7 +18,7 @@ await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './ap
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
  b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
  b.onResolve({filter:/^next\//},args=>({path:args.path,namespace:'test'}));
- b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='campaigns'?'export const createCampaign=()=>{throw Error("Unexpected campaign")};export const dispatchCampaign=()=>{};export const campaignOutcome=()=>{};':p==='user-mail'?'export const getMailAccount=async()=>globalThis.testMailAccount;export const sendFromMailbox=async(a,p)=>globalThis.testMailSend(a,p);':p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get AI(){return globalThis.testAI},get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
+ b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='campaigns'?'export const createCampaign=()=>{throw Error("Unexpected campaign")};export const dispatchCampaign=()=>{};export const campaignOutcome=()=>{};':p==='user-mail'?'export const getMailAccount=async()=>globalThis.testMailAccount;export const sendFromMailbox=async(a,p)=>globalThis.testMailSend(a,p);':p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get AI(){return globalThis.testAI},get CALL_LIST_AI_ENABLED(){return globalThis.testAIEnabled===false?"false":"true"},get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
 }}],nodePaths:[path.join(root,'node_modules')]});
 // External packages resolve from the repository, not the temporary directory.
 const {symlink}=await import('node:fs/promises');await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
@@ -610,4 +610,35 @@ test('ringeliste generation combines places, industries, employees and establish
   assert.equal((await route('call-lists').POST(request(980,980,{...filters,minEmployees:3}))).status,400);
   assert.equal((await route('call-lists').POST(request(980,980,{...filters,establishedFrom:'2026-02-30'}))).status,400);
  }finally{globalThis.fetch=authFetch;}
+});
+
+test('support requests notify only customer administrators, consent is specific, atomic and revocable',async()=>{
+ add('organizations',{id:991,name:'Support target',created_at:'2026-01-01'});
+ add('memberships',{id:991,organization_id:991,user_id:'991',email:'991@test.no',name:'Customer admin',role:'Administrator',active:1,created_at:'2026-01-01'});
+ add('memberships',{id:992,organization_id:991,user_id:'992',email:'992@test.no',name:'Employee',role:'Bruker',active:1,created_at:'2026-01-01'});
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const authFetch=globalThis.fetch,sent=[];globalThis.testMailKey='test-key';
+ globalThis.fetch=async(url,init)=>{if(String(url)==='https://api.resend.com/emails'){sent.push(JSON.parse(init.body));assert.ok(init.headers['Idempotency-Key']);return Response.json({id:'test'});}return authFetch(url,init);};
+ try{
+ const r=await route('superadmin').POST(request('owner',own,{type:'requestAccess',organizationId:991}));assert.equal(r.status,201,JSON.stringify(await r.clone().json()));const d=await r.json();assert.equal(d.notificationSent,true);assert.equal(sent.length,1);assert.deepEqual(sent[0].to,['991@test.no']);assert.equal(sent[0].from,'Noracre CRM <noreply@mail.noracre.no>');assert.ok(sent[0].html.includes('supportRequest='+d.request.id));
+ assert.equal((await route('superadmin').POST(request('owner',own,{type:'requestAccess',organizationId:991}))).status,200);assert.equal(sent.length,1);
+ assert.equal((await route('admin').POST(request(992,991,{type:'supportApproval',requestId:d.request.id}))).status,403);
+ assert.equal((await route('admin').POST(request(1,1,{type:'supportApproval',requestId:d.request.id}))).status,404);
+ sql.exec("CREATE TRIGGER fail_support BEFORE INSERT ON support_sessions WHEN NEW.organization_id=991 BEGIN SELECT RAISE(ABORT,'forced failure'); END");
+ assert.equal((await route('admin').POST(request(991,991,{type:'supportApproval',requestId:d.request.id,duration:'untilRevoked'}))).status,500);
+ assert.equal(sql.prepare('SELECT status FROM support_requests WHERE id=?').get(d.request.id).status,'Venter');sql.exec('DROP TRIGGER fail_support');
+ const approval=await route('admin').POST(request(991,991,{type:'supportApproval',requestId:d.request.id,duration:'untilRevoked'}));assert.equal(approval.status,200,JSON.stringify(await approval.clone().json()));
+ const grant=sql.prepare('SELECT * FROM support_sessions WHERE organization_id=991').get();assert.equal(grant.support_user_id,'owner');assert.ok(grant.expires_at.startsWith('9999'));
+ assert.equal((await route('admin').POST(request(991,991,{type:'supportApproval',requestId:d.request.id}))).status,404);
+ assert.equal((await route('companies').GET(request('owner',991))).status,200);
+ assert.equal((await route('admin').POST(request(991,991,{type:'support',enabled:false}))).status,200);
+ assert.equal((await route('companies').GET(request('owner',991))).status,403);
+ const second=await(await route('superadmin').POST(request('owner',own,{type:'requestAccess',organizationId:991}))).json();
+ const short=await(await route('admin').POST(request(991,991,{type:'supportApproval',requestId:second.request.id,duration:'24h'}))).json();assert.ok(Math.abs(new Date(short.expiresAt).getTime()-Date.now()-86400000)<5000);
+ }finally{globalThis.fetch=authFetch;globalThis.testMailKey=undefined;}
+});
+
+test('paused AI endpoint cannot invoke a model or consume quota',async()=>{
+ globalThis.testAIEnabled=false;globalThis.testAI={run(){throw Error('Paused AI must not run');}};
+ try{const before=sql.prepare('SELECT SUM(count) n FROM call_list_ai_usage').get().n;const r=await route('call-list-ai').POST(request(980,980,{prompt:'10 håndverkere i Midt-Norge'}));assert.equal(r.status,503);assert.match((await r.json()).error,/midlertidig deaktivert/);assert.equal(sql.prepare('SELECT SUM(count) n FROM call_list_ai_usage').get().n,before);}finally{delete globalThis.testAIEnabled;delete globalThis.testAI;}
 });

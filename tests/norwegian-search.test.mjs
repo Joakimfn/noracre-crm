@@ -60,3 +60,18 @@ test('unsupported criteria cannot silently become an unrestricted Norwegian sear
  for(const prompt of ['10 bedrifter i Sverige','10 bedrifter i Danmark','10 bedrifter i Polen','10 bedrifter med omsetning over 1000000'])assert.throws(()=>m.validateCallListAIResponse(base,options,prompt,today),/dekker Norge|Omsetning/);
  for(const prompt of ['10 bedrifter på Sørlandet','10 bedrifter i Nord-Norge','bedrifter i Ås','bedrifter uten krav til omsetning'])assert.doesNotThrow(()=>m.checkSearchScope(prompt));
 });
+
+test('everyday trades and spelling variants work in Midt-Norge',()=>{
+ for(const word of ['håndtverk','håndverk','handverk','håndverkere']){
+ const prompt='Jeg ønsker en liste over 10 bedrifter som driver med '+word+' i midt-norge';
+ const f=m.validateCallListAIResponse({...base,count:10,clarifications:[{kind:'industry',phrase:word}]},options,prompt,today);
+ assert.equal(f.count,10);assert.deepEqual(f.locationCodes,['county:15','county:50']);
+ for(const code of ['43.210','43.221','43.320','43.910','43.340'])assert.ok(f.industryCodes.includes(code));
+ }
+});
+
+test('simple trade searches avoid inference without silently dropping extra requirements',()=>{
+ const f=m.simpleCallListSearch('Jeg ønsker en liste over 10 bedrifter som driver med håndtverk i midt-norge',options,today);assert.equal(f.count,10);assert.deepEqual(f.locationCodes,['county:15','county:50']);assert.ok(f.industryCodes.includes('43.221'));
+ assert.equal(m.simpleCallListSearch('10 håndverkere i Midt-Norge med over 5 millioner i omsetning',options,today),null);
+ assert.equal(m.simpleCallListSearch('Finn 10 snekkere i Midt-Norge med 5 ansatte',options,today),null);
+});

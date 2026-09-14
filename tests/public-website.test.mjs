@@ -27,3 +27,5 @@ test('contact information is sent by email without a duplicate persistent payloa
 test('an uncertain submission older than provider idempotency window is not resent',async()=>{const v=valid();providerOk=false;await app.publicEnquiry(req(v),env);providerOk=true;sql.prepare('UPDATE website_enquiries SET created_at=? WHERE request_id=?').run(Date.now()-24*3600000,v.requestId);const n=sends.length;assert.equal((await app.publicEnquiry(req(v),env)).status,409);assert.equal(sends.length,n);});
 test('migration and runtime schema agree',async()=>{const other=new DatabaseSync(':memory:');other.exec(await readFile(path.join(root,'drizzle/0020_website_enquiries.sql'),'utf8'));for(const table of ['website_enquiries','website_enquiry_limits'])assert.deepEqual(other.prepare(`PRAGMA table_info(${table})`).all(),sql.prepare(`PRAGMA table_info(${table})`).all());other.close();});
 test.after(async()=>{globalThis.fetch=realFetch;sql.close();await rm(dir,{recursive:true,force:true});});
+
+test('paused AI search is not advertised on public pages',async()=>{for(const p of ['/','/crm','/moduler'])assert.doesNotMatch(await app.publicWebsite(p).text(),/AI-søk|med AI/);});

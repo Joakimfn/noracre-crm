@@ -61,7 +61,7 @@ export default function Databehandleravtale() {
           pålegges tilsvarende personvernforpliktelser.
         </p>
         <p>
-          Cloudflare brukes til drift, database, fillagring og tolkning av brukerens søketekst når AI-søk i Ringelister benyttes. Supabase brukes
+          Cloudflare brukes til drift, database og fillagring. Supabase brukes
           til innlogging, og Resend til systemepost som invitasjoner.
           Valgfrie tilkoblinger til Google, Microsoft og sosiale kanaler
           behandler opplysninger når kunden aktiverer og bruker dem.

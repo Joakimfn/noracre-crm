@@ -2,7 +2,6 @@
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
 import {NorwegianDateInput} from '@/components/norwegian-date-input';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
-import {Sparkles} from 'lucide-react';
 
 import { ModuleShowcase } from "@/components/module-showcase";
 import { canManageModules, canViewAdministration } from "@/lib/roles";
@@ -574,6 +573,7 @@ export default function Home() {
     }),
     [rolePreview, setRolePreview] = useState("Bruker"),
     [supportAccess, setSupportAccess] = useState(false),
+    [supportExpiresAt,setSupportExpiresAt]=useState(""),
     [newMember, setNewMember] = useState({
       name: "",
       email: "",
@@ -693,6 +693,7 @@ export default function Home() {
     setMemberModuleCosts(ad.memberModuleCosts ?? {});
     setSupportRequests(ad.supportRequests ?? []);
     setSupportAccess(Boolean(ad.activeSupport));
+    setSupportExpiresAt(ad.supportExpiresAt??"");
     setCurrentMembershipId(Number(ad.membershipId) || 0);
     const ringActive = Boolean(ad.modules?.ringelister?.currentUserActive);
     setRingModuleActive(ringActive);
@@ -712,7 +713,8 @@ export default function Home() {
     if (!a.error) setActivities(a.activities ?? []);
   }
   useEffect(() => {
-    apiFetch("/api/session")
+    const entry=new URLSearchParams(window.location.search),entryOrg=Number(entry.get("organization"));
+    apiFetch("/api/session",entry.has("supportRequest")&&Number.isSafeInteger(entryOrg)&&entryOrg>0?{headers:{"x-organization-id":String(entryOrg)}}:{})
       .then(async (r) => {
         const s = await r.json();
         if (!r.ok)
@@ -722,11 +724,14 @@ export default function Home() {
         return s;
       })
       .then(async (s) => {
-        const id = s.currentOrganizationId ?? 1;
+        const supportLink=new URLSearchParams(window.location.search);
+        const linkedOrg=Number(supportLink.get("organization"));
+        const id = supportLink.has("supportRequest") && (s.organizations??[]).some((o:{id:number})=>o.id===linkedOrg) ? linkedOrg : s.currentOrganizationId ?? 1;
         setActiveOrgId(id);
         setOrganizations(s.organizations ?? []);
         setRolePreview(s.role ?? "Bruker");
-        if (s.role === "Superadmin") setView("operations");
+        if (supportLink.has("supportRequest")) setView("admin");
+        else if (s.role === "Superadmin") setView("operations");
         setUser(s.user ?? { displayName: "Min konto", email: "" });
         apiFetch("/api/profile", { headers: { "x-organization-id": String(id) } })
           .then((r) => r.json())
@@ -1229,16 +1234,9 @@ export default function Home() {
     toast.success(active ? "Brukeren er aktivert" : "Brukeren er deaktivert");
   }
   async function support(v: boolean) {
-    setSupportAccess(v);
-    await api("/api/admin", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "support", enabled: v }),
-    }).catch(() => undefined);
-    toast.success(
-      v ? "Support har tilgang i 24 timer" : "Supporttilgangen er stengt",
-    );
+    try{const r=await api('/api/admin',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'support',enabled:v})});const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke endre tilgangen');setSupportAccess(v);setSupportExpiresAt(d.session?.expiresAt??'');toast.success(v?'Support har tilgang i 24 timer':'Supporttilgangen er stengt');}catch(e){toast.error(e instanceof Error?e.message:'Kunne ikke endre tilgangen');}
   }
+
   async function addContact() {
     if (!newContact.name || !selected) return;
     const c: Contact = {
@@ -1296,18 +1294,20 @@ export default function Home() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "requestAccess", organizationId: id }),
     });
-    if (!r.ok) return toast.error("Kunne ikke sende forespørselen");
+    const result=await r.json();
+    if (!r.ok) return toast.error(result.error??"Kunne ikke sende forespørselen");
     setOperations((d) =>
       d
         ? {
             ...d,
             organizations: d.organizations.map((o) =>
-              o.id === id ? { ...o, pendingAccessRequest: true } : o,
+              o.id === id ? { ...o, pendingAccessRequest: Boolean(result.notificationSent) } : o,
             ),
           }
         : d,
     );
-    toast.success("Tilgangsforespørselen er sendt");
+    if(result.notificationSent)toast.success("Forespørselen er sendt til bedriftens administrator på e-post");
+    else toast.error("Forespørselen er lagret, men e-posten kunne ikke sendes. Trykk Be om tilgang for å prøve igjen.");
   }
   async function setOrganizationStatus(
     id: number,
@@ -1362,16 +1362,18 @@ export default function Home() {
     toast.success("Bedriftsinformasjonen er lagret");
     return true;
   }
-  async function approveSupport(requestId: number) {
+  async function approveSupport(requestId: number,duration:"24h"|"untilRevoked"="24h") {
     const r = await api("/api/admin", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "supportApproval", requestId }),
+      body: JSON.stringify({ type: "supportApproval", requestId,duration }),
     });
     if (!r.ok) return toast.error("Kunne ikke godkjenne tilgangen");
+    const result=await r.json();
     setSupportAccess(true);
+    setSupportExpiresAt(result.expiresAt??"");
     setSupportRequests((x) => x.filter((item) => item.id !== requestId));
-    toast.success("Support har tilgang i 24 timer");
+    toast.success(duration==="untilRevoked"?"Support har tilgang til du slår den av":"Support har tilgang i 24 timer");
   }
   async function finishOnboarding() {
     if (!accepted) return;
@@ -1848,6 +1850,7 @@ export default function Home() {
             role={rolePreview}
             userEmail={user.email}
             supportAccess={supportAccess}
+            supportExpiresAt={supportExpiresAt}
             support={support}
             supportRequests={supportRequests}
             approveSupport={approveSupport}
@@ -3263,9 +3266,10 @@ function Admin(p: {
   role: string;
   userEmail: string;
   supportAccess: boolean;
+  supportExpiresAt:string;
   support: (v: boolean) => void;
   supportRequests: SupportRequest[];
-  approveSupport: (id: number) => void;
+  approveSupport: (id: number,duration?:"24h"|"untilRevoked") => void;
   onImported: () => Promise<void>;
   newMember: { name: string; email: string; role: string };
   setNewMember: (v: { name: string; email: string; role: string }) => void;
@@ -3355,11 +3359,11 @@ function Admin(p: {
       <AdminCard
         eye="SUPPORT"
         title="Trygg supporttilgang"
+        open={p.supportRequests.length>0||p.supportAccess}
         ico={<Headphones />}
       >
         <p>
-          Serviceteamet kan åpne organisasjonen i 24 timer. Alle endringer
-          loggføres.
+          Velg tilgang i 24 timer eller til dere slår den av. Tilgangen kan avsluttes når som helst. Alle endringer loggføres.
         </p>
         {p.supportRequests.map((r) => (
           <div className="support-request" key={r.id}>
@@ -3369,16 +3373,16 @@ function Admin(p: {
                 Sendt av {r.requestedBy} · {date(r.createdAt, true)}
               </span>
             </div>
-            <Button onClick={() => p.approveSupport(r.id)}>
+            <div className="support-approval-actions"><Button onClick={() => p.approveSupport(r.id,"24h")}>
               Godkjenn i 24 timer
-            </Button>
+            </Button><Button variant="outline" onClick={()=>p.approveSupport(r.id,"untilRevoked")}>Godkjenn til vi slår av</Button></div>
           </div>
         ))}
         <div className="setting-row">
           <div>
             <strong>Gi support tilgang</strong>
             <span>
-              {p.supportAccess ? "Utløper om 24 timer" : "Ingen har tilgang"}
+              {p.supportAccess ? (p.supportExpiresAt.startsWith("9999") ? "Aktiv til dere slår den av" : p.supportExpiresAt ? "Tilgang til "+date(p.supportExpiresAt,true) : "Tilgang i 24 timer") : "Ingen har tilgang"}
             </span>
           </div>
           <Switch checked={p.supportAccess} onCheckedChange={p.support} />
@@ -3629,15 +3633,7 @@ function CallLists({
       },
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
-  const [aiPrompt,setAiPrompt]=useState(''),[aiBusy,setAiBusy]=useState(false),[aiMessage,setAiMessage]=useState(''),[aiError,setAiError]=useState('');
   const callListImportRef=useRef<HTMLInputElement>(null);
-  async function interpretSearch(){
-    if(aiBusy||busy||aiPrompt.trim().length<8)return;
-    setAiBusy(true);setAiMessage('');setAiError('');
-    try{const response=await apiFetch('/api/call-list-ai',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({prompt:aiPrompt})});const data=await response.json();if(!response.ok)throw Error(data.error??'Kunne ikke tolke søket.');setFilters(data.filters);setAiMessage((data.period?data.period+'. ':'')+'Filtrene er klare. Se over valgene nedenfor og trykk Hent bedrifter.');}
-    catch(error){setAiError(error instanceof Error?error.message:'Kunne ikke tolke søket.');}
-    finally{setAiBusy(false);}
-  }
   useEffect(() => {
     let cancelled = false;
     if (active) {
@@ -4034,8 +4030,7 @@ function CallLists({
             </Button>
           </DialogContent>
         </Dialog>
-        <section className="call-ai-search" aria-labelledby="call-ai-title"><div><span className="call-ai-label"><Sparkles size={16}/> AI-SØK</span><h3 id="call-ai-title">Hvem vil du nå?</h3><p>Beskriv bedriftene du ønsker å kontakte.</p></div><div className="call-ai-prompt"><Textarea onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(!e.repeat)void interpretSearch();}}} aria-label="Beskriv bedriftene du leter etter" value={aiPrompt} onChange={e=>{setAiPrompt(e.target.value);setAiMessage('');setAiError('');}} maxLength={1000} rows={3} disabled={aiBusy} placeholder="Jeg ønsker en liste over 20 bedrifter i Nord-Norge med 1–15 ansatte som ble etablert i 2025 eller 2026."/><Button type="button" onClick={interpretSearch} disabled={aiBusy||busy||aiPrompt.trim().length<8}><Sparkles size={16}/>{aiBusy?'Tolker søket …':'Finn filtre med AI'}</Button>{aiMessage&&<p role="status" className="call-ai-result">{aiMessage}</p>}{aiError&&<p role="alert" className="call-ai-error">{aiError}</p>}</div></section>
-        <fieldset className="call-filter-fields" disabled={aiBusy||busy}><legend className="sr-only">Søkefiltre</legend><div className="call-filter-grid">
+        <fieldset className="call-filter-fields" disabled={busy}><legend className="sr-only">Søkefiltre</legend><div className="call-filter-grid">
           <div>
             <Label>Min. ansatte</Label>
             <Input
@@ -4107,7 +4102,7 @@ function CallLists({
             />
             Må ha e-postadresse
           </label>
-          <Button onClick={generate} disabled={busy||aiBusy}>
+          <Button onClick={generate} disabled={busy}>
             <Search />
             {busy ? "Lager liste …" : "Hent bedrifter"}
           </Button>
@@ -5328,14 +5323,8 @@ function Operations(p: {
         </div>
       </div>
       <OperationsInsights/>
-      <section className="surface">
+      <details className="surface customer-organizations-fold"><summary><span><strong>Kundeorganisasjoner</strong><small>Individuelt avtalte priser per bedrift</small></span><ChevronRight size={20}/></summary>
         <div className="operations-head">
-          <div>
-            <h3>Kundeorganisasjoner</h3>
-            <p>
-              Individuelt avtalte priser per bedrift
-            </p>
-          </div>
           <div className="operations-toolbar">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -5458,7 +5447,7 @@ function Operations(p: {
             </div>
           ))}
         </div>
-      </section>
+      </details>
       <Dialog
         open={Boolean(selectedOrganization)}
         onOpenChange={(open) => {
@@ -5617,13 +5606,14 @@ function Card(p: {
   );
 }
 function AdminCard(p: {
+  open?:boolean;
   eye?: string;
   title: string;
   ico: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <details className="surface admin-card">
+    <details className="surface admin-card" open={p.open}>
       <summary>
         <div>
           {p.eye && <p className="eyebrow">{p.eye}</p>}

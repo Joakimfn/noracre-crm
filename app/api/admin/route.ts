@@ -38,8 +38,7 @@ export async function GET(request: Request) {
             eq(supportSessions.revokedAt, ""),
           ),
         )
-        .orderBy(desc(supportSessions.id))
-        .limit(1),
+        .orderBy(desc(supportSessions.id)),
       db
         .select()
         .from(organizationModules)
@@ -85,6 +84,7 @@ export async function GET(request: Request) {
       activeSupport: activeSupport.some(
         (item) => !item.revokedAt && item.expiresAt > new Date().toISOString(),
       ),
+      supportExpiresAt: activeSupport.filter(s=>!s.revokedAt&&s.expiresAt>new Date().toISOString()).map(s=>s.expiresAt).sort().at(-1)??"",
       modules: Object.fromEntries(
         modules.map((item) => [
           item.moduleKey,
@@ -447,30 +447,23 @@ export async function POST(request: Request) {
         eq(supportRequests.status, "Venter"),
       )).limit(1);
       if (!pending) throw new AccessError(404, "Tilgangsforespørselen finnes ikke eller er allerede behandlet.");
-      await db.insert(supportSessions).values({
-        organizationId: ctx.organizationId,
-        supportUserId: "*",
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        revokedAt: "",
-        createdAt: now,
-      });
-      await db
-        .update(supportRequests)
-        .set({ status: "Godkjent", resolvedAt: now })
-        .where(
-          and(
-            eq(supportRequests.id, requestId),
-            eq(supportRequests.organizationId, ctx.organizationId),
-          ),
-        );
+      if(!pending.requestedUserId)throw new AccessError(409,"Be support sende en ny forespørsel.");
+      if(data.duration!==undefined&&data.duration!=="24h"&&data.duration!=="untilRevoked")throw new AccessError(400,"Velg en gyldig varighet.");
+      const expiresAt=data.duration==="untilRevoked"?"9999-12-31T23:59:59.999Z":new Date(Date.now()+86400000).toISOString();
+      const guard=and(eq(supportRequests.id,requestId),eq(supportRequests.organizationId,ctx.organizationId),eq(supportRequests.status,'Venter'));
+      const [granted]=await db.batch([
+        db.insert(supportSessions).select(db.select({id:sql<number>`null`.as("id"),organizationId:sql<number>`${ctx.organizationId}`.as("organization_id"),supportUserId:supportRequests.requestedUserId,expiresAt:sql<string>`${expiresAt}`.as("expires_at"),revokedAt:sql<string>`''`.as("revoked_at"),createdAt:sql<string>`${now}`.as("created_at")}).from(supportRequests).where(guard)).returning(),
+        db.update(supportRequests).set({status:'Godkjent',resolvedAt:now}).where(guard),
+      ]);
+      if(!granted.length)throw new AccessError(409,'Forespørselen er allerede behandlet.');
       await db.insert(auditLogs).values({
         organizationId: ctx.organizationId,
         actor: actorRef(ctx.user),
         action: "Godkjente supporttilgang",
-        detail: "Tilgang i 24 timer",
+        detail: data.duration==="untilRevoked"?"Tilgang til administrator slår den av":"Tilgang i 24 timer",
         createdAt: now,
       });
-      return await actorJson(ctx,{ ok: true });
+      return await actorJson(ctx,{ ok: true, expiresAt });
     }
     if (data.type === "support") {
       if (!canManageModules(ctx.role))
