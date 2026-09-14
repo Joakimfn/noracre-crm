@@ -1,3 +1,5 @@
+import {parseCallListFilters,expandLocations,matchesCallListCompany} from '@/lib/call-list-filters';
+import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
@@ -17,6 +19,10 @@ type BrregCompany = {
   organisasjonsnummer?: string;
   navn?: string;
   antallAnsatte?: number;
+  harRegistrertAntallAnsatte?: boolean;
+  stiftelsesdato?: string;
+  naeringskode2?: {kode?:string};
+  naeringskode3?: {kode?:string};
   telefon?: string;
   mobil?: string;
   epostadresse?: string;
@@ -369,34 +375,14 @@ export async function POST(request: Request) {
         { status: 201 },
       );
     }
-    const min = Math.max(1, Number(data.minEmployees) || 1),
-      max = Math.max(min, Math.min(250, Number(data.maxEmployees) || 30)),
-      municipalityCode = String(data.municipalityCode ?? "").trim(),
-      industryCode = String(data.industryCode ?? "").trim(),
-      requirePhone = data.requirePhone === true,
-      requireEmail = data.requireEmail === true,
-      count = Math.max(1, Math.min(100, Number(data.count) || 50)),
-      forms = (
-        Array.isArray(data.organizationForms) ? data.organizationForms : ["AS"]
-      )
-        .map(String)
-        .filter((form) => /^[A-Z0-9]{2,8}$/.test(form))
-        .slice(0, 100);
-    if (!forms.length)
-      return await actorJson(ctx,
-        { error: "Velg minst én organisasjonsform." },
-        { status: 400 },
-      );
-    if (municipalityCode && !/^\d{4}$/.test(municipalityCode))
-      return await actorJson(ctx,
-        { error: "Velg et gyldig sted fra listen." },
-        { status: 400 },
-      );
-    if (industryCode && !/^\d{2}(\.\d{1,3})?$/.test(industryCode))
-      return await actorJson(ctx,
-        { error: "Velg en gyldig bransje fra listen." },
-        { status: 400 },
-      );
+    const parsed=parseCallListFilters(data);
+    if(!parsed.success)throw new AccessError(400,parsed.error.issues[0].message);
+    const filters=parsed.data;
+    const {count,organizationForms:forms,requirePhone,requireEmail}=filters;
+    const options=await getCallListOptions();
+    let municipalities:string[];
+    try{municipalities=expandLocations(filters.locationCodes,options.municipalities);}catch(error){throw new AccessError(400,(error as Error).message);}
+    if(filters.industryCodes.some(c=>!options.industries.some(x=>x.value===c))||forms.some(c=>!options.organizationForms.some(x=>x.value===c)))throw new AccessError(400,'Velg gyldige bransjer og organisasjonsformer fra listen.');
     const existing = await db
         .select({ orgNumber: callListEntries.orgNumber })
         .from(callListEntries)
@@ -412,9 +398,15 @@ export async function POST(request: Request) {
     const makeUrl = (page: number) => {
       const url = new URL("https://data.brreg.no/enhetsregisteret/api/enheter");
       url.searchParams.set("organisasjonsform", forms.join(","));
-      if (municipalityCode)
-        url.searchParams.set("kommunenummer", municipalityCode);
-      if (industryCode) url.searchParams.set("naeringskode", industryCode);
+      if(municipalities.length)url.searchParams.set('forretningsadresse.kommunenummer',municipalities.join(','));
+      if(filters.industryCodes.length)url.searchParams.set('naeringskode',filters.industryCodes.join(','));
+      url.searchParams.set('fraAntallAnsatte',String(filters.minEmployees));
+      url.searchParams.set('tilAntallAnsatte',String(filters.maxEmployees));
+      url.searchParams.set('konkurs','false');
+      url.searchParams.set('underAvvikling','false');
+      url.searchParams.set('underKonkursbehandling','false');
+      if(filters.establishedFrom)url.searchParams.set('fraStiftelsesdato',filters.establishedFrom);
+      if(filters.establishedTo)url.searchParams.set('tilStiftelsesdato',filters.establishedTo);
       url.searchParams.set("size", "100");
       url.searchParams.set("page", String(page));
       url.searchParams.set("sort", `organisasjonsnummer,${sortDirection}`);
@@ -423,6 +415,7 @@ export async function POST(request: Request) {
     const load = async (page: number) => {
       const response = await fetch(makeUrl(page), {
         headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) {
         console.error(
@@ -443,9 +436,7 @@ export async function POST(request: Request) {
     };
     const first = await load(0),
       validPageCount = Math.max(1, Math.min(100, first.page?.totalPages ?? 1)),
-      pageJobs = shuffle(
-        Array.from({ length: validPageCount }, (_, index) => index),
-      ).slice(0, 25);
+      pageJobs = [0,...shuffle(Array.from({length:validPageCount-1},(_,i)=>i+1)).slice(0,24)];
     for (
       let index = 0;
       index < pageJobs.length && found.size < count;
@@ -459,25 +450,17 @@ export async function POST(request: Request) {
       for (const payload of payloads)
         for (const company of shuffle(payload._embedded?.enheter ?? [])) {
           const org = company.organisasjonsnummer ?? "",
-            employees = company.antallAnsatte ?? 0,
             phone = company.telefon ?? company.mobil ?? "",
-            email = company.epostadresse ?? "",
-            sector = company.naeringskode1?.kode ?? "",
-            place =
-              company.forretningsadresse?.kommunenummer ??
-              company.postadresse?.kommunenummer;
+            email = company.epostadresse ?? "";
           if (
             org &&
             company.navn &&
             !seen.has(org) &&
             !found.has(org) &&
-            employees >= min &&
-            employees <= max &&
+            matchesCallListCompany(company,filters,municipalities) &&
             !company.konkurs &&
             !company.underAvvikling &&
             !company.underKonkursbehandling &&
-            (!municipalityCode || place === municipalityCode) &&
-            (!industryCode || sector.startsWith(industryCode)) &&
             (!requirePhone || phone) &&
             (!requireEmail || email)
           )
@@ -515,22 +498,10 @@ export async function POST(request: Request) {
         },
         { status: 404 },
       );
-    await db
-      .delete(callListEntries)
-      .where(
-        and(
-          eq(callListEntries.organizationId, ctx.organizationId),
-          eq(callListEntries.status, "Ny"),
-        ),
-      );
-    const inserted = [];
-    for (let i = 0; i < candidates.length; i += 5)
-      inserted.push(
-        ...(await db
-          .insert(callListEntries)
-          .values(candidates.slice(i, i + 5))
-          .returning()),
-      );
+    const batches=[];
+    for(let i=0;i<candidates.length;i+=5)batches.push(db.insert(callListEntries).values(candidates.slice(i,i+5)).returning());
+    const result=await db.batch([db.delete(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.status,'Ny'))),...batches]);
+    const inserted=result.slice(1).flat() as typeof callListEntries.$inferSelect[];
     return await actorJson(ctx,{
       entries: shuffle(inserted),
       added: inserted.length,

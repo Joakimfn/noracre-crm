@@ -1,4 +1,8 @@
 "use client";
+import {CallListMultiPicker} from '@/components/call-list-multi-picker';
+import {defaultCallListFilters} from '@/lib/call-list-filters';
+import {Sparkles} from 'lucide-react';
+
 import { ModuleShowcase } from "@/components/module-showcase";
 import { canManageModules, canViewAdministration } from "@/lib/roles";
 import { CompanyUserCreate } from "@/components/company-user-create";
@@ -318,6 +322,7 @@ type Prospect = {
   createdAt: string;
 };
 type CallListOptions = {
+  counties: {value:string;label:string}[];
   municipalities: { value: string; label: string }[];
   industries: { value: string; label: string }[];
   organizationForms: { value: string; label: string }[];
@@ -394,6 +399,7 @@ function loadCallListInitial(organizationId: number, force = false) {
       if (!response.ok)
         throw new Error(data.error ?? "Kunne ikke hente filtrene");
       return {
+        counties: Array.isArray(data.counties) ? data.counties : [],
         municipalities: Array.isArray(data.municipalities)
           ? data.municipalities
           : [],
@@ -412,7 +418,8 @@ function loadCallListInitial(organizationId: number, force = false) {
         optionsResult.status === "fulfilled"
           ? optionsResult.value
           : {
-              municipalities: [],
+              counties: [],
+        municipalities: [],
               industries: [],
               organizationForms: organizationFormFallbackOptions,
             };
@@ -1801,7 +1808,7 @@ export default function Home() {
         )}{" "}
         {view === "calllists" && (
           <CallListBoundary>
-            <CallLists
+            <CallLists key={activeOrgId}
             agreedPrice={pricing.ringPrice}
               active={ringModuleActive}
               role={rolePreview}
@@ -3558,168 +3565,6 @@ const statusesForHistory = [
   "Ikke aktuell",
   "Lagt til som kunde",
 ];
-function SearchPicker({
-  value,
-  onChange,
-  options,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false),
-    selected = options.find((item) => item.value === value);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          className="search-picker"
-        >
-          {selected?.label ?? placeholder}
-          <ChevronsUpDown />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="search-picker-popover">
-        <Command>
-          <CommandInput placeholder={placeholder} />
-          <CommandList>
-            <CommandEmpty>Ingen treff.</CommandEmpty>
-            <CommandGroup>
-              {options.map((item) => (
-                <CommandItem
-                  key={item.value}
-                  value={`${item.label} ${item.value}`}
-                  onSelect={() => {
-                    onChange(item.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={item.value === value ? "visible" : "invisible"}
-                  />
-                  {item.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
-function MultiSearchPicker({
-  values,
-  onChange,
-  options,
-}: {
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: { value: string; label: string }[];
-}) {
-  const [open, setOpen] = useState(false);
-  const featuredOptions = ["AS", "ENK"]
-    .map((value) => options.find((item) => item.value === value))
-    .filter((item): item is { value: string; label: string } => Boolean(item));
-  const remainingOptions = options.filter(
-    (item) => item.value !== "AS" && item.value !== "ENK",
-  );
-  const label =
-    values.length === 0
-      ? "Velg organisasjonsformer"
-      : values.length === 1
-        ? (options.find((item) => item.value === values[0])?.label ?? values[0])
-        : `${values.length} organisasjonsformer valgt`;
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          className="search-picker"
-        >
-          {label}
-          <ChevronsUpDown />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="search-picker-popover">
-        <Command>
-          <CommandInput placeholder="Søk etter organisasjonsform" />
-          <CommandList>
-            <CommandEmpty>Ingen treff.</CommandEmpty>
-            <CommandGroup>
-              <CommandItem
-                value="Alle organisasjonsformer"
-                onSelect={() =>
-                  onChange(
-                    values.length === options.length
-                      ? []
-                      : options.map((item) => item.value),
-                  )
-                }
-              >
-                <Check
-                  className={
-                    values.length === options.length && options.length
-                      ? "visible"
-                      : "invisible"
-                  }
-                />
-                Alle organisasjonsformer
-              </CommandItem>
-              {featuredOptions.map((item) => (
-                <CommandItem
-                  key={item.value}
-                  value={`${item.label} ${item.value}`}
-                  onSelect={() =>
-                    onChange(
-                      values.includes(item.value)
-                        ? values.filter((value) => value !== item.value)
-                        : [...values, item.value],
-                    )
-                  }
-                >
-                  <Check
-                    className={
-                      values.includes(item.value) ? "visible" : "invisible"
-                    }
-                  />
-                  {item.label}
-                </CommandItem>
-              ))}
-              <CommandSeparator />
-              {remainingOptions.map((item) => (
-                <CommandItem
-                  key={item.value}
-                  value={`${item.label} ${item.value}`}
-                  onSelect={() =>
-                    onChange(
-                      values.includes(item.value)
-                        ? values.filter((value) => value !== item.value)
-                        : [...values, item.value],
-                    )
-                  }
-                >
-                  <Check
-                    className={
-                      values.includes(item.value) ? "visible" : "invisible"
-                    }
-                  />
-                  {item.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
 function CallLists({
   agreedPrice,
   active,
@@ -3776,21 +3621,21 @@ function CallLists({
     [licensedMemberIds, setLicensedMemberIds] = useState<number[]>([]),
     [options, setOptions] = useState<CallListOptions>(
       initialCache?.options ?? {
+        counties: [],
         municipalities: [],
         industries: [],
         organizationForms: organizationFormFallbackOptions,
       },
     ),
-    [filters, setFilters] = useState({
-      minEmployees: 1,
-      maxEmployees: 30,
-      municipalityCode: "all",
-      industryCode: "all",
-      count: 50,
-      requirePhone: false,
-      requireEmail: false,
-      organizationForms: ["AS"],
-    });
+    [filters, setFilters] = useState(defaultCallListFilters);
+  const [aiPrompt,setAiPrompt]=useState(''),[aiBusy,setAiBusy]=useState(false),[aiMessage,setAiMessage]=useState(''),[aiError,setAiError]=useState('');
+  async function interpretSearch(){
+    if(aiBusy||busy)return;
+    setAiBusy(true);setAiMessage('');setAiError('');
+    try{const response=await apiFetch('/api/call-list-ai',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({prompt:aiPrompt})});const data=await response.json();if(!response.ok)throw Error(data.error??'Kunne ikke tolke søket.');setFilters(data.filters);setAiMessage('Filtrene er klare. Se over valgene nedenfor og trykk Hent bedrifter.');}
+    catch(error){setAiError(error instanceof Error?error.message:'Kunne ikke tolke søket.');}
+    finally{setAiBusy(false);}
+  }
   useEffect(() => {
     let cancelled = false;
     if (active) {
@@ -3864,12 +3709,6 @@ function CallLists({
           body: JSON.stringify({
             type: "generate",
             ...filters,
-            municipalityCode:
-              filters.municipalityCode === "all"
-                ? ""
-                : filters.municipalityCode,
-            industryCode:
-              filters.industryCode === "all" ? "" : filters.industryCode,
           }),
         }),
         d = await r.json();
@@ -3881,7 +3720,8 @@ function CallLists({
         loadedAt: Date.now(),
       });
       toast.success(`Ny ringeliste med ${d.added ?? 0} bedrifter er klar`);
-    } finally {
+      if(d.added<filters.count)toast.info(`Fant ${d.added} av ${filters.count} ønskede bedrifter. Du kan utvide filtrene for flere treff.`);
+    } catch(error) { toast.error(error instanceof Error?error.message:"Kunne ikke hente bedriftene."); } finally {
       setBusy(false);
     }
   }
@@ -4198,12 +4038,13 @@ function CallLists({
             </Button>
           </DialogContent>
         </Dialog>
-        <div className="call-filter-grid">
+        <section className="call-ai-search" aria-labelledby="call-ai-title"><div><span className="call-ai-label"><Sparkles size={16}/> AI-SØK</span><h3 id="call-ai-title">Hvem vil du nå?</h3><p>Beskriv bedriftene du ønsker å kontakte.</p></div><div className="call-ai-prompt"><Textarea aria-label="Beskriv bedriftene du leter etter" value={aiPrompt} onChange={e=>{setAiPrompt(e.target.value);setAiMessage('');setAiError('');}} maxLength={1000} rows={3} disabled={aiBusy} placeholder="Jeg ønsker en liste over 20 bedrifter i Nord-Norge med 1–15 ansatte som ble etablert i 2025 eller 2026."/><Button type="button" onClick={interpretSearch} disabled={aiBusy||busy||aiPrompt.trim().length<8}><Sparkles size={16}/>{aiBusy?'Tolker søket …':'Finn filtre med AI'}</Button>{aiMessage&&<p role="status" className="call-ai-result">{aiMessage}</p>}{aiError&&<p role="alert" className="call-ai-error">{aiError}</p>}</div></section>
+        <fieldset className="call-filter-fields" disabled={aiBusy||busy}><legend className="sr-only">Søkefiltre</legend><div className="call-filter-grid">
           <div>
             <Label>Min. ansatte</Label>
             <Input
               type="number"
-              min="1"
+              min="0"
               value={filters.minEmployees}
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) =>
@@ -4215,42 +4056,20 @@ function CallLists({
             <Label>Maks ansatte</Label>
             <Input
               type="number"
-              min="1"
-              value={filters.maxEmployees}
+              min="0"
+              placeholder="Ingen grense"
+              value={filters.maxEmployees===1000000?"":filters.maxEmployees}
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) =>
-                setFilters({ ...filters, maxEmployees: Number(e.target.value) })
+                setFilters({ ...filters, maxEmployees: e.target.value===""?1000000:Number(e.target.value) })
               }
             />
           </div>
           <div>
             <Label>Sted</Label>
-            <SearchPicker
-              value={filters.municipalityCode}
-              onChange={(value) =>
-                setFilters({ ...filters, municipalityCode: value })
-              }
-              options={[
-                { value: "all", label: "Hele Norge" },
-                ...options.municipalities,
-              ]}
-              placeholder="Søk etter sted"
-            />
+            <CallListMultiPicker values={filters.locationCodes} onChange={locationCodes=>setFilters({...filters,locationCodes})} groups={[{heading:'Fylker',options:options.counties.map(x=>({...x,value:'county:'+x.value}))},{heading:'Byer og kommuner',options:options.municipalities}]} placeholder="Søk etter sted" allLabel="Hele Norge" noun="steder"/>
           </div>
-          <div>
-            <Label>Bransje</Label>
-            <SearchPicker
-              value={filters.industryCode}
-              onChange={(value) =>
-                setFilters({ ...filters, industryCode: value })
-              }
-              options={[
-                { value: "all", label: "Alle bransjer" },
-                ...options.industries,
-              ]}
-              placeholder="Søk etter bransje"
-            />
-          </div>
+          <div><Label>Bransje</Label><CallListMultiPicker values={filters.industryCodes} onChange={industryCodes=>setFilters({...filters,industryCodes})} groups={[{heading:'Bransjer',options:options.industries}]} placeholder="Søk etter bransje" allLabel="Alle bransjer" noun="bransjer"/></div>
           <div>
             <Label>Antall</Label>
             <Input
@@ -4266,14 +4085,10 @@ function CallLists({
           </div>
           <div>
             <Label>Organisasjonsform</Label>
-            <MultiSearchPicker
-              values={filters.organizationForms}
-              onChange={(organizationForms) =>
-                setFilters({ ...filters, organizationForms })
-              }
-              options={options.organizationForms}
-            />
+            <CallListMultiPicker values={filters.organizationForms} onChange={organizationForms=>setFilters({...filters,organizationForms})} groups={[{heading:'Vanlige organisasjonsformer',options:options.organizationForms.filter(x=>['AS','ENK'].includes(x.value))},{heading:'Andre organisasjonsformer',options:options.organizationForms.filter(x=>!['AS','ENK'].includes(x.value))}]} placeholder="Søk etter organisasjonsform" allLabel="Alle organisasjonsformer" noun="organisasjonsformer" allMeansEmpty={false}/>
           </div>
+          <div><Label htmlFor="call-established-from">Etablert fra</Label><Input id="call-established-from" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div>
+          <div><Label htmlFor="call-established-to">Etablert til</Label><Input id="call-established-to" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div>
         </div>
         <div className="contact-requirements">
           <label>
@@ -4296,11 +4111,12 @@ function CallLists({
             />
             Må ha e-postadresse
           </label>
-          <Button onClick={generate} disabled={busy}>
+          <Button onClick={generate} disabled={busy||aiBusy}>
             <Search />
-            {busy ? "Lager liste …" : "Generer ringeliste"}
+            {busy ? "Lager liste …" : "Hent bedrifter"}
           </Button>
         </div>
+        </fieldset>
       </section>
       <section className="surface">
         <Tabs
@@ -4561,7 +4377,7 @@ function ProspectRows({
           </div>
           <div>
             <span>{row.industry || "Ukjent bransje"}</span>
-            <small>{row.employees ?? "–"} ansatte</small>
+            <small>{row.employees == null ? "Ansatte: ikke oppgitt" : `${row.employees} ansatte`}</small>
           </div>
           <div className="prospect-contact">
             {row.phone ? (

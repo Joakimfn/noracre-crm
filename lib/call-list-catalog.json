@@ -1,0 +1,4798 @@
+{
+  "date": "2026-09-14",
+  "source": "https://data.ssb.no/api/klass/v1/",
+  "counties": [
+    {
+      "value": "42",
+      "label": "Agder"
+    },
+    {
+      "value": "32",
+      "label": "Akershus"
+    },
+    {
+      "value": "33",
+      "label": "Buskerud"
+    },
+    {
+      "value": "56",
+      "label": "Finnmark - Finnmárku - Finmarkku"
+    },
+    {
+      "value": "34",
+      "label": "Innlandet"
+    },
+    {
+      "value": "15",
+      "label": "Møre og Romsdal"
+    },
+    {
+      "value": "18",
+      "label": "Nordland - Nordlánnda"
+    },
+    {
+      "value": "03",
+      "label": "Oslo - Oslove"
+    },
+    {
+      "value": "11",
+      "label": "Rogaland"
+    },
+    {
+      "value": "40",
+      "label": "Telemark"
+    },
+    {
+      "value": "55",
+      "label": "Troms - Romsa - Tromssa"
+    },
+    {
+      "value": "50",
+      "label": "Trøndelag - Trööndelage"
+    },
+    {
+      "value": "39",
+      "label": "Vestfold"
+    },
+    {
+      "value": "46",
+      "label": "Vestland"
+    },
+    {
+      "value": "31",
+      "label": "Østfold"
+    }
+  ],
+  "municipalities": [
+    {
+      "value": "1820",
+      "label": "Alstahaug"
+    },
+    {
+      "value": "5601",
+      "label": "Alta"
+    },
+    {
+      "value": "3428",
+      "label": "Alvdal"
+    },
+    {
+      "value": "4631",
+      "label": "Alver"
+    },
+    {
+      "value": "1871",
+      "label": "Andøy"
+    },
+    {
+      "value": "3124",
+      "label": "Aremark"
+    },
+    {
+      "value": "4203",
+      "label": "Arendal"
+    },
+    {
+      "value": "3203",
+      "label": "Asker"
+    },
+    {
+      "value": "4645",
+      "label": "Askvoll"
+    },
+    {
+      "value": "4627",
+      "label": "Askøy"
+    },
+    {
+      "value": "1547",
+      "label": "Aukra"
+    },
+    {
+      "value": "1576",
+      "label": "Aure"
+    },
+    {
+      "value": "4641",
+      "label": "Aurland"
+    },
+    {
+      "value": "3226",
+      "label": "Aurskog-Høland"
+    },
+    {
+      "value": "4625",
+      "label": "Austevoll"
+    },
+    {
+      "value": "4632",
+      "label": "Austrheim"
+    },
+    {
+      "value": "1554",
+      "label": "Averøy"
+    },
+    {
+      "value": "5532",
+      "label": "Balsfjord"
+    },
+    {
+      "value": "4012",
+      "label": "Bamble"
+    },
+    {
+      "value": "5520",
+      "label": "Bardu"
+    },
+    {
+      "value": "1839",
+      "label": "Beiarn"
+    },
+    {
+      "value": "4601",
+      "label": "Bergen"
+    },
+    {
+      "value": "5630",
+      "label": "Berlevåg"
+    },
+    {
+      "value": "1811",
+      "label": "Bindal"
+    },
+    {
+      "value": "4216",
+      "label": "Birkenes"
+    },
+    {
+      "value": "1114",
+      "label": "Bjerkreim"
+    },
+    {
+      "value": "4624",
+      "label": "Bjørnafjorden"
+    },
+    {
+      "value": "1804",
+      "label": "Bodø"
+    },
+    {
+      "value": "1145",
+      "label": "Bokn"
+    },
+    {
+      "value": "4648",
+      "label": "Bremanger"
+    },
+    {
+      "value": "1813",
+      "label": "Brønnøy"
+    },
+    {
+      "value": "4220",
+      "label": "Bygland"
+    },
+    {
+      "value": "4222",
+      "label": "Bykle"
+    },
+    {
+      "value": "3201",
+      "label": "Bærum"
+    },
+    {
+      "value": "1867",
+      "label": "Bø"
+    },
+    {
+      "value": "4613",
+      "label": "Bømlo"
+    },
+    {
+      "value": "5632",
+      "label": "Båtsfjord"
+    },
+    {
+      "value": "5628",
+      "label": "Deatnu - Tana"
+    },
+    {
+      "value": "5512",
+      "label": "Dielddanuorri - Tjeldsund"
+    },
+    {
+      "value": "3431",
+      "label": "Dovre"
+    },
+    {
+      "value": "3301",
+      "label": "Drammen"
+    },
+    {
+      "value": "4016",
+      "label": "Drangedal"
+    },
+    {
+      "value": "5528",
+      "label": "Dyrøy"
+    },
+    {
+      "value": "1827",
+      "label": "Dønna"
+    },
+    {
+      "value": "4619",
+      "label": "Eidfjord"
+    },
+    {
+      "value": "3416",
+      "label": "Eidskog"
+    },
+    {
+      "value": "3240",
+      "label": "Eidsvoll"
+    },
+    {
+      "value": "1101",
+      "label": "Eigersund"
+    },
+    {
+      "value": "3420",
+      "label": "Elverum"
+    },
+    {
+      "value": "3220",
+      "label": "Enebakk"
+    },
+    {
+      "value": "3425",
+      "label": "Engerdal"
+    },
+    {
+      "value": "4611",
+      "label": "Etne"
+    },
+    {
+      "value": "3450",
+      "label": "Etnedal"
+    },
+    {
+      "value": "1853",
+      "label": "Evenes - Evenášši"
+    },
+    {
+      "value": "4219",
+      "label": "Evje og Hornnes"
+    },
+    {
+      "value": "4206",
+      "label": "Farsund"
+    },
+    {
+      "value": "1841",
+      "label": "Fauske - Fuossko"
+    },
+    {
+      "value": "4633",
+      "label": "Fedje"
+    },
+    {
+      "value": "4615",
+      "label": "Fitjar"
+    },
+    {
+      "value": "4646",
+      "label": "Fjaler"
+    },
+    {
+      "value": "1578",
+      "label": "Fjord"
+    },
+    {
+      "value": "1859",
+      "label": "Flakstad"
+    },
+    {
+      "value": "5049",
+      "label": "Flatanger"
+    },
+    {
+      "value": "4207",
+      "label": "Flekkefjord"
+    },
+    {
+      "value": "3334",
+      "label": "Flesberg"
+    },
+    {
+      "value": "3320",
+      "label": "Flå"
+    },
+    {
+      "value": "3429",
+      "label": "Folldal"
+    },
+    {
+      "value": "3107",
+      "label": "Fredrikstad"
+    },
+    {
+      "value": "3214",
+      "label": "Frogn"
+    },
+    {
+      "value": "4214",
+      "label": "Froland"
+    },
+    {
+      "value": "5036",
+      "label": "Frosta"
+    },
+    {
+      "value": "5014",
+      "label": "Frøya"
+    },
+    {
+      "value": "4032",
+      "label": "Fyresdal"
+    },
+    {
+      "value": "3911",
+      "label": "Færder"
+    },
+    {
+      "value": "5540",
+      "label": "Gáivuotna - Kåfjord - Kaivuono"
+    },
+    {
+      "value": "5626",
+      "label": "Gamvik"
+    },
+    {
+      "value": "3441",
+      "label": "Gausdal"
+    },
+    {
+      "value": "1838",
+      "label": "Gildeskål"
+    },
+    {
+      "value": "1532",
+      "label": "Giske"
+    },
+    {
+      "value": "1557",
+      "label": "Gjemnes"
+    },
+    {
+      "value": "3230",
+      "label": "Gjerdrum"
+    },
+    {
+      "value": "4211",
+      "label": "Gjerstad"
+    },
+    {
+      "value": "1122",
+      "label": "Gjesdal"
+    },
+    {
+      "value": "3407",
+      "label": "Gjøvik"
+    },
+    {
+      "value": "4650",
+      "label": "Gloppen"
+    },
+    {
+      "value": "3324",
+      "label": "Gol"
+    },
+    {
+      "value": "3446",
+      "label": "Gran"
+    },
+    {
+      "value": "1825",
+      "label": "Grane"
+    },
+    {
+      "value": "5516",
+      "label": "Gratangen - Rivtták"
+    },
+    {
+      "value": "4202",
+      "label": "Grimstad"
+    },
+    {
+      "value": "5045",
+      "label": "Grong"
+    },
+    {
+      "value": "3417",
+      "label": "Grue"
+    },
+    {
+      "value": "4635",
+      "label": "Gulen"
+    },
+    {
+      "value": "5612",
+      "label": "Guovdageaidnu - Kautokeino"
+    },
+    {
+      "value": "1875",
+      "label": "Hábmer - Hamarøy"
+    },
+    {
+      "value": "1866",
+      "label": "Hadsel"
+    },
+    {
+      "value": "3101",
+      "label": "Halden"
+    },
+    {
+      "value": "3403",
+      "label": "Hamar"
+    },
+    {
+      "value": "5603",
+      "label": "Hammerfest - Hámmerfeasta"
+    },
+    {
+      "value": "1580",
+      "label": "Haram"
+    },
+    {
+      "value": "1517",
+      "label": "Hareid"
+    },
+    {
+      "value": "5503",
+      "label": "Harstad - Hárstták"
+    },
+    {
+      "value": "5616",
+      "label": "Hasvik"
+    },
+    {
+      "value": "1106",
+      "label": "Haugesund"
+    },
+    {
+      "value": "5055",
+      "label": "Heim"
+    },
+    {
+      "value": "1832",
+      "label": "Hemnes"
+    },
+    {
+      "value": "3326",
+      "label": "Hemsedal"
+    },
+    {
+      "value": "1515",
+      "label": "Herøy (Møre og Romsdal)"
+    },
+    {
+      "value": "1818",
+      "label": "Herøy (Nordland)"
+    },
+    {
+      "value": "5056",
+      "label": "Hitra"
+    },
+    {
+      "value": "4024",
+      "label": "Hjartdal"
+    },
+    {
+      "value": "1133",
+      "label": "Hjelmeland"
+    },
+    {
+      "value": "3330",
+      "label": "Hol"
+    },
+    {
+      "value": "3310",
+      "label": "Hole"
+    },
+    {
+      "value": "3903",
+      "label": "Holmestrand"
+    },
+    {
+      "value": "5026",
+      "label": "Holtålen"
+    },
+    {
+      "value": "3901",
+      "label": "Horten"
+    },
+    {
+      "value": "3242",
+      "label": "Hurdal"
+    },
+    {
+      "value": "1579",
+      "label": "Hustadvika"
+    },
+    {
+      "value": "3110",
+      "label": "Hvaler"
+    },
+    {
+      "value": "4637",
+      "label": "Hyllestad"
+    },
+    {
+      "value": "4226",
+      "label": "Hægebostad"
+    },
+    {
+      "value": "4638",
+      "label": "Høyanger"
+    },
+    {
+      "value": "5046",
+      "label": "Høylandet"
+    },
+    {
+      "value": "1119",
+      "label": "Hå"
+    },
+    {
+      "value": "5514",
+      "label": "Ibestad"
+    },
+    {
+      "value": "5053",
+      "label": "Inderøy"
+    },
+    {
+      "value": "5054",
+      "label": "Indre Fosen"
+    },
+    {
+      "value": "3118",
+      "label": "Indre Østfold"
+    },
+    {
+      "value": "4218",
+      "label": "Iveland"
+    },
+    {
+      "value": "3236",
+      "label": "Jevnaker"
+    },
+    {
+      "value": "5610",
+      "label": "Kárášjohka - Karasjok"
+    },
+    {
+      "value": "5534",
+      "label": "Karlsøy"
+    },
+    {
+      "value": "1149",
+      "label": "Karmøy"
+    },
+    {
+      "value": "4602",
+      "label": "Kinn"
+    },
+    {
+      "value": "1120",
+      "label": "Klepp"
+    },
+    {
+      "value": "3303",
+      "label": "Kongsberg"
+    },
+    {
+      "value": "3401",
+      "label": "Kongsvinger"
+    },
+    {
+      "value": "4014",
+      "label": "Kragerø"
+    },
+    {
+      "value": "4204",
+      "label": "Kristiansand"
+    },
+    {
+      "value": "1505",
+      "label": "Kristiansund"
+    },
+    {
+      "value": "3318",
+      "label": "Krødsherad"
+    },
+    {
+      "value": "4622",
+      "label": "Kvam"
+    },
+    {
+      "value": "4227",
+      "label": "Kvinesdal"
+    },
+    {
+      "value": "4617",
+      "label": "Kvinnherad"
+    },
+    {
+      "value": "4028",
+      "label": "Kviteseid"
+    },
+    {
+      "value": "1144",
+      "label": "Kvitsøy"
+    },
+    {
+      "value": "5510",
+      "label": "Kvæfjord"
+    },
+    {
+      "value": "5546",
+      "label": "Kvænangen"
+    },
+    {
+      "value": "3909",
+      "label": "Larvik"
+    },
+    {
+      "value": "5624",
+      "label": "Lebesby"
+    },
+    {
+      "value": "1822",
+      "label": "Leirfjord"
+    },
+    {
+      "value": "5052",
+      "label": "Leka"
+    },
+    {
+      "value": "3432",
+      "label": "Lesja"
+    },
+    {
+      "value": "5037",
+      "label": "Levanger - Levangke"
+    },
+    {
+      "value": "3312",
+      "label": "Lier"
+    },
+    {
+      "value": "5042",
+      "label": "Lierne"
+    },
+    {
+      "value": "3405",
+      "label": "Lillehammer"
+    },
+    {
+      "value": "4215",
+      "label": "Lillesand"
+    },
+    {
+      "value": "3205",
+      "label": "Lillestrøm"
+    },
+    {
+      "value": "4205",
+      "label": "Lindesnes"
+    },
+    {
+      "value": "5518",
+      "label": "Loabák - Lavangen"
+    },
+    {
+      "value": "3434",
+      "label": "Lom"
+    },
+    {
+      "value": "5614",
+      "label": "Loppa"
+    },
+    {
+      "value": "1112",
+      "label": "Lund"
+    },
+    {
+      "value": "3234",
+      "label": "Lunner"
+    },
+    {
+      "value": "1834",
+      "label": "Lurøy"
+    },
+    {
+      "value": "4644",
+      "label": "Luster"
+    },
+    {
+      "value": "4225",
+      "label": "Lyngdal"
+    },
+    {
+      "value": "5536",
+      "label": "Lyngen - Ivgu - Yykeä"
+    },
+    {
+      "value": "4642",
+      "label": "Lærdal"
+    },
+    {
+      "value": "1851",
+      "label": "Lødingen"
+    },
+    {
+      "value": "3222",
+      "label": "Lørenskog"
+    },
+    {
+      "value": "3412",
+      "label": "Løten"
+    },
+    {
+      "value": "5031",
+      "label": "Malvik"
+    },
+    {
+      "value": "3122",
+      "label": "Marker"
+    },
+    {
+      "value": "4634",
+      "label": "Masfjorden"
+    },
+    {
+      "value": "5028",
+      "label": "Melhus"
+    },
+    {
+      "value": "1837",
+      "label": "Meløy"
+    },
+    {
+      "value": "5034",
+      "label": "Meråker"
+    },
+    {
+      "value": "4020",
+      "label": "Midt-Telemark"
+    },
+    {
+      "value": "5027",
+      "label": "Midtre Gauldal"
+    },
+    {
+      "value": "4629",
+      "label": "Modalen"
+    },
+    {
+      "value": "3316",
+      "label": "Modum"
+    },
+    {
+      "value": "1506",
+      "label": "Molde"
+    },
+    {
+      "value": "1874",
+      "label": "Moskenes"
+    },
+    {
+      "value": "3103",
+      "label": "Moss"
+    },
+    {
+      "value": "5524",
+      "label": "Målselv"
+    },
+    {
+      "value": "5618",
+      "label": "Måsøy"
+    },
+    {
+      "value": "5007",
+      "label": "Namsos - Nåavmesjenjaelmie"
+    },
+    {
+      "value": "5044",
+      "label": "Namsskogan"
+    },
+    {
+      "value": "3238",
+      "label": "Nannestad"
+    },
+    {
+      "value": "1806",
+      "label": "Narvik"
+    },
+    {
+      "value": "3228",
+      "label": "Nes"
+    },
+    {
+      "value": "3322",
+      "label": "Nesbyen"
+    },
+    {
+      "value": "1828",
+      "label": "Nesna"
+    },
+    {
+      "value": "3212",
+      "label": "Nesodden"
+    },
+    {
+      "value": "4030",
+      "label": "Nissedal"
+    },
+    {
+      "value": "3232",
+      "label": "Nittedal"
+    },
+    {
+      "value": "4018",
+      "label": "Nome"
+    },
+    {
+      "value": "3451",
+      "label": "Nord-Aurdal"
+    },
+    {
+      "value": "3436",
+      "label": "Nord-Fron"
+    },
+    {
+      "value": "3414",
+      "label": "Nord-Odal"
+    },
+    {
+      "value": "5620",
+      "label": "Nordkapp"
+    },
+    {
+      "value": "3207",
+      "label": "Nordre Follo"
+    },
+    {
+      "value": "3448",
+      "label": "Nordre Land"
+    },
+    {
+      "value": "5544",
+      "label": "Nordreisa - Ráisa - Raisi"
+    },
+    {
+      "value": "3338",
+      "label": "Nore og Uvdal"
+    },
+    {
+      "value": "4005",
+      "label": "Notodden"
+    },
+    {
+      "value": "5060",
+      "label": "Nærøysund"
+    },
+    {
+      "value": "5021",
+      "label": "Oppdal"
+    },
+    {
+      "value": "5059",
+      "label": "Orkland"
+    },
+    {
+      "value": "3430",
+      "label": "Os"
+    },
+    {
+      "value": "5020",
+      "label": "Osen"
+    },
+    {
+      "value": "0301",
+      "label": "Oslo - Oslove"
+    },
+    {
+      "value": "4630",
+      "label": "Osterøy"
+    },
+    {
+      "value": "5047",
+      "label": "Overhalla"
+    },
+    {
+      "value": "5622",
+      "label": "Porsanger - Porsángu - Porsanki"
+    },
+    {
+      "value": "4001",
+      "label": "Porsgrunn"
+    },
+    {
+      "value": "3120",
+      "label": "Rakkestad"
+    },
+    {
+      "value": "1833",
+      "label": "Rana - Raane"
+    },
+    {
+      "value": "1127",
+      "label": "Randaberg"
+    },
+    {
+      "value": "1539",
+      "label": "Rauma"
+    },
+    {
+      "value": "3424",
+      "label": "Rendalen"
+    },
+    {
+      "value": "5022",
+      "label": "Rennebu"
+    },
+    {
+      "value": "5061",
+      "label": "Rindal"
+    },
+    {
+      "value": "3439",
+      "label": "Ringebu"
+    },
+    {
+      "value": "3305",
+      "label": "Ringerike"
+    },
+    {
+      "value": "3411",
+      "label": "Ringsaker"
+    },
+    {
+      "value": "4201",
+      "label": "Risør"
+    },
+    {
+      "value": "3336",
+      "label": "Rollag"
+    },
+    {
+      "value": "3224",
+      "label": "Rælingen"
+    },
+    {
+      "value": "1836",
+      "label": "Rødøy"
+    },
+    {
+      "value": "5025",
+      "label": "Røros - Rosse"
+    },
+    {
+      "value": "1856",
+      "label": "Røst"
+    },
+    {
+      "value": "3112",
+      "label": "Råde"
+    },
+    {
+      "value": "5043",
+      "label": "Raarvihke - Røyrvik"
+    },
+    {
+      "value": "5522",
+      "label": "Salangen"
+    },
+    {
+      "value": "1840",
+      "label": "Saltdal"
+    },
+    {
+      "value": "4623",
+      "label": "Samnanger"
+    },
+    {
+      "value": "1514",
+      "label": "Sande"
+    },
+    {
+      "value": "3907",
+      "label": "Sandefjord"
+    },
+    {
+      "value": "1108",
+      "label": "Sandnes"
+    },
+    {
+      "value": "3105",
+      "label": "Sarpsborg"
+    },
+    {
+      "value": "1135",
+      "label": "Sauda"
+    },
+    {
+      "value": "3437",
+      "label": "Sel"
+    },
+    {
+      "value": "5032",
+      "label": "Selbu"
+    },
+    {
+      "value": "4022",
+      "label": "Seljord"
+    },
+    {
+      "value": "5530",
+      "label": "Senja"
+    },
+    {
+      "value": "3332",
+      "label": "Sigdal"
+    },
+    {
+      "value": "4010",
+      "label": "Siljan"
+    },
+    {
+      "value": "4228",
+      "label": "Sirdal"
+    },
+    {
+      "value": "5029",
+      "label": "Skaun"
+    },
+    {
+      "value": "4003",
+      "label": "Skien"
+    },
+    {
+      "value": "3116",
+      "label": "Skiptvet"
+    },
+    {
+      "value": "5542",
+      "label": "Skjervøy"
+    },
+    {
+      "value": "3433",
+      "label": "Skjåk"
+    },
+    {
+      "value": "1573",
+      "label": "Smøla"
+    },
+    {
+      "value": "5041",
+      "label": "Snåase - Snåsa"
+    },
+    {
+      "value": "4640",
+      "label": "Sogndal"
+    },
+    {
+      "value": "1111",
+      "label": "Sokndal"
+    },
+    {
+      "value": "1124",
+      "label": "Sola"
+    },
+    {
+      "value": "4636",
+      "label": "Solund"
+    },
+    {
+      "value": "1870",
+      "label": "Sortland - Suortá"
+    },
+    {
+      "value": "4649",
+      "label": "Stad"
+    },
+    {
+      "value": "3413",
+      "label": "Stange"
+    },
+    {
+      "value": "1103",
+      "label": "Stavanger"
+    },
+    {
+      "value": "1848",
+      "label": "Steigen"
+    },
+    {
+      "value": "5006",
+      "label": "Steinkjer - Stïentje"
+    },
+    {
+      "value": "5035",
+      "label": "Stjørdal"
+    },
+    {
+      "value": "3423",
+      "label": "Stor-Elvdal"
+    },
+    {
+      "value": "4614",
+      "label": "Stord"
+    },
+    {
+      "value": "5538",
+      "label": "Storfjord - Omasvuotna - Omasvuono"
+    },
+    {
+      "value": "1130",
+      "label": "Strand"
+    },
+    {
+      "value": "1525",
+      "label": "Stranda"
+    },
+    {
+      "value": "4651",
+      "label": "Stryn"
+    },
+    {
+      "value": "1531",
+      "label": "Sula"
+    },
+    {
+      "value": "1134",
+      "label": "Suldal"
+    },
+    {
+      "value": "1563",
+      "label": "Sunndal"
+    },
+    {
+      "value": "4647",
+      "label": "Sunnfjord"
+    },
+    {
+      "value": "1566",
+      "label": "Surnadal"
+    },
+    {
+      "value": "4612",
+      "label": "Sveio"
+    },
+    {
+      "value": "1528",
+      "label": "Sykkylven"
+    },
+    {
+      "value": "1812",
+      "label": "Sømna"
+    },
+    {
+      "value": "3447",
+      "label": "Søndre Land"
+    },
+    {
+      "value": "3449",
+      "label": "Sør-Aurdal"
+    },
+    {
+      "value": "3438",
+      "label": "Sør-Fron"
+    },
+    {
+      "value": "3415",
+      "label": "Sør-Odal"
+    },
+    {
+      "value": "5605",
+      "label": "Sør-Varanger"
+    },
+    {
+      "value": "1845",
+      "label": "Sørfold - Fuolldá"
+    },
+    {
+      "value": "5526",
+      "label": "Sørreisa"
+    },
+    {
+      "value": "1121",
+      "label": "Time"
+    },
+    {
+      "value": "1560",
+      "label": "Tingvoll"
+    },
+    {
+      "value": "4026",
+      "label": "Tinn"
+    },
+    {
+      "value": "4034",
+      "label": "Tokke"
+    },
+    {
+      "value": "3426",
+      "label": "Tolga"
+    },
+    {
+      "value": "5501",
+      "label": "Tromsø"
+    },
+    {
+      "value": "5001",
+      "label": "Trondheim - Tråante"
+    },
+    {
+      "value": "3421",
+      "label": "Trysil"
+    },
+    {
+      "value": "1835",
+      "label": "Træna"
+    },
+    {
+      "value": "4213",
+      "label": "Tvedestrand"
+    },
+    {
+      "value": "5033",
+      "label": "Tydal"
+    },
+    {
+      "value": "3427",
+      "label": "Tynset"
+    },
+    {
+      "value": "4616",
+      "label": "Tysnes"
+    },
+    {
+      "value": "1146",
+      "label": "Tysvær"
+    },
+    {
+      "value": "3905",
+      "label": "Tønsberg"
+    },
+    {
+      "value": "3209",
+      "label": "Ullensaker"
+    },
+    {
+      "value": "4618",
+      "label": "Ullensvang"
+    },
+    {
+      "value": "1516",
+      "label": "Ulstein"
+    },
+    {
+      "value": "4620",
+      "label": "Ulvik"
+    },
+    {
+      "value": "5636",
+      "label": "Unjárga - Nesseby"
+    },
+    {
+      "value": "1151",
+      "label": "Utsira"
+    },
+    {
+      "value": "5607",
+      "label": "Vadsø"
+    },
+    {
+      "value": "4628",
+      "label": "Vaksdal"
+    },
+    {
+      "value": "4221",
+      "label": "Valle"
+    },
+    {
+      "value": "3454",
+      "label": "Vang"
+    },
+    {
+      "value": "1511",
+      "label": "Vanylven"
+    },
+    {
+      "value": "5634",
+      "label": "Vardø"
+    },
+    {
+      "value": "1824",
+      "label": "Vefsn"
+    },
+    {
+      "value": "1815",
+      "label": "Vega"
+    },
+    {
+      "value": "4212",
+      "label": "Vegårshei"
+    },
+    {
+      "value": "4223",
+      "label": "Vennesla"
+    },
+    {
+      "value": "5038",
+      "label": "Verdal"
+    },
+    {
+      "value": "3216",
+      "label": "Vestby"
+    },
+    {
+      "value": "1535",
+      "label": "Vestnes"
+    },
+    {
+      "value": "3452",
+      "label": "Vestre Slidre"
+    },
+    {
+      "value": "3443",
+      "label": "Vestre Toten"
+    },
+    {
+      "value": "1860",
+      "label": "Vestvågøy"
+    },
+    {
+      "value": "1816",
+      "label": "Vevelstad"
+    },
+    {
+      "value": "4639",
+      "label": "Vik"
+    },
+    {
+      "value": "1160",
+      "label": "Vindafjord"
+    },
+    {
+      "value": "4036",
+      "label": "Vinje"
+    },
+    {
+      "value": "1577",
+      "label": "Volda"
+    },
+    {
+      "value": "4621",
+      "label": "Voss"
+    },
+    {
+      "value": "1857",
+      "label": "Værøy"
+    },
+    {
+      "value": "1865",
+      "label": "Vågan"
+    },
+    {
+      "value": "3435",
+      "label": "Vågå"
+    },
+    {
+      "value": "3419",
+      "label": "Våler (Innlandet)"
+    },
+    {
+      "value": "3114",
+      "label": "Våler (Østfold)"
+    },
+    {
+      "value": "1868",
+      "label": "Øksnes"
+    },
+    {
+      "value": "5057",
+      "label": "Ørland"
+    },
+    {
+      "value": "1520",
+      "label": "Ørsta"
+    },
+    {
+      "value": "3442",
+      "label": "Østre Toten"
+    },
+    {
+      "value": "3314",
+      "label": "Øvre Eiker"
+    },
+    {
+      "value": "3440",
+      "label": "Øyer"
+    },
+    {
+      "value": "4626",
+      "label": "Øygarden"
+    },
+    {
+      "value": "3453",
+      "label": "Øystre Slidre"
+    },
+    {
+      "value": "5058",
+      "label": "Åfjord"
+    },
+    {
+      "value": "3328",
+      "label": "Ål"
+    },
+    {
+      "value": "1508",
+      "label": "Ålesund"
+    },
+    {
+      "value": "4217",
+      "label": "Åmli"
+    },
+    {
+      "value": "3422",
+      "label": "Åmot"
+    },
+    {
+      "value": "1826",
+      "label": "Aarborte - Hattfjelldal"
+    },
+    {
+      "value": "4643",
+      "label": "Årdal"
+    },
+    {
+      "value": "3218",
+      "label": "Ås"
+    },
+    {
+      "value": "4224",
+      "label": "Åseral"
+    },
+    {
+      "value": "3418",
+      "label": "Åsnes"
+    }
+  ],
+  "industries": [
+    {
+      "value": "66.110",
+      "label": "Administrasjon av finansmarkeder (66.110)"
+    },
+    {
+      "value": "84.300",
+      "label": "Administrasjon av trygdeordninger underlagt offentlig forvaltning (84.300)"
+    },
+    {
+      "value": "46.190",
+      "label": "Agenturhandel med bredt vareutvalg (46.190)"
+    },
+    {
+      "value": "46.120",
+      "label": "Agenturhandel med brensel, drivstoff, malm, metaller og industrikjemikalier (46.120)"
+    },
+    {
+      "value": "46.110",
+      "label": "Agenturhandel med jordbruksråvarer, levende dyr, tekstilråvarer og halvfabrikater (46.110)"
+    },
+    {
+      "value": "46.140",
+      "label": "Agenturhandel med maskiner, produksjonsutstyr, båter og luftfartøy (46.140)"
+    },
+    {
+      "value": "46.150",
+      "label": "Agenturhandel med møbler, husholdningsvarer og jernvarer (46.150)"
+    },
+    {
+      "value": "46.170",
+      "label": "Agenturhandel med nærings- og nytelsesmidler (46.170)"
+    },
+    {
+      "value": "46.180",
+      "label": "Agenturhandel med spesialisert vareutvalg ellers (46.180)"
+    },
+    {
+      "value": "46.160",
+      "label": "Agenturhandel med tekstiler, klær, pelsskinn, skotøy og lærvarer (46.160)"
+    },
+    {
+      "value": "46.130",
+      "label": "Agenturhandel med tømmer, trelast og byggevarer (46.130)"
+    },
+    {
+      "value": "94.992",
+      "label": "Aktiviteter i andre medlemsorganisasjoner ellers (94.992)"
+    },
+    {
+      "value": "94.200",
+      "label": "Aktiviteter i arbeidstakerorganisasjoner (94.200)"
+    },
+    {
+      "value": "97.001",
+      "label": "Aktiviteter i borettslag og boligsameier (97.001)"
+    },
+    {
+      "value": "96.230",
+      "label": "Aktiviteter i dagspa, badstue og dampbad (96.230)"
+    },
+    {
+      "value": "94.991",
+      "label": "Aktiviteter i fond/legat som støtter veldedige og allmennyttige formål (94.991)"
+    },
+    {
+      "value": "93.120",
+      "label": "Aktiviteter i idrettslag og -klubber (93.120)"
+    },
+    {
+      "value": "99",
+      "label": "Aktiviteter i internasjonale organisasjoner og organer (99)"
+    },
+    {
+      "value": "99.000",
+      "label": "Aktiviteter i internasjonale organisasjoner og organer (99.000)"
+    },
+    {
+      "value": "94",
+      "label": "Aktiviteter i medlemsorganisasjoner (94)"
+    },
+    {
+      "value": "94.110",
+      "label": "Aktiviteter i næringslivs- og arbeidsgiverorganisasjoner (94.110)"
+    },
+    {
+      "value": "94.920",
+      "label": "Aktiviteter i partipolitiske organisasjoner (94.920)"
+    },
+    {
+      "value": "94.910",
+      "label": "Aktiviteter i religiøse organisasjoner (94.910)"
+    },
+    {
+      "value": "84.230",
+      "label": "Aktiviteter i rettsvesen og kriminalomsorg (84.230)"
+    },
+    {
+      "value": "94.120",
+      "label": "Aktiviteter i yrkessammenslutninger (94.120)"
+    },
+    {
+      "value": "86.960",
+      "label": "Aktiviteter innenfor tradisjonell, komplementær og alternativ medisin (86.960)"
+    },
+    {
+      "value": "35.400",
+      "label": "Aktiviteter til meglere og agenter knyttet til elektrisk kraft og naturgass (35.400)"
+    },
+    {
+      "value": "84.240",
+      "label": "Aktiviteter utført av politi- og påtalemyndighet (84.240)"
+    },
+    {
+      "value": "79.901",
+      "label": "Aktiviteter utført av turistkontorer og destinasjonsselskaper (79.901)"
+    },
+    {
+      "value": "79.121",
+      "label": "Aktiviteter utført av utflukts- og eventarrangører (79.121)"
+    },
+    {
+      "value": "85.596",
+      "label": "Aktiviteter utført ved leirskoler (85.596)"
+    },
+    {
+      "value": "74.990",
+      "label": "All annen faglig, vitenskapelig og teknisk virksomhet ikke nevnt annet sted (74.990)"
+    },
+    {
+      "value": "86.210",
+      "label": "Allmennlegetjenester (86.210)"
+    },
+    {
+      "value": "64.312",
+      "label": "Alternative investeringsfond (AIF) som ikke er verdipapirfond (64.312)"
+    },
+    {
+      "value": "86.921",
+      "label": "Ambulansetransport unntatt luftambulanse (86.921)"
+    },
+    {
+      "value": "87.999",
+      "label": "Andre botilbud innenfor sosiale tjenester ikke nevnt annet sted (87.999)"
+    },
+    {
+      "value": "64.323",
+      "label": "Andre egeninvesteringsselskaper (64.323)"
+    },
+    {
+      "value": "86.993",
+      "label": "Andre helsetjenester ellers (86.993)"
+    },
+    {
+      "value": "63.920",
+      "label": "Andre informasjonstjenester (63.920)"
+    },
+    {
+      "value": "96.990",
+      "label": "Andre personlige tjenester ikke nevnt annet sted (96.990)"
+    },
+    {
+      "value": "53.200",
+      "label": "Andre post- og budtjenester (53.200)"
+    },
+    {
+      "value": "88.996",
+      "label": "Andre sosialtjenester uten botilbud ellers (88.996)"
+    },
+    {
+      "value": "52.260",
+      "label": "Andre støttetjenester for transport (52.260)"
+    },
+    {
+      "value": "66.190",
+      "label": "Andre tjenester tilknyttet finansieringsvirksomhet og kollektive investeringsfond (66.190)"
+    },
+    {
+      "value": "62.900",
+      "label": "Andre tjenester tilknyttet informasjonsteknologi (62.900)"
+    },
+    {
+      "value": "90.390",
+      "label": "Andre tjenester tilknyttet kunstnerisk virksomhet og underholdningsvirksomhet (90.390)"
+    },
+    {
+      "value": "52.230",
+      "label": "Andre tjenester tilknyttet lufttransport (52.230)"
+    },
+    {
+      "value": "52.220",
+      "label": "Andre tjenester tilknyttet sjøtransport (52.220)"
+    },
+    {
+      "value": "85.699",
+      "label": "Andre tjenester tilknyttet undervisning ikke nevnt annet sted (85.699)"
+    },
+    {
+      "value": "09.109",
+      "label": "Andre tjenester tilknyttet utvinning av råolje og naturgass (09.109)"
+    },
+    {
+      "value": "42",
+      "label": "Anleggsvirksomhet (42)"
+    },
+    {
+      "value": "38.330",
+      "label": "Annen avfallshåndtering uten gjenvinning (38.330)"
+    },
+    {
+      "value": "08.990",
+      "label": "Annen bryting og utvinning ikke nevnt annet sted (08.990)"
+    },
+    {
+      "value": "47.780",
+      "label": "Annen detaljhandel med andre nye varer (47.780)"
+    },
+    {
+      "value": "74",
+      "label": "Annen faglig, vitenskapelig og teknisk virksomhet (74)"
+    },
+    {
+      "value": "43.350",
+      "label": "Annen ferdiggjøring av bygninger (43.350)"
+    },
+    {
+      "value": "64.990",
+      "label": "Annen finansieringsvirksomhet ikke nevnt annet sted (64.990)"
+    },
+    {
+      "value": "82",
+      "label": "Annen forretningsmessig tjenesteyting (82)"
+    },
+    {
+      "value": "82.990",
+      "label": "Annen forretningsmessig tjenesteyting ikke nevnt annet sted (82.990)"
+    },
+    {
+      "value": "38.230",
+      "label": "Annen gjenvinning av avfall (38.230)"
+    },
+    {
+      "value": "32",
+      "label": "Annen industriproduksjon (32)"
+    },
+    {
+      "value": "32.990",
+      "label": "Annen industriproduksjon ikke nevnt annet sted (32.990)"
+    },
+    {
+      "value": "64.920",
+      "label": "Annen kredittgivning (64.920)"
+    },
+    {
+      "value": "90.130",
+      "label": "Annen kunstnerisk virksomhet (90.130)"
+    },
+    {
+      "value": "49.390",
+      "label": "Annen landtransport med passasjerer ikke nevnt annet sted (49.390)"
+    },
+    {
+      "value": "55.900",
+      "label": "Annen overnattingsvirksomhet (55.900)"
+    },
+    {
+      "value": "81.230",
+      "label": "Annen rengjøringsvirksomhet og snømåking (81.230)"
+    },
+    {
+      "value": "43.990",
+      "label": "Annen spesialisert bygge- og anleggsvirksomhet ikke nevnt annet sted (43.990)"
+    },
+    {
+      "value": "43.420",
+      "label": "Annen spesialisert byggevirksomhet i forbindelse med oppføring av bygninger (43.420)"
+    },
+    {
+      "value": "74.140",
+      "label": "Annen spesialisert designvirksomhet (74.140)"
+    },
+    {
+      "value": "71.129",
+      "label": "Annen teknisk konsulentvirksomhet (71.129)"
+    },
+    {
+      "value": "98.200",
+      "label": "Annen tjenesteyting i privat husholdninger til eget bruk (98.200)"
+    },
+    {
+      "value": "85.532",
+      "label": "Annen trafikkskoleundervisning (85.532)"
+    },
+    {
+      "value": "85.597",
+      "label": "Annen undervisning ellers (85.597)"
+    },
+    {
+      "value": "85.529",
+      "label": "Annen undervisning innenfor kultur (85.529)"
+    },
+    {
+      "value": "90.209",
+      "label": "Annen utøvende kunstnerisk virksomhet og underholdningsvirksomhet ikke nevnt annet sted (90.209)"
+    },
+    {
+      "value": "98.100",
+      "label": "Annen vareproduksjon i private husholdninger til eget bruk (98.100)"
+    },
+    {
+      "value": "98",
+      "label": "Annen vareproduksjon og tjenesteyting i private husholdninger til eget bruk (98)"
+    },
+    {
+      "value": "60.390",
+      "label": "Annen virksomhet for distribuering av innhold (60.390)"
+    },
+    {
+      "value": "01.479",
+      "label": "Annet fjørfehold (01.479)"
+    },
+    {
+      "value": "43.240",
+      "label": "Annet installasjonsarbeid (43.240)"
+    },
+    {
+      "value": "73",
+      "label": "Annonse- og reklamevirksomhet, markedsundersøkelser og PR og kommunikasjonstjenester (73)"
+    },
+    {
+      "value": "78",
+      "label": "Arbeidskrafttjenester (78)"
+    },
+    {
+      "value": "88.993",
+      "label": "Arbeidstrening og varig tilrettelagt arbeid (88.993)"
+    },
+    {
+      "value": "71.110",
+      "label": "Arkitektvirksomhet (71.110)"
+    },
+    {
+      "value": "71",
+      "label": "Arkitektvirksomhet og teknisk konsulentvirksomhet, og teknisk prøving og analyse (71)"
+    },
+    {
+      "value": "87.992",
+      "label": "Asylmottakstjenester (87.992)"
+    },
+    {
+      "value": "88.105",
+      "label": "Avlastning utenfor institusjon (88.105)"
+    },
+    {
+      "value": "02.200",
+      "label": "Avvirkning (02.200)"
+    },
+    {
+      "value": "64.190",
+      "label": "Banker og kredittforetak (64.190)"
+    },
+    {
+      "value": "88.991",
+      "label": "Barneverntjenester (88.991)"
+    },
+    {
+      "value": "25.530",
+      "label": "Bearbeiding av metaller (25.530)"
+    },
+    {
+      "value": "23.120",
+      "label": "Bearbeiding av planglass (23.120)"
+    },
+    {
+      "value": "10.830",
+      "label": "Bearbeiding av te og kaffe (10.830)"
+    },
+    {
+      "value": "22.250",
+      "label": "Bearbeiding og etterbehandling av plastprodukter (22.250)"
+    },
+    {
+      "value": "16.120",
+      "label": "Bearbeiding og etterbehandling av tre (16.120)"
+    },
+    {
+      "value": "10.120",
+      "label": "Bearbeiding og konservering av fjørfekjøtt (10.120)"
+    },
+    {
+      "value": "10.390",
+      "label": "Bearbeiding og konservering av frukt og grønnsaker ellers (10.390)"
+    },
+    {
+      "value": "10.110",
+      "label": "Bearbeiding og konservering av kjøtt unntatt fjørfekjøtt (10.110)"
+    },
+    {
+      "value": "10.310",
+      "label": "Bearbeiding og konservering av poteter (10.310)"
+    },
+    {
+      "value": "13.100",
+      "label": "Bearbeiding og spinning av tekstilfibre (13.100)"
+    },
+    {
+      "value": "70.200",
+      "label": "Bedriftsrådgivning og annen administrativ rådgivning (70.200)"
+    },
+    {
+      "value": "96.300",
+      "label": "Begravelsesbyråvirksomhet og lignende tjenester (96.300)"
+    },
+    {
+      "value": "81.300",
+      "label": "Beplantning av hager og parkanlegg (81.300)"
+    },
+    {
+      "value": "15.110",
+      "label": "Beredning og farging av lær og pelsskinn (15.110)"
+    },
+    {
+      "value": "18.140",
+      "label": "Bokbinding og tilknyttede tjenester (18.140)"
+    },
+    {
+      "value": "09.101",
+      "label": "Boretjenester tilknyttet utvinning av råolje og naturgass (09.101)"
+    },
+    {
+      "value": "84.250",
+      "label": "Brannvernaktiviteter (84.250)"
+    },
+    {
+      "value": "88.104",
+      "label": "Brukerstyrt personlig assistanse (BPA) (88.104)"
+    },
+    {
+      "value": "05.200",
+      "label": "Bryting av brunkull (05.200)"
+    },
+    {
+      "value": "08.110",
+      "label": "Bryting av dekorstein, kalkstein, gips, skifer og annen stein (08.110)"
+    },
+    {
+      "value": "07.290",
+      "label": "Bryting av ikke-jernholdig malm ellers (07.290)"
+    },
+    {
+      "value": "07.100",
+      "label": "Bryting av jernmalm (07.100)"
+    },
+    {
+      "value": "07",
+      "label": "Bryting av metallholdig malm (07)"
+    },
+    {
+      "value": "05.100",
+      "label": "Bryting av steinkull (05.100)"
+    },
+    {
+      "value": "05",
+      "label": "Bryting av steinkull og brunkull (05)"
+    },
+    {
+      "value": "07.210",
+      "label": "Bryting av uran- og thoriummalm (07.210)"
+    },
+    {
+      "value": "08",
+      "label": "Bryting og bergverksdrift ellers (08)"
+    },
+    {
+      "value": "08.910",
+      "label": "Bryting og utvinning av kjemiske mineraler og gjødselmineraler (08.910)"
+    },
+    {
+      "value": "71.121",
+      "label": "Byggeteknisk konsulentvirksomhet (71.121)"
+    },
+    {
+      "value": "42.990",
+      "label": "Bygging av andre anlegg ikke nevnt annet sted (42.990)"
+    },
+    {
+      "value": "42.222",
+      "label": "Bygging av anlegg for elektrisitet og telekommunikasjon på land (42.222)"
+    },
+    {
+      "value": "42.221",
+      "label": "Bygging av anlegg for elektrisitet og telekommunikasjon til sjøs (42.221)"
+    },
+    {
+      "value": "42.130",
+      "label": "Bygging av broer og tunneler (42.130)"
+    },
+    {
+      "value": "30.120",
+      "label": "Bygging av fritidsbåter (30.120)"
+    },
+    {
+      "value": "42.910",
+      "label": "Bygging av havne- og damanlegg (42.910)"
+    },
+    {
+      "value": "42.120",
+      "label": "Bygging av jernbaner og undergrunnsbaner (42.120)"
+    },
+    {
+      "value": "30.130",
+      "label": "Bygging av militære skip og fartøy (30.130)"
+    },
+    {
+      "value": "30.110",
+      "label": "Bygging av sivile skip og flytende materiell (30.110)"
+    },
+    {
+      "value": "42.210",
+      "label": "Bygging av vann- og kloakkanlegg (42.210)"
+    },
+    {
+      "value": "42.110",
+      "label": "Bygging av veier og motorveier (42.110)"
+    },
+    {
+      "value": "82.200",
+      "label": "Callsentervirksomhet (82.200)"
+    },
+    {
+      "value": "56.210",
+      "label": "Catering for arrangementer (56.210)"
+    },
+    {
+      "value": "88.910",
+      "label": "Dagaktivitetstilbud for barn (88.910)"
+    },
+    {
+      "value": "88.102",
+      "label": "Dagaktivitetstilbud tilpasset målgrupper (88.102)"
+    },
+    {
+      "value": "63",
+      "label": "Datainfrastruktur, -behandling, -lagring og andre informasjonstjenester (63)"
+    },
+    {
+      "value": "63.100",
+      "label": "Datainfrastruktur, -behandling, -lagring og tilknyttede tjenester (63.100)"
+    },
+    {
+      "value": "62",
+      "label": "Dataprogrammering, konsulentvirksomhet og andre tjenester tilknyttet informasjonsteknologi (62)"
+    },
+    {
+      "value": "62.100",
+      "label": "Dataprogrammeringstjenester (62.100)"
+    },
+    {
+      "value": "11.010",
+      "label": "Destillering, rektifisering og blanding av sprit (11.010)"
+    },
+    {
+      "value": "47",
+      "label": "Detaljhandel (47)"
+    },
+    {
+      "value": "47.730",
+      "label": "Detaljhandel med apotekvarer (47.730)"
+    },
+    {
+      "value": "47.620",
+      "label": "Detaljhandel med aviser og papirvarer (47.620)"
+    },
+    {
+      "value": "47.240",
+      "label": "Detaljhandel med bakervarer, konditorvarer og sukkervarer (47.240)"
+    },
+    {
+      "value": "47.552",
+      "label": "Detaljhandel med belysningsartikler (47.552)"
+    },
+    {
+      "value": "47.761",
+      "label": "Detaljhandel med blomster, planter, gjødsel og plantevernmidler (47.761)"
+    },
+    {
+      "value": "47.120",
+      "label": "Detaljhandel med bredt vareutvalg ellers (47.120)"
+    },
+    {
+      "value": "47.110",
+      "label": "Detaljhandel med bredt vareutvalg med hovedvekt på nærings- og nytelsesmidler (47.110)"
+    },
+    {
+      "value": "47.790",
+      "label": "Detaljhandel med brukte varer (47.790)"
+    },
+    {
+      "value": "47.610",
+      "label": "Detaljhandel med bøker (47.610)"
+    },
+    {
+      "value": "47.820",
+      "label": "Detaljhandel med deler og utstyr til motorvogner (47.820)"
+    },
+    {
+      "value": "47.250",
+      "label": "Detaljhandel med drikkevarer (47.250)"
+    },
+    {
+      "value": "47.300",
+      "label": "Detaljhandel med drivstoff til motorvogner (47.300)"
+    },
+    {
+      "value": "47.540",
+      "label": "Detaljhandel med elektriske husholdningsapparater (47.540)"
+    },
+    {
+      "value": "47.230",
+      "label": "Detaljhandel med fisk, skalldyr og bløtdyr (47.230)"
+    },
+    {
+      "value": "47.632",
+      "label": "Detaljhandel med fritidsbåter og tilhørende utstyr (47.632)"
+    },
+    {
+      "value": "47.210",
+      "label": "Detaljhandel med frukt og grønnsaker (47.210)"
+    },
+    {
+      "value": "47.553",
+      "label": "Detaljhandel med husholdningsredskaper og bestikk, servise, glassvarer, porselen og keramikk (47.553)"
+    },
+    {
+      "value": "47.400",
+      "label": "Detaljhandel med informasjons- og kommunikasjonsteknologiutstyr (47.400)"
+    },
+    {
+      "value": "47.559",
+      "label": "Detaljhandel med innredningsartikler ikke nevnt annet sted (47.559)"
+    },
+    {
+      "value": "47.520",
+      "label": "Detaljhandel med jernvarer, byggevarer, fargevarer og glass (47.520)"
+    },
+    {
+      "value": "47.762",
+      "label": "Detaljhandel med kjæledyr og varer til kjæledyr (47.762)"
+    },
+    {
+      "value": "47.220",
+      "label": "Detaljhandel med kjøtt og kjøttvarer (47.220)"
+    },
+    {
+      "value": "47.710",
+      "label": "Detaljhandel med klær (47.710)"
+    },
+    {
+      "value": "47.750",
+      "label": "Detaljhandel med kosmetikk og toalettartikler (47.750)"
+    },
+    {
+      "value": "47.690",
+      "label": "Detaljhandel med kulturvarer ikke nevnt annet sted (47.690)"
+    },
+    {
+      "value": "47.740",
+      "label": "Detaljhandel med medisinske og ortopediske artikler (47.740)"
+    },
+    {
+      "value": "47.830",
+      "label": "Detaljhandel med motorsykler og tilhørende deler og utstyr (47.830)"
+    },
+    {
+      "value": "47.810",
+      "label": "Detaljhandel med motorvogner (47.810)"
+    },
+    {
+      "value": "47.551",
+      "label": "Detaljhandel med møbler, gjelder også madrasser (47.551)"
+    },
+    {
+      "value": "47.270",
+      "label": "Detaljhandel med nærings- og nytelsesmidler ellers (47.270)"
+    },
+    {
+      "value": "47.720",
+      "label": "Detaljhandel med skotøy og lærvarer (47.720)"
+    },
+    {
+      "value": "47.640",
+      "label": "Detaljhandel med spill og leker (47.640)"
+    },
+    {
+      "value": "47.631",
+      "label": "Detaljhandel med sportsvarer (47.631)"
+    },
+    {
+      "value": "47.530",
+      "label": "Detaljhandel med tapet, gulvtepper og gulvbelegg (47.530)"
+    },
+    {
+      "value": "47.510",
+      "label": "Detaljhandel med tekstiler og utstyrsvarer (47.510)"
+    },
+    {
+      "value": "47.260",
+      "label": "Detaljhandel med tobakksvarer (47.260)"
+    },
+    {
+      "value": "47.770",
+      "label": "Detaljhandel med ur, klokker og smykker (47.770)"
+    },
+    {
+      "value": "35.140",
+      "label": "Distribusjon av elektrisitet (35.140)"
+    },
+    {
+      "value": "59.130",
+      "label": "Distribusjon av film og video (59.130)"
+    },
+    {
+      "value": "35.220",
+      "label": "Distribusjon av gass gjennom ledningsnett (35.220)"
+    },
+    {
+      "value": "91.120",
+      "label": "Drift av arkiver (91.120)"
+    },
+    {
+      "value": "56.300",
+      "label": "Drift av barer (56.300)"
+    },
+    {
+      "value": "91",
+      "label": "Drift av biblioteker, arkiver, museer og annen kulturvirksomhet (91)"
+    },
+    {
+      "value": "91.410",
+      "label": "Drift av botaniske og zoologiske hager (91.410)"
+    },
+    {
+      "value": "55.300",
+      "label": "Drift av campingplasser (55.300)"
+    },
+    {
+      "value": "38.320",
+      "label": "Drift av deponi og permanent lagring av avfall (38.320)"
+    },
+    {
+      "value": "91.112",
+      "label": "Drift av fag- og forskningsbiblioteker (91.112)"
+    },
+    {
+      "value": "91.111",
+      "label": "Drift av folkebiblioteker (91.111)"
+    },
+    {
+      "value": "93.210",
+      "label": "Drift av fornøyelses- og temaparker (93.210)"
+    },
+    {
+      "value": "52.211",
+      "label": "Drift av gods- og transportsentraler (52.211)"
+    },
+    {
+      "value": "91.220",
+      "label": "Drift av historiske steder og monumenter (91.220)"
+    },
+    {
+      "value": "55.100",
+      "label": "Drift av hoteller (55.100)"
+    },
+    {
+      "value": "93.110",
+      "label": "Drift av idrettsanlegg (93.110)"
+    },
+    {
+      "value": "91.212",
+      "label": "Drift av kulturhistoriske museer (91.212)"
+    },
+    {
+      "value": "91.211",
+      "label": "Drift av kunst- og kunstindustrimuseer (91.211)"
+    },
+    {
+      "value": "90.310",
+      "label": "Drift av lokaler tilknyttet kunstnerisk virksomhet og underholdningsvirksomhet (90.310)"
+    },
+    {
+      "value": "56.120",
+      "label": "Drift av mobile serveringssteder (56.120)"
+    },
+    {
+      "value": "91.213",
+      "label": "Drift av naturhistoriske, teknologiske og vitenskapshistoriske museer (91.213)"
+    },
+    {
+      "value": "91.420",
+      "label": "Drift av naturreservater (91.420)"
+    },
+    {
+      "value": "52.212",
+      "label": "Drift av parkeringsplasser og parkeringshus (52.212)"
+    },
+    {
+      "value": "56.110",
+      "label": "Drift av restauranter (56.110)"
+    },
+    {
+      "value": "63.910",
+      "label": "Drift av søkemotorer (63.910)"
+    },
+    {
+      "value": "55.200",
+      "label": "Drift av vandrerhjem og ferieleiligheter (55.200)"
+    },
+    {
+      "value": "01.250",
+      "label": "Dyrking av annen frukt som vokser på trær eller busker samt nøtter (01.250)"
+    },
+    {
+      "value": "01.210",
+      "label": "Dyrking av druer (01.210)"
+    },
+    {
+      "value": "01.190",
+      "label": "Dyrking av ettårige vekster ellers (01.190)"
+    },
+    {
+      "value": "01.160",
+      "label": "Dyrking av fibervekster (01.160)"
+    },
+    {
+      "value": "01.290",
+      "label": "Dyrking av flerårige vekster ellers (01.290)"
+    },
+    {
+      "value": "01.130",
+      "label": "Dyrking av grønnsaker, meloner, rot- og knollvekster (01.130)"
+    },
+    {
+      "value": "01.240",
+      "label": "Dyrking av kjernefrukter og steinfrukter (01.240)"
+    },
+    {
+      "value": "01.110",
+      "label": "Dyrking av korn, unntatt ris, belgvekster og oljeholdige vekster (01.110)"
+    },
+    {
+      "value": "01.280",
+      "label": "Dyrking av krydder og aromatiske, medisinske og farmasøytiske vekster (01.280)"
+    },
+    {
+      "value": "01.260",
+      "label": "Dyrking av oljeholdige frukter (01.260)"
+    },
+    {
+      "value": "01.120",
+      "label": "Dyrking av ris (01.120)"
+    },
+    {
+      "value": "01.230",
+      "label": "Dyrking av sitrusfrukter (01.230)"
+    },
+    {
+      "value": "01.140",
+      "label": "Dyrking av sukkerrør (01.140)"
+    },
+    {
+      "value": "01.150",
+      "label": "Dyrking av tobakk (01.150)"
+    },
+    {
+      "value": "01.220",
+      "label": "Dyrking av tropiske og subtropiske frukter (01.220)"
+    },
+    {
+      "value": "01.270",
+      "label": "Dyrking av vekster for produksjon av drikkevarer (01.270)"
+    },
+    {
+      "value": "64.322",
+      "label": "Egeninvesteringsselskaper i finansielle konsern og for offentlig forvaltning (64.322)"
+    },
+    {
+      "value": "68.320",
+      "label": "Eiendomsforvaltning på oppdrag (68.320)"
+    },
+    {
+      "value": "68.310",
+      "label": "Eiendomsmegling og andre formidlingstjenester for eiendom (68.310)"
+    },
+    {
+      "value": "68",
+      "label": "Eiendomsvirksomhet (68)"
+    },
+    {
+      "value": "43.210",
+      "label": "Elektrisk installasjonsarbeid (43.210)"
+    },
+    {
+      "value": "38.220",
+      "label": "Energigjenvinning (38.220)"
+    },
+    {
+      "value": "46",
+      "label": "Engroshandel (46)"
+    },
+    {
+      "value": "46.490",
+      "label": "Engroshandel med andre husholdningsvarer (46.490)"
+    },
+    {
+      "value": "46.380",
+      "label": "Engroshandel med andre næringsmidler (46.380)"
+    },
+    {
+      "value": "46.460",
+      "label": "Engroshandel med apotekvarer og medisinske varer (46.460)"
+    },
+    {
+      "value": "46.870",
+      "label": "Engroshandel med avfall og skrap (46.870)"
+    },
+    {
+      "value": "46.220",
+      "label": "Engroshandel med blomster og planter (46.220)"
+    },
+    {
+      "value": "46.390",
+      "label": "Engroshandel med bredt utvalg av nærings- og nytelsesmidler (46.390)"
+    },
+    {
+      "value": "46.720",
+      "label": "Engroshandel med deler og utstyr for motorvogner (46.720)"
+    },
+    {
+      "value": "46.340",
+      "label": "Engroshandel med drikkevarer (46.340)"
+    },
+    {
+      "value": "46.810",
+      "label": "Engroshandel med drivstoff, brensel og beslektede produkter (46.810)"
+    },
+    {
+      "value": "46.430",
+      "label": "Engroshandel med elektriske husholdningsapparater (46.430)"
+    },
+    {
+      "value": "46.322",
+      "label": "Engroshandel med fisk, skalldyr og bløtdyr (46.322)"
+    },
+    {
+      "value": "46.310",
+      "label": "Engroshandel med frukt og grønnsaker (46.310)"
+    },
+    {
+      "value": "46.240",
+      "label": "Engroshandel med huder, skinn og lær (46.240)"
+    },
+    {
+      "value": "46.470",
+      "label": "Engroshandel med husholdnings-, kontor- og butikkmøbler, gulvtepper og belysningsutstyr (46.470)"
+    },
+    {
+      "value": "46.500",
+      "label": "Engroshandel med informasjons- og kommunikasjonsteknologiutstyr (46.500)"
+    },
+    {
+      "value": "46.860",
+      "label": "Engroshandel med innsatsvarer ellers (46.860)"
+    },
+    {
+      "value": "46.840",
+      "label": "Engroshandel med jernvarer, rørleggerartikler og oppvarmingsutstyr (46.840)"
+    },
+    {
+      "value": "46.370",
+      "label": "Engroshandel med kaffe, te, kakao og krydder (46.370)"
+    },
+    {
+      "value": "46.850",
+      "label": "Engroshandel med kjemiske produkter (46.850)"
+    },
+    {
+      "value": "46.440",
+      "label": "Engroshandel med kjøkkenutstyr av porselen, glass og steintøy og rengjøringsmidler (46.440)"
+    },
+    {
+      "value": "46.321",
+      "label": "Engroshandel med kjøtt og kjøttvarer (46.321)"
+    },
+    {
+      "value": "46.480",
+      "label": "Engroshandel med klokker, ur og smykker (46.480)"
+    },
+    {
+      "value": "46.420",
+      "label": "Engroshandel med klær og skotøy (46.420)"
+    },
+    {
+      "value": "46.210",
+      "label": "Engroshandel med korn, råtobakk, såvarer og fôrvarer (46.210)"
+    },
+    {
+      "value": "46.230",
+      "label": "Engroshandel med levende dyr (46.230)"
+    },
+    {
+      "value": "46.640",
+      "label": "Engroshandel med maskiner og utstyr ellers (46.640)"
+    },
+    {
+      "value": "46.630",
+      "label": "Engroshandel med maskiner og utstyr til bergverksdrift, olje- og gassutvinning og bygge- og anleggsvirksomhet (46.630)"
+    },
+    {
+      "value": "46.610",
+      "label": "Engroshandel med maskiner og utstyr til jordbruk og skogbruk (46.610)"
+    },
+    {
+      "value": "46.620",
+      "label": "Engroshandel med maskinverktøy (46.620)"
+    },
+    {
+      "value": "46.330",
+      "label": "Engroshandel med meierivarer, egg, matolje og -fett (46.330)"
+    },
+    {
+      "value": "46.820",
+      "label": "Engroshandel med metaller og metallholdig malm (46.820)"
+    },
+    {
+      "value": "46.730",
+      "label": "Engroshandel med motorsykler og tilhørende deler og utstyr (46.730)"
+    },
+    {
+      "value": "46.710",
+      "label": "Engroshandel med motorvogner (46.710)"
+    },
+    {
+      "value": "46.450",
+      "label": "Engroshandel med parfyme og kosmetikk (46.450)"
+    },
+    {
+      "value": "46.890",
+      "label": "Engroshandel med spesialisert vareutvalg ikke nevnt annet sted (46.890)"
+    },
+    {
+      "value": "46.360",
+      "label": "Engroshandel med sukker, sjokolade og sukkervarer (46.360)"
+    },
+    {
+      "value": "46.410",
+      "label": "Engroshandel med tekstiler og utstyrsvarer (46.410)"
+    },
+    {
+      "value": "46.350",
+      "label": "Engroshandel med tobakksvarer (46.350)"
+    },
+    {
+      "value": "46.830",
+      "label": "Engroshandel med tømmer, trelast, byggevarer og sanitærutstyr (46.830)"
+    },
+    {
+      "value": "59.120",
+      "label": "Etterarbeid knyttet til produksjon av film, video og fjernsynsprogrammer (59.120)"
+    },
+    {
+      "value": "13.300",
+      "label": "Etterbehandling av tekstiler (13.300)"
+    },
+    {
+      "value": "16.270",
+      "label": "Etterbehandling av treprodukter (16.270)"
+    },
+    {
+      "value": "01.630",
+      "label": "Etterbehandling av vekster etter innhøsting og behandling av såfrø (01.630)"
+    },
+    {
+      "value": "80",
+      "label": "Etterforsknings- og vakttjenester (80)"
+    },
+    {
+      "value": "80.010",
+      "label": "Etterforskningstjenester og private vakttjenester (80.010)"
+    },
+    {
+      "value": "88.992",
+      "label": "Familieverntjenester (88.992)"
+    },
+    {
+      "value": "18.130",
+      "label": "Ferdiggjøring før trykking og publisering (18.130)"
+    },
+    {
+      "value": "59",
+      "label": "Film-, video- og fjernsynsprogramproduksjon, utgivelse av musikk- og lydopptak (59)"
+    },
+    {
+      "value": "59.140",
+      "label": "Filmfremvisning (59.140)"
+    },
+    {
+      "value": "64.910",
+      "label": "Finansiell leasing (64.910)"
+    },
+    {
+      "value": "64",
+      "label": "Finansieringsvirksomhet og kollektive investeringsfond (64)"
+    },
+    {
+      "value": "64.321",
+      "label": "Finansstiftelser (64.321)"
+    },
+    {
+      "value": "03.120",
+      "label": "Fiske og fangst i ferskvann (03.120)"
+    },
+    {
+      "value": "03.110",
+      "label": "Fiske og fangst i sjø (03.110)"
+    },
+    {
+      "value": "03",
+      "label": "Fiske, fangst og akvakultur (03)"
+    },
+    {
+      "value": "60.200",
+      "label": "Fjernsynsprogramvirksomhet, kringkasting og distribuering av audiovisuelle medier (60.200)"
+    },
+    {
+      "value": "49.420",
+      "label": "Flyttetransport (49.420)"
+    },
+    {
+      "value": "66.300",
+      "label": "Fondsforvaltningsvirksomhet (66.300)"
+    },
+    {
+      "value": "38.310",
+      "label": "Forbrenning av avfall uten energigjenvinning (38.310)"
+    },
+    {
+      "value": "86.992",
+      "label": "Forebyggende helsearbeid (86.992)"
+    },
+    {
+      "value": "43.600",
+      "label": "Formidlingstjenester innenfor spesialisert bygge- og anleggsvirksomhet (43.600)"
+    },
+    {
+      "value": "47.910",
+      "label": "Formidlingstjenester tilknyttet detaljhandel med bredt vareutvalg (47.910)"
+    },
+    {
+      "value": "47.920",
+      "label": "Formidlingstjenester tilknyttet detaljhandel med spesialisert vareutvalg (47.920)"
+    },
+    {
+      "value": "82.400",
+      "label": "Formidlingstjenester tilknyttet forretningsmessig tjenesteyting ikke nevnt annet sted (82.400)"
+    },
+    {
+      "value": "52.312",
+      "label": "Formidlingstjenester tilknyttet godstransport via jernbane, luftfartøy eller på vei (52.312)"
+    },
+    {
+      "value": "52.311",
+      "label": "Formidlingstjenester tilknyttet godstransport via skip (52.311)"
+    },
+    {
+      "value": "85.610",
+      "label": "Formidlingstjenester tilknyttet kurs og veiledere (85.610)"
+    },
+    {
+      "value": "86.970",
+      "label": "Formidlingstjenester tilknyttet lege-, tannlegetjenester og andre helsetjenester (86.970)"
+    },
+    {
+      "value": "87.910",
+      "label": "Formidlingstjenester tilknyttet omsorgstjenester i botilbud (87.910)"
+    },
+    {
+      "value": "55.400",
+      "label": "Formidlingstjenester tilknyttet overnattingsvirksomhet (55.400)"
+    },
+    {
+      "value": "52.320",
+      "label": "Formidlingstjenester tilknyttet passasjertransport (52.320)"
+    },
+    {
+      "value": "96.400",
+      "label": "Formidlingstjenester tilknyttet personlig tjenesteyting (96.400)"
+    },
+    {
+      "value": "53.300",
+      "label": "Formidlingstjenester tilknyttet post- og budtjenester (53.300)"
+    },
+    {
+      "value": "95.400",
+      "label": "Formidlingstjenester tilknyttet reparasjon og vedlikehold av datamaskiner, husholdningsvarer og varer til personlig bruk, og motorvogner og motorsykler (95.400)"
+    },
+    {
+      "value": "56.400",
+      "label": "Formidlingstjenester tilknyttet serveringsvirksomhet (56.400)"
+    },
+    {
+      "value": "77.520",
+      "label": "Formidlingstjenester tilknyttet utleie og leasing av andre materielle varer og immateriell eiendom og lignende produkter (77.520)"
+    },
+    {
+      "value": "77.510",
+      "label": "Formidlingstjenester tilknyttet utleie og leasing av biler, campingbiler og tilhengere (77.510)"
+    },
+    {
+      "value": "66.220",
+      "label": "Forsikringsformidling (66.220)"
+    },
+    {
+      "value": "65",
+      "label": "Forsikringsvirksomhet, unntatt trygdeordninger underlagt offentlig forvaltning (65)"
+    },
+    {
+      "value": "72",
+      "label": "Forskning og eksperimentell utvikling (72)"
+    },
+    {
+      "value": "72.100",
+      "label": "Forskning og eksperimentell utvikling innenfor naturvitenskap og teknikk (72.100)"
+    },
+    {
+      "value": "72.200",
+      "label": "Forskning og eksperimentell utvikling innenfor samfunnsvitenskap og humanistiske fag (72.200)"
+    },
+    {
+      "value": "84.220",
+      "label": "Forsvarsaktiviteter (84.220)"
+    },
+    {
+      "value": "35",
+      "label": "Forsyning av elektrisitet, gass, damp og kjøleluft (35)"
+    },
+    {
+      "value": "50.203",
+      "label": "Forsyning for offshore (50.203)"
+    },
+    {
+      "value": "74.200",
+      "label": "Fotografvirksomhet (74.200)"
+    },
+    {
+      "value": "96.210",
+      "label": "Frisering og barbering (96.210)"
+    },
+    {
+      "value": "93.292",
+      "label": "Fritidsvirksomhet ellers (93.292)"
+    },
+    {
+      "value": "10.203",
+      "label": "Frysing og videre bearbeiding av fisk, skalldyr og bløtdyr (10.203)"
+    },
+    {
+      "value": "86.950",
+      "label": "Fysioterapi- og ergoterapitjenester (86.950)"
+    },
+    {
+      "value": "85.100",
+      "label": "Førskoleundervisning og drift av barnehager (85.100)"
+    },
+    {
+      "value": "01.452",
+      "label": "Geitehold (01.452)"
+    },
+    {
+      "value": "84.110",
+      "label": "Generell offentlig administrasjon (84.110)"
+    },
+    {
+      "value": "71.122",
+      "label": "Geologiske undersøkelser (71.122)"
+    },
+    {
+      "value": "65.200",
+      "label": "Gjenforsikring (65.200)"
+    },
+    {
+      "value": "49.200",
+      "label": "Godstransport med jernbane (49.200)"
+    },
+    {
+      "value": "50.400",
+      "label": "Godstransport på elver og innsjøer (50.400)"
+    },
+    {
+      "value": "49.410",
+      "label": "Godstransport på vei (49.410)"
+    },
+    {
+      "value": "74.120",
+      "label": "Grafisk design og visuell kommunikasjonsdesign (74.120)"
+    },
+    {
+      "value": "43.120",
+      "label": "Grunnarbeid (43.120)"
+    },
+    {
+      "value": "79.902",
+      "label": "Guide- og reiseledervirksomhet (79.902)"
+    },
+    {
+      "value": "43.330",
+      "label": "Gulvlegging og tapetsering (43.330)"
+    },
+    {
+      "value": "35.150",
+      "label": "Handel med elektrisitet (35.150)"
+    },
+    {
+      "value": "35.230",
+      "label": "Handel med gass gjennom ledningsnett (35.230)"
+    },
+    {
+      "value": "87.106",
+      "label": "Helse- og omsorgstjenester i bofellesskap, samlokaliserte omsorgsboliger og lignende (87.106)"
+    },
+    {
+      "value": "87",
+      "label": "Helse- og omsorgstjenester i institusjoner og andre botilbud (87)"
+    },
+    {
+      "value": "86.942",
+      "label": "Helsestasjons- og skolehelsetjenester (86.942)"
+    },
+    {
+      "value": "86",
+      "label": "Helsetjenester (86)"
+    },
+    {
+      "value": "01.430",
+      "label": "Hestehold (01.430)"
+    },
+    {
+      "value": "23.700",
+      "label": "Hogging og bearbeiding av monument- og bygningsstein (23.700)"
+    },
+    {
+      "value": "01.471",
+      "label": "Hold av verpehøner for konsumeggproduksjon (01.471)"
+    },
+    {
+      "value": "64.210",
+      "label": "Holdingforetak i finanskonsern (64.210)"
+    },
+    {
+      "value": "70.100",
+      "label": "Hovedkontortjenester (70.100)"
+    },
+    {
+      "value": "70",
+      "label": "Hovedkontortjenester og administrativ rådgivning (70)"
+    },
+    {
+      "value": "01.489",
+      "label": "Husdyrhold ikke nevnt annet sted (01.489)"
+    },
+    {
+      "value": "74.110",
+      "label": "Industri-, produkt- og motedesignvirksomhet (74.110)"
+    },
+    {
+      "value": "82.910",
+      "label": "Inkasso- og kredittopplysningsvirksomhet (82.910)"
+    },
+    {
+      "value": "50.102",
+      "label": "Innenriks kystruter med passasjerer (50.102)"
+    },
+    {
+      "value": "50.202",
+      "label": "Innenriks sjøfart med gods (50.202)"
+    },
+    {
+      "value": "38.120",
+      "label": "Innsamling av farlig avfall (38.120)"
+    },
+    {
+      "value": "38.110",
+      "label": "Innsamling av ikke-farlig avfall (38.110)"
+    },
+    {
+      "value": "02.300",
+      "label": "Innsamling av viltvoksende produkter av annet enn tre (02.300)"
+    },
+    {
+      "value": "38",
+      "label": "Innsamling, gjenvinning og behandling av avfall (38)"
+    },
+    {
+      "value": "33.200",
+      "label": "Installasjon av industrimaskiner og -utstyr (33.200)"
+    },
+    {
+      "value": "43.230",
+      "label": "Installasjon av isoleringsmateriale (43.230)"
+    },
+    {
+      "value": "74.130",
+      "label": "Interiørdesignvirksomhet (74.130)"
+    },
+    {
+      "value": "01.700",
+      "label": "Jakt, fangst, viltstell og tilknyttede tjenester (01.700)"
+    },
+    {
+      "value": "01",
+      "label": "Jordbruk og tjenester tilknyttet jordbruk, jakt og viltstell (01)"
+    },
+    {
+      "value": "69",
+      "label": "Juridisk og regnskapsmessig tjenesteyting (69)"
+    },
+    {
+      "value": "69.100",
+      "label": "Juridisk tjenesteyting (69.100)"
+    },
+    {
+      "value": "61.100",
+      "label": "Kabelbasert, satellittbasert og trådløs telekommunikasjon (61.100)"
+    },
+    {
+      "value": "24.310",
+      "label": "Kaldtrekking av stenger og profiler (24.310)"
+    },
+    {
+      "value": "24.340",
+      "label": "Kaldtrekking av tråd (24.340)"
+    },
+    {
+      "value": "24.320",
+      "label": "Kaldvalsing av bånd (24.320)"
+    },
+    {
+      "value": "24.330",
+      "label": "Kaldvalsing og pressing av profilerte plater og profiler (24.330)"
+    },
+    {
+      "value": "56.220",
+      "label": "Kantinedrift og annen cateringvirksomhet (56.220)"
+    },
+    {
+      "value": "68.110",
+      "label": "Kjøp og salg av egen fast eiendom (68.110)"
+    },
+    {
+      "value": "01.500",
+      "label": "Kombinert husdyrhold og planteproduksjon (01.500)"
+    },
+    {
+      "value": "81.100",
+      "label": "Kombinerte tjenester tilknyttet eiendomsdrift (81.100)"
+    },
+    {
+      "value": "82.300",
+      "label": "Kongress-, messe- og utstillingsvirksomhet (82.300)"
+    },
+    {
+      "value": "91.300",
+      "label": "Konservering, restaurering og andre tjenester tilknyttet kulturarv (91.300)"
+    },
+    {
+      "value": "62.200",
+      "label": "Konsulentvirksomhet tilknyttet informasjonsteknologi og forvaltning og drift av IT-systemer (62.200)"
+    },
+    {
+      "value": "82.100",
+      "label": "Kontortjenester (82.100)"
+    },
+    {
+      "value": "43.222",
+      "label": "Kuldeanlegg-, varmepumpearbeid og installasjon av peiser (43.222)"
+    },
+    {
+      "value": "85.521",
+      "label": "Kulturskoleundervisning til barn og unge (85.521)"
+    },
+    {
+      "value": "90",
+      "label": "Kunstnerisk virksomhet og underholdningsvirksomhet (90)"
+    },
+    {
+      "value": "50.109",
+      "label": "Kysttrafikk med passasjerer ikke nevnt annet sted (50.109)"
+    },
+    {
+      "value": "52.100",
+      "label": "Lagring (52.100)"
+    },
+    {
+      "value": "35.160",
+      "label": "Lagring av elektrisitet (35.160)"
+    },
+    {
+      "value": "35.240",
+      "label": "Lagring av gass som del av distribusjonstjenester (35.240)"
+    },
+    {
+      "value": "52",
+      "label": "Lagring og andre tjenester tilknyttet transport (52)"
+    },
+    {
+      "value": "53.100",
+      "label": "Landsdekkende posttjenester (53.100)"
+    },
+    {
+      "value": "49",
+      "label": "Landtransport og rørtransport (49)"
+    },
+    {
+      "value": "52.240",
+      "label": "Lasting og lossing (52.240)"
+    },
+    {
+      "value": "77.400",
+      "label": "Leasing av immateriell eiendom og lignende produkter, unntatt opphavsrettsbeskyttede verker (77.400)"
+    },
+    {
+      "value": "65.110",
+      "label": "Livsforsikring (65.110)"
+    },
+    {
+      "value": "52.250",
+      "label": "Logistikktjenester (52.250)"
+    },
+    {
+      "value": "92",
+      "label": "Lotteri- og gamblingvirksomhet (92)"
+    },
+    {
+      "value": "92.000",
+      "label": "Lotteri- og gamblingvirksomhet (92.000)"
+    },
+    {
+      "value": "86.922",
+      "label": "Luftambulansetransport med fly eller helikopter (86.922)"
+    },
+    {
+      "value": "51",
+      "label": "Lufttransport (51)"
+    },
+    {
+      "value": "51.210",
+      "label": "Lufttransport med gods (51.210)"
+    },
+    {
+      "value": "51.100",
+      "label": "Lufttransport med passasjerer (51.100)"
+    },
+    {
+      "value": "97",
+      "label": "Lønnet arbeid i private husholdninger (97)"
+    },
+    {
+      "value": "97.002",
+      "label": "Lønnet arbeid i private husholdninger ellers (97.002)"
+    },
+    {
+      "value": "43.340",
+      "label": "Maler- og glassarbeid (43.340)"
+    },
+    {
+      "value": "73.200",
+      "label": "Markeds- og opinionsundersøkelser (73.200)"
+    },
+    {
+      "value": "38.210",
+      "label": "Materialgjenvinning (38.210)"
+    },
+    {
+      "value": "73.120",
+      "label": "Medieformidlingstjenester (73.120)"
+    },
+    {
+      "value": "86.910",
+      "label": "Medisinske laboratorietjenester og bildediagnostikk (86.910)"
+    },
+    {
+      "value": "01.410",
+      "label": "Melkeproduksjon på storfe og oppdrett av melkekyr (01.410)"
+    },
+    {
+      "value": "39",
+      "label": "Miljøutbedring, opprydding og lignende aktivitet (39)"
+    },
+    {
+      "value": "39.000",
+      "label": "Miljøutbedring, opprydding og lignende aktivitet (39.000)"
+    },
+    {
+      "value": "43.910",
+      "label": "Murerarbeid (43.910)"
+    },
+    {
+      "value": "60.310",
+      "label": "Nyhetsbyråvirksomhet (60.310)"
+    },
+    {
+      "value": "84",
+      "label": "Offentlig administrasjon og forsvar, og trygdeordninger underlagt offentlig forvaltning (84)"
+    },
+    {
+      "value": "84.120",
+      "label": "Offentlig administrasjon tilknyttet helsestell, undervisning, kultur og annen sosial virksomhet (84.120)"
+    },
+    {
+      "value": "84.130",
+      "label": "Offentlig administrasjon tilknyttet næringsvirksomhet og arbeidsmarked (84.130)"
+    },
+    {
+      "value": "88",
+      "label": "Omsorgs- og sosialtjenester uten botilbud (88)"
+    },
+    {
+      "value": "87.300",
+      "label": "Omsorgstjenester i botilbud for eldre eller personer med fysisk funksjonsnedsettelse (87.300)"
+    },
+    {
+      "value": "87.201",
+      "label": "Omsorgstjenester i botilbud for personer med psykiske helseproblemer og/eller rusmiddelproblemer (87.201)"
+    },
+    {
+      "value": "87.202",
+      "label": "Omsorgstjenester i botilbud for personer med utviklingshemming eller med tilsvarende funksjonsnedsettelse (87.202)"
+    },
+    {
+      "value": "01.420",
+      "label": "Oppdrett av annet storfe til kjøttproduksjon og sædproduksjon (01.420)"
+    },
+    {
+      "value": "01.440",
+      "label": "Oppdrett av kameler og andre kameldyr (01.440)"
+    },
+    {
+      "value": "41",
+      "label": "Oppføring av bygninger (41)"
+    },
+    {
+      "value": "41.000",
+      "label": "Oppføring av bygninger (41.000)"
+    },
+    {
+      "value": "93.291",
+      "label": "Opplevelsesaktiviteter (93.291)"
+    },
+    {
+      "value": "37",
+      "label": "Oppsamling og behandling av avløpsvann (37)"
+    },
+    {
+      "value": "37.000",
+      "label": "Oppsamling og behandling av avløpsvann (37.000)"
+    },
+    {
+      "value": "85.201",
+      "label": "Ordinær grunnskoleundervisning (85.201)"
+    },
+    {
+      "value": "86.991",
+      "label": "Ortopedi- og fotterapitjenester (86.991)"
+    },
+    {
+      "value": "25.510",
+      "label": "Overflatebehandling av metaller (25.510)"
+    },
+    {
+      "value": "35.130",
+      "label": "Overføring av elektrisitet (35.130)"
+    },
+    {
+      "value": "55",
+      "label": "Overnattingsvirksomhet (55)"
+    },
+    {
+      "value": "74.300",
+      "label": "Oversettelses- og tolkevirksomhet (74.300)"
+    },
+    {
+      "value": "82.920",
+      "label": "Pakkevirksomhet (82.920)"
+    },
+    {
+      "value": "49.110",
+      "label": "Passasjertransport med jernbane (49.110)"
+    },
+    {
+      "value": "49.340",
+      "label": "Passasjertransport med kabelbaner og skiheiser (49.340)"
+    },
+    {
+      "value": "49.310",
+      "label": "Passasjertransport med rutebil (49.310)"
+    },
+    {
+      "value": "49.120",
+      "label": "Passasjertransport med sporvei (49.120)"
+    },
+    {
+      "value": "50.300",
+      "label": "Passasjertransport på elver og innsjøer (50.300)"
+    },
+    {
+      "value": "49.330",
+      "label": "Passasjertransport på forespørsel utført av fører med kjøretøy (49.330)"
+    },
+    {
+      "value": "49.320",
+      "label": "Passasjertransport utenom rutetabell (49.320)"
+    },
+    {
+      "value": "74.910",
+      "label": "Patentmeglervirksomhet og markedsføringstjenester (74.910)"
+    },
+    {
+      "value": "85.691",
+      "label": "Pedagogisk-psykologisk rådgivningstjeneste (85.691)"
+    },
+    {
+      "value": "65.300",
+      "label": "Pensjonskasser (65.300)"
+    },
+    {
+      "value": "96",
+      "label": "Personlig tjenesteyting (96)"
+    },
+    {
+      "value": "96.910",
+      "label": "Personlig tjenesteyting i husholdninger (96.910)"
+    },
+    {
+      "value": "01.300",
+      "label": "Planteformering (01.300)"
+    },
+    {
+      "value": "53",
+      "label": "Post- og budtjenester (53)"
+    },
+    {
+      "value": "73.300",
+      "label": "PR og kommunikasjonstjenester (73.300)"
+    },
+    {
+      "value": "88.101",
+      "label": "Praktisk bistand i hjemmet (88.101)"
+    },
+    {
+      "value": "32.110",
+      "label": "Preging av mynter (32.110)"
+    },
+    {
+      "value": "85.594",
+      "label": "Privatundervisning (85.594)"
+    },
+    {
+      "value": "24.420",
+      "label": "Produksjon av aluminium (24.420)"
+    },
+    {
+      "value": "16.230",
+      "label": "Produksjon av andre bygningsartikler (16.230)"
+    },
+    {
+      "value": "29.320",
+      "label": "Produksjon av andre deler og annet utstyr til motorvogner (29.320)"
+    },
+    {
+      "value": "27.320",
+      "label": "Produksjon av andre elektroniske og elektriske ledninger og kabler (27.320)"
+    },
+    {
+      "value": "11.040",
+      "label": "Produksjon av andre ikke-destillerte gjærede drikkevarer (11.040)"
+    },
+    {
+      "value": "23",
+      "label": "Produksjon av andre ikke-metalliske mineralprodukter (23)"
+    },
+    {
+      "value": "23.990",
+      "label": "Produksjon av andre ikke-metalliske mineralprodukter ikke nevnt annet sted (23.990)"
+    },
+    {
+      "value": "23.450",
+      "label": "Produksjon av andre keramiske produkter (23.450)"
+    },
+    {
+      "value": "23.440",
+      "label": "Produksjon av andre keramiske produkter for teknisk bruk (23.440)"
+    },
+    {
+      "value": "20.590",
+      "label": "Produksjon av andre kjemiske produkter ikke nevnt annet sted (20.590)"
+    },
+    {
+      "value": "25.990",
+      "label": "Produksjon av andre metallvarer ikke nevnt annet sted (25.990)"
+    },
+    {
+      "value": "20.140",
+      "label": "Produksjon av andre organiske kjemiske råvarer (20.140)"
+    },
+    {
+      "value": "28.990",
+      "label": "Produksjon av andre spesialmaskiner ikke nevnt annet sted (28.990)"
+    },
+    {
+      "value": "25.220",
+      "label": "Produksjon av andre tanker, cisterner og beholdere av metall (25.220)"
+    },
+    {
+      "value": "30",
+      "label": "Produksjon av andre transportmidler (30)"
+    },
+    {
+      "value": "30.990",
+      "label": "Produksjon av andre transportmidler ikke nevnt annet sted (30.990)"
+    },
+    {
+      "value": "16.280",
+      "label": "Produksjon av andre trevarer og varer av kork, strå og flettematerialer (16.280)"
+    },
+    {
+      "value": "20.130",
+      "label": "Produksjon av andre uorganiske kjemiske råvarer (20.130)"
+    },
+    {
+      "value": "27.900",
+      "label": "Produksjon av annet elektrisk utstyr (27.900)"
+    },
+    {
+      "value": "14.230",
+      "label": "Produksjon av arbeidstøy (14.230)"
+    },
+    {
+      "value": "20.160",
+      "label": "Produksjon av basisplast (20.160)"
+    },
+    {
+      "value": "27.200",
+      "label": "Produksjon av batterier og akkumulatorer (27.200)"
+    },
+    {
+      "value": "27.400",
+      "label": "Produksjon av belysningsutstyr (27.400)"
+    },
+    {
+      "value": "23.660",
+      "label": "Produksjon av betong-, sement- og gipsprodukter ellers (23.660)"
+    },
+    {
+      "value": "23.610",
+      "label": "Produksjon av betongprodukter for bygge- og anleggsvirksomhet (23.610)"
+    },
+    {
+      "value": "32.130",
+      "label": "Produksjon av bijouteri og lignende artikler (32.130)"
+    },
+    {
+      "value": "24.430",
+      "label": "Produksjon av bly, sink og tinn (24.430)"
+    },
+    {
+      "value": "25.940",
+      "label": "Produksjon av bolter og skruer (25.940)"
+    },
+    {
+      "value": "10.710",
+      "label": "Produksjon av brød og ferske konditorvarer (10.710)"
+    },
+    {
+      "value": "22.240",
+      "label": "Produksjon av byggevarer av plast (22.240)"
+    },
+    {
+      "value": "17.210",
+      "label": "Produksjon av bølgepapp, papp og emballasje av papir og papp (17.210)"
+    },
+    {
+      "value": "26",
+      "label": "Produksjon av datamaskiner og elektroniske og optiske produkter (26)"
+    },
+    {
+      "value": "26.200",
+      "label": "Produksjon av datamaskiner og tilleggsutstyr (26.200)"
+    },
+    {
+      "value": "11",
+      "label": "Produksjon av drikkevarer (11)"
+    },
+    {
+      "value": "25.120",
+      "label": "Produksjon av dører og vinduer av metall (25.120)"
+    },
+    {
+      "value": "22.230",
+      "label": "Produksjon av dører og vinduer av plast (22.230)"
+    },
+    {
+      "value": "16.250",
+      "label": "Produksjon av dører og vinduer i tre (16.250)"
+    },
+    {
+      "value": "24.410",
+      "label": "Produksjon av edelmetaller (24.410)"
+    },
+    {
+      "value": "35.129",
+      "label": "Produksjon av elektrisitet fra fornybare kilder ikke nevnt annet sted (35.129)"
+    },
+    {
+      "value": "35.110",
+      "label": "Produksjon av elektrisitet fra ikke-fornybare kilder (35.110)"
+    },
+    {
+      "value": "35.123",
+      "label": "Produksjon av elektrisitet fra solenergi (35.123)"
+    },
+    {
+      "value": "35.121",
+      "label": "Produksjon av elektrisitet fra vannkraft (35.121)"
+    },
+    {
+      "value": "35.122",
+      "label": "Produksjon av elektrisitet fra vindkraft (35.122)"
+    },
+    {
+      "value": "29.310",
+      "label": "Produksjon av elektrisk og elektronisk utstyr til motorvogner (29.310)"
+    },
+    {
+      "value": "27",
+      "label": "Produksjon av elektrisk utstyr (27)"
+    },
+    {
+      "value": "27.120",
+      "label": "Produksjon av elektriske fordelings- og kontrolltavler og paneler (27.120)"
+    },
+    {
+      "value": "27.510",
+      "label": "Produksjon av elektriske husholdningsmaskiner og -apparater (27.510)"
+    },
+    {
+      "value": "27.110",
+      "label": "Produksjon av elektromotorer, generatorer og transformatorer (27.110)"
+    },
+    {
+      "value": "26.400",
+      "label": "Produksjon av elektronikk til husholdningsbruk (26.400)"
+    },
+    {
+      "value": "26.110",
+      "label": "Produksjon av elektroniske komponenter (26.110)"
+    },
+    {
+      "value": "25.920",
+      "label": "Produksjon av emballasje av lettmetall (25.920)"
+    },
+    {
+      "value": "23.130",
+      "label": "Produksjon av emballasje og husholdningsartikler av glass og krystall (23.130)"
+    },
+    {
+      "value": "20.120",
+      "label": "Produksjon av fargestoffer og pigmenter (20.120)"
+    },
+    {
+      "value": "21.200",
+      "label": "Produksjon av farmasøytiske preparater (21.200)"
+    },
+    {
+      "value": "21.100",
+      "label": "Produksjon av farmasøytiske råvarer (21.100)"
+    },
+    {
+      "value": "21",
+      "label": "Produksjon av farmasøytiske råvarer og preparater (21)"
+    },
+    {
+      "value": "16.260",
+      "label": "Produksjon av fast brensel av vegetabilsk biomasse (16.260)"
+    },
+    {
+      "value": "23.630",
+      "label": "Produksjon av ferdigblandet betong (23.630)"
+    },
+    {
+      "value": "10.850",
+      "label": "Produksjon av ferdigmat (10.850)"
+    },
+    {
+      "value": "23.650",
+      "label": "Produksjon av fibersement (23.650)"
+    },
+    {
+      "value": "59.110",
+      "label": "Produksjon av film, video og fjernsynsprogrammer (59.110)"
+    },
+    {
+      "value": "16.210",
+      "label": "Produksjon av finerplater og andre bygnings- og møbelplater av tre (16.210)"
+    },
+    {
+      "value": "03.221",
+      "label": "Produksjon av fisk, bløtdyr, krepsdyr og andre dyr som lever i ferskvann (03.221)"
+    },
+    {
+      "value": "03.211",
+      "label": "Produksjon av fisk, bløtdyr, krepsdyr og pigghuder i sjø og brakkvann (03.211)"
+    },
+    {
+      "value": "20.510",
+      "label": "Produksjon av flytende biobrensel (20.510)"
+    },
+    {
+      "value": "10.912",
+      "label": "Produksjon av fôrvarer for akvakultur (10.912)"
+    },
+    {
+      "value": "10.911",
+      "label": "Produksjon av fôrvarer for husdyr i landbruk (10.911)"
+    },
+    {
+      "value": "10.920",
+      "label": "Produksjon av fôrvarer til kjæledyr (10.920)"
+    },
+    {
+      "value": "35.210",
+      "label": "Produksjon av gass (35.210)"
+    },
+    {
+      "value": "23.620",
+      "label": "Produksjon av gipsprodukter for bygge- og anleggsvirksomhet (23.620)"
+    },
+    {
+      "value": "20.150",
+      "label": "Produksjon av gjødsel og nitrogenforbindelser (20.150)"
+    },
+    {
+      "value": "23.140",
+      "label": "Produksjon av glassfibre (23.140)"
+    },
+    {
+      "value": "13.930",
+      "label": "Produksjon av gulvtepper, -matter og -ryer (13.930)"
+    },
+    {
+      "value": "22",
+      "label": "Produksjon av gummi- og plastprodukter (22)"
+    },
+    {
+      "value": "22.110",
+      "label": "Produksjon av gummidekk og slanger til gummidekk, og regummiering og mønsterskjæring av gummidekk (22.110)"
+    },
+    {
+      "value": "22.120",
+      "label": "Produksjon av gummiprodukter ellers (22.120)"
+    },
+    {
+      "value": "10.860",
+      "label": "Produksjon av homogeniserte matprodukter og diettmat (10.860)"
+    },
+    {
+      "value": "17.220",
+      "label": "Produksjon av husholdnings-, sanitær- og toalettartikler (17.220)"
+    },
+    {
+      "value": "13.920",
+      "label": "Produksjon av husholdningstekstiler og innredningsvarer i stoff klare til bruk (13.920)"
+    },
+    {
+      "value": "25.630",
+      "label": "Produksjon av håndverktøy (25.630)"
+    },
+    {
+      "value": "27.520",
+      "label": "Produksjon av ikke-elektriske husholdningsmaskiner og -apparater (27.520)"
+    },
+    {
+      "value": "24.450",
+      "label": "Produksjon av ikke-jernholdige metaller ellers (24.450)"
+    },
+    {
+      "value": "13.950",
+      "label": "Produksjon av ikke-vevde tekstiler og tekstilvarer (13.950)"
+    },
+    {
+      "value": "23.200",
+      "label": "Produksjon av ildfaste produkter (23.200)"
+    },
+    {
+      "value": "20.110",
+      "label": "Produksjon av industrigasser (20.110)"
+    },
+    {
+      "value": "10.520",
+      "label": "Produksjon av iskrem og andre spiselige isprodukter (10.520)"
+    },
+    {
+      "value": "23.430",
+      "label": "Produksjon av isolatorer og isoleringsdeler av keramisk materiale (23.430)"
+    },
+    {
+      "value": "24.100",
+      "label": "Produksjon av jern og stål, samt ferrolegeringer (24.100)"
+    },
+    {
+      "value": "28.300",
+      "label": "Produksjon av jordbruks- og skogbruksmaskiner (28.300)"
+    },
+    {
+      "value": "10.320",
+      "label": "Produksjon av juice av frukt og grønnsaker (10.320)"
+    },
+    {
+      "value": "10.820",
+      "label": "Produksjon av kakao, sjokolade og sukkervarer (10.820)"
+    },
+    {
+      "value": "23.520",
+      "label": "Produksjon av kalk og gips (23.520)"
+    },
+    {
+      "value": "29.200",
+      "label": "Produksjon av karosserier og tilhengere (29.200)"
+    },
+    {
+      "value": "10.720",
+      "label": "Produksjon av kavringer, kjeks og konserverte konditorvarer (10.720)"
+    },
+    {
+      "value": "23.410",
+      "label": "Produksjon av keramiske husholdningsartikler og dekorasjonsgjenstander (23.410)"
+    },
+    {
+      "value": "23.310",
+      "label": "Produksjon av keramiske vegg- og gulvfliser (23.310)"
+    },
+    {
+      "value": "20",
+      "label": "Produksjon av kjemikalier og kjemiske produkter (20)"
+    },
+    {
+      "value": "24.460",
+      "label": "Produksjon av kjernebrensel (24.460)"
+    },
+    {
+      "value": "25.610",
+      "label": "Produksjon av kjøkkenredskaper (25.610)"
+    },
+    {
+      "value": "28.250",
+      "label": "Produksjon av kjøle- og ventilasjonsanlegg, unntatt til husholdningsbruk (28.250)"
+    },
+    {
+      "value": "10.130",
+      "label": "Produksjon av kjøtt- og fjørfevarer (10.130)"
+    },
+    {
+      "value": "26.520",
+      "label": "Produksjon av klokker og ur (26.520)"
+    },
+    {
+      "value": "14",
+      "label": "Produksjon av klær (14)"
+    },
+    {
+      "value": "14.240",
+      "label": "Produksjon av klær av lær og pelsvarer (14.240)"
+    },
+    {
+      "value": "14.100",
+      "label": "Produksjon av klær av trikotasje og heklede klær (14.100)"
+    },
+    {
+      "value": "14.290",
+      "label": "Produksjon av klær og tilbehør ikke nevnt annet sted (14.290)"
+    },
+    {
+      "value": "24.440",
+      "label": "Produksjon av kobber (24.440)"
+    },
+    {
+      "value": "26.300",
+      "label": "Produksjon av kommunikasjonsutstyr (26.300)"
+    },
+    {
+      "value": "28.120",
+      "label": "Produksjon av komponenter til hydraulisk og pneumatisk utstyr (28.120)"
+    },
+    {
+      "value": "17.230",
+      "label": "Produksjon av kontorartikler av papir (17.230)"
+    },
+    {
+      "value": "28.230",
+      "label": "Produksjon av kontormaskiner og utstyr, unntatt datamaskiner og tilleggsutstyr (28.230)"
+    },
+    {
+      "value": "10.610",
+      "label": "Produksjon av kornvarer (10.610)"
+    },
+    {
+      "value": "32.910",
+      "label": "Produksjon av koster og børster (32.910)"
+    },
+    {
+      "value": "28.140",
+      "label": "Produksjon av kraner og ventiler ellers (28.140)"
+    },
+    {
+      "value": "26.120",
+      "label": "Produksjon av kretskort (26.120)"
+    },
+    {
+      "value": "19.100",
+      "label": "Produksjon av kullprodukter (19.100)"
+    },
+    {
+      "value": "19",
+      "label": "Produksjon av kullprodukter og raffinerte petroleumsprodukter (19)"
+    },
+    {
+      "value": "20.600",
+      "label": "Produksjon av kunstfibre (20.600)"
+    },
+    {
+      "value": "28.150",
+      "label": "Produksjon av lagre, gir, tannhjulsutvekslinger og andre innretninger for kraftoverføring (28.150)"
+    },
+    {
+      "value": "27.330",
+      "label": "Produksjon av ledningsmateriell (27.330)"
+    },
+    {
+      "value": "11.070",
+      "label": "Produksjon av leskedrikker og flaskevann (11.070)"
+    },
+    {
+      "value": "30.200",
+      "label": "Produksjon av lokomotiver og annet rullende materiell til jernbane og sporvei (30.200)"
+    },
+    {
+      "value": "15",
+      "label": "Produksjon av lær og andre relaterte produkter (15)"
+    },
+    {
+      "value": "28.220",
+      "label": "Produksjon av løfte- og håndteringsutstyr (28.220)"
+    },
+    {
+      "value": "25.620",
+      "label": "Produksjon av låser og beslag (25.620)"
+    },
+    {
+      "value": "20.300",
+      "label": "Produksjon av maling, lakk og lignende ytterbelegg, trykkfarger og tetningsmidler (20.300)"
+    },
+    {
+      "value": "11.060",
+      "label": "Produksjon av malt (11.060)"
+    },
+    {
+      "value": "10.420",
+      "label": "Produksjon av margarin og lignende spiselige fettstoffer (10.420)"
+    },
+    {
+      "value": "28.410",
+      "label": "Produksjon av maskiner og maskinverktøy til metallbearbeiding (28.410)"
+    },
+    {
+      "value": "28",
+      "label": "Produksjon av maskiner og utstyr ikke nevnt annet sted (28)"
+    },
+    {
+      "value": "28.970",
+      "label": "Produksjon av maskiner og utstyr til additiv tilvirkning (28.970)"
+    },
+    {
+      "value": "28.920",
+      "label": "Produksjon av maskiner og utstyr til bergverksdrift og bygge- og anleggsvirksomhet (28.920)"
+    },
+    {
+      "value": "28.290",
+      "label": "Produksjon av maskiner og utstyr til generell bruk ikke nevnt annet sted (28.290)"
+    },
+    {
+      "value": "28.910",
+      "label": "Produksjon av maskiner og utstyr til metallurgisk industri (28.910)"
+    },
+    {
+      "value": "28.930",
+      "label": "Produksjon av maskiner og utstyr til nærings-, nytelsesmiddel-, drikke- og tobakksindustri (28.930)"
+    },
+    {
+      "value": "28.950",
+      "label": "Produksjon av maskiner og utstyr til papir- og pappvareindustri (28.950)"
+    },
+    {
+      "value": "28.960",
+      "label": "Produksjon av maskiner og utstyr til plast- og gummiindustri (28.960)"
+    },
+    {
+      "value": "28.940",
+      "label": "Produksjon av maskiner og utstyr til tekstil-, konfeksjons- og lærvareindustri (28.940)"
+    },
+    {
+      "value": "28.420",
+      "label": "Produksjon av maskinverktøy ellers (28.420)"
+    },
+    {
+      "value": "32.500",
+      "label": "Produksjon av medisinske og tanntekniske instrumenter og utstyr (32.500)"
+    },
+    {
+      "value": "10.510",
+      "label": "Produksjon av meierivarer (10.510)"
+    },
+    {
+      "value": "10.730",
+      "label": "Produksjon av melprodukter ellers (10.730)"
+    },
+    {
+      "value": "24",
+      "label": "Produksjon av metaller (24)"
+    },
+    {
+      "value": "25.110",
+      "label": "Produksjon av metallkonstruksjoner og deler (25.110)"
+    },
+    {
+      "value": "25",
+      "label": "Produksjon av metallvarer, unntatt maskiner og utstyr (25)"
+    },
+    {
+      "value": "30.320",
+      "label": "Produksjon av militære luft- og romfartøy og tilhørende utstyr (30.320)"
+    },
+    {
+      "value": "30.400",
+      "label": "Produksjon av militære stridskjøretøy (30.400)"
+    },
+    {
+      "value": "28.240",
+      "label": "Produksjon av motordrevet håndverktøy (28.240)"
+    },
+    {
+      "value": "28.110",
+      "label": "Produksjon av motorer og turbiner, unntatt motorer til luftfartøy og motorvogner (28.110)"
+    },
+    {
+      "value": "30.910",
+      "label": "Produksjon av motorsykler (30.910)"
+    },
+    {
+      "value": "29.100",
+      "label": "Produksjon av motorvogner (29.100)"
+    },
+    {
+      "value": "29",
+      "label": "Produksjon av motorvogner og tilhengere (29)"
+    },
+    {
+      "value": "23.320",
+      "label": "Produksjon av murstein, teglstein og andre byggevarer av brent leire (23.320)"
+    },
+    {
+      "value": "32.200",
+      "label": "Produksjon av musikkinstrumenter (32.200)"
+    },
+    {
+      "value": "31",
+      "label": "Produksjon av møbler (31)"
+    },
+    {
+      "value": "31.000",
+      "label": "Produksjon av møbler (31.000)"
+    },
+    {
+      "value": "23.640",
+      "label": "Produksjon av mørtel (23.640)"
+    },
+    {
+      "value": "26.510",
+      "label": "Produksjon av måle-, kontroll- og navigasjonsinstrumenter (26.510)"
+    },
+    {
+      "value": "10",
+      "label": "Produksjon av nærings- og nytelsesmidler (10)"
+    },
+    {
+      "value": "10.890",
+      "label": "Produksjon av næringsmidler ikke nevnt annet sted (10.890)"
+    },
+    {
+      "value": "10.410",
+      "label": "Produksjon av oljer og fettstoffer (10.410)"
+    },
+    {
+      "value": "27.310",
+      "label": "Produksjon av optiske fiberkabler (27.310)"
+    },
+    {
+      "value": "26.700",
+      "label": "Produksjon av optiske instrumenter, magnetiske og optiske medier og fotografisk utstyr (26.700)"
+    },
+    {
+      "value": "28.210",
+      "label": "Produksjon av ovner og permanente varmeapparater til bruk i husholdninger (28.210)"
+    },
+    {
+      "value": "17",
+      "label": "Produksjon av papir og papirvarer (17)"
+    },
+    {
+      "value": "17.120",
+      "label": "Produksjon av papir og papp (17.120)"
+    },
+    {
+      "value": "17.110",
+      "label": "Produksjon av papirmasse (17.110)"
+    },
+    {
+      "value": "20.420",
+      "label": "Produksjon av parfyme og toalettartikler (20.420)"
+    },
+    {
+      "value": "23.110",
+      "label": "Produksjon av planglass (23.110)"
+    },
+    {
+      "value": "20.200",
+      "label": "Produksjon av plantevern-, skadedyr- og desinfeksjonsmidler og andre landbrukskjemiske produkter (20.200)"
+    },
+    {
+      "value": "22.220",
+      "label": "Produksjon av plastemballasje (22.220)"
+    },
+    {
+      "value": "22.260",
+      "label": "Produksjon av plastprodukter ellers (22.260)"
+    },
+    {
+      "value": "22.210",
+      "label": "Produksjon av plater, film, rør og profiler av plast (22.210)"
+    },
+    {
+      "value": "28.130",
+      "label": "Produksjon av pumper og kompressorer ellers (28.130)"
+    },
+    {
+      "value": "25.210",
+      "label": "Produksjon av radiatorer til sentralvarmeanlegg og dampgeneratorer og -kjeler (25.210)"
+    },
+    {
+      "value": "19.200",
+      "label": "Produksjon av raffinerte petroleumsprodukter og fossile brenselsprodukter (19.200)"
+    },
+    {
+      "value": "15.120",
+      "label": "Produksjon av reiseeffekter og salmakerartikler (15.120)"
+    },
+    {
+      "value": "24.200",
+      "label": "Produksjon av rør, rørdeler og andre hule konstruksjoner av stål (24.200)"
+    },
+    {
+      "value": "10.201",
+      "label": "Produksjon av saltfisk, tørrfisk og klippfisk (10.201)"
+    },
+    {
+      "value": "16.220",
+      "label": "Produksjon av sammensatte parkettstaver (16.220)"
+    },
+    {
+      "value": "23.420",
+      "label": "Produksjon av sanitærutstyr av keramisk materiale (23.420)"
+    },
+    {
+      "value": "23.510",
+      "label": "Produksjon av sement (23.510)"
+    },
+    {
+      "value": "11.030",
+      "label": "Produksjon av sider og andre gjærede fruktdrikker (11.030)"
+    },
+    {
+      "value": "30.310",
+      "label": "Produksjon av sivile luft- og romfartøy og tilhørende utstyr (30.310)"
+    },
+    {
+      "value": "15.200",
+      "label": "Produksjon av skotøy (15.200)"
+    },
+    {
+      "value": "23.910",
+      "label": "Produksjon av slipestoffer (23.910)"
+    },
+    {
+      "value": "10.840",
+      "label": "Produksjon av smakstilsettingsstoffer og krydderier (10.840)"
+    },
+    {
+      "value": "32.120",
+      "label": "Produksjon av smykker og lignende artikler (32.120)"
+    },
+    {
+      "value": "32.400",
+      "label": "Produksjon av spill og leker (32.400)"
+    },
+    {
+      "value": "32.300",
+      "label": "Produksjon av sportsartikler (32.300)"
+    },
+    {
+      "value": "10.620",
+      "label": "Produksjon av stivelse og stivelsesprodukter (10.620)"
+    },
+    {
+      "value": "26.600",
+      "label": "Produksjon av strålingsutstyr, elektromedisinsk og elektroterapeutisk utstyr (26.600)"
+    },
+    {
+      "value": "25.910",
+      "label": "Produksjon av stålfat og lignende beholdere av jern og stål (25.910)"
+    },
+    {
+      "value": "10.810",
+      "label": "Produksjon av sukker (10.810)"
+    },
+    {
+      "value": "30.920",
+      "label": "Produksjon av sykler, rullestoler, elektriske mobilitetsscootere og lignende fremkomstmidler (30.920)"
+    },
+    {
+      "value": "20.170",
+      "label": "Produksjon av syntetisk gummi (20.170)"
+    },
+    {
+      "value": "20.410",
+      "label": "Produksjon av såpe og vaske-, rense- og poleringsmidler (20.410)"
+    },
+    {
+      "value": "17.240",
+      "label": "Produksjon av tapet (17.240)"
+    },
+    {
+      "value": "13.940",
+      "label": "Produksjon av tauverk, rep, hyssing og nett (13.940)"
+    },
+    {
+      "value": "23.150",
+      "label": "Produksjon av teknisk glass og andre glassvarer (23.150)"
+    },
+    {
+      "value": "13",
+      "label": "Produksjon av tekstiler (13)"
+    },
+    {
+      "value": "13.990",
+      "label": "Produksjon av tekstiler ikke nevnt annet sted (13.990)"
+    },
+    {
+      "value": "13.960",
+      "label": "Produksjon av tekstiler til teknisk og industriell bruk (13.960)"
+    },
+    {
+      "value": "12",
+      "label": "Produksjon av tobakksvarer (12)"
+    },
+    {
+      "value": "12.000",
+      "label": "Produksjon av tobakksvarer (12.000)"
+    },
+    {
+      "value": "16.240",
+      "label": "Produksjon av treemballasje (16.240)"
+    },
+    {
+      "value": "16",
+      "label": "Produksjon av trelast og varer av tre, kork, strå og flettematerialer, unntatt møbler (16)"
+    },
+    {
+      "value": "13.910",
+      "label": "Produksjon av trikotasjestoffer og heklede stoffer (13.910)"
+    },
+    {
+      "value": "14.220",
+      "label": "Produksjon av undertøy (14.220)"
+    },
+    {
+      "value": "25.930",
+      "label": "Produksjon av varer av metalltråd, kjetting og fjærer (25.930)"
+    },
+    {
+      "value": "17.250",
+      "label": "Produksjon av varer av papir og papp ellers (17.250)"
+    },
+    {
+      "value": "11.020",
+      "label": "Produksjon av vin (11.020)"
+    },
+    {
+      "value": "25.300",
+      "label": "Produksjon av våpen og ammunisjon (25.300)"
+    },
+    {
+      "value": "03.222",
+      "label": "Produksjon av yngel og settefisk i ferskvann (03.222)"
+    },
+    {
+      "value": "03.212",
+      "label": "Produksjon av yngel og settefisk i sjø og brakkvann (03.212)"
+    },
+    {
+      "value": "14.210",
+      "label": "Produksjon av yttertøy (14.210)"
+    },
+    {
+      "value": "11.050",
+      "label": "Produksjon av øl (11.050)"
+    },
+    {
+      "value": "59.200",
+      "label": "Produksjon og utgivelse av musikk- og lydopptak (59.200)"
+    },
+    {
+      "value": "43.130",
+      "label": "Prøveboring (43.130)"
+    },
+    {
+      "value": "86.222",
+      "label": "Psykiatriske legetjenester (86.222)"
+    },
+    {
+      "value": "86.104",
+      "label": "Psykiatriske sykehustjenester for barn og ungdom (86.104)"
+    },
+    {
+      "value": "86.102",
+      "label": "Psykiatriske sykehustjenester for voksne (86.102)"
+    },
+    {
+      "value": "86.930",
+      "label": "Psykolog- og psykoterapitjenester, unntatt legetjenester innenfor psykiatri (86.930)"
+    },
+    {
+      "value": "60",
+      "label": "Radio- og fjernsynsprogramvirksomhet, kringkasting, nyhetsbyråvirksomhet og distribuering av annet innhold (60)"
+    },
+    {
+      "value": "60.100",
+      "label": "Radiokringkasting og distribuering av musikk og andre lydmedier (60.100)"
+    },
+    {
+      "value": "69.202",
+      "label": "Regnskapsføring og bokføring (69.202)"
+    },
+    {
+      "value": "01.481",
+      "label": "Reindrift (01.481)"
+    },
+    {
+      "value": "79.122",
+      "label": "Reisearrangørvirksomhet ellers (79.122)"
+    },
+    {
+      "value": "79",
+      "label": "Reisebyrå- og reisearrangørvirksomhet og tilknyttede tjenester (79)"
+    },
+    {
+      "value": "79.110",
+      "label": "Reisebyråvirksomhet (79.110)"
+    },
+    {
+      "value": "73.110",
+      "label": "Reklamebyråvirksomhet (73.110)"
+    },
+    {
+      "value": "78.100",
+      "label": "Rekruttering og formidling av arbeidskraft (78.100)"
+    },
+    {
+      "value": "81.210",
+      "label": "Rengjøring av bygninger (81.210)"
+    },
+    {
+      "value": "95.290",
+      "label": "Reparasjon og vedlikehold av andre husholdningsvarer og varer til personlig bruk ikke nevnt annet sted (95.290)"
+    },
+    {
+      "value": "33.170",
+      "label": "Reparasjon og vedlikehold av andre sivile transportmidler (33.170)"
+    },
+    {
+      "value": "33.190",
+      "label": "Reparasjon og vedlikehold av annet utstyr (33.190)"
+    },
+    {
+      "value": "33.110",
+      "label": "Reparasjon og vedlikehold av bearbeidede metallprodukter (33.110)"
+    },
+    {
+      "value": "95.100",
+      "label": "Reparasjon og vedlikehold av datamaskiner og kommunikasjonsutstyr (95.100)"
+    },
+    {
+      "value": "95",
+      "label": "Reparasjon og vedlikehold av datamaskiner, husholdningsvarer, varer til personlig bruk og motorvogner og motorsykler (95)"
+    },
+    {
+      "value": "33.140",
+      "label": "Reparasjon og vedlikehold av elektrisk utstyr (33.140)"
+    },
+    {
+      "value": "95.210",
+      "label": "Reparasjon og vedlikehold av elektronikk til husholdningsbruk (95.210)"
+    },
+    {
+      "value": "33.130",
+      "label": "Reparasjon og vedlikehold av elektronisk og optisk utstyr (33.130)"
+    },
+    {
+      "value": "95.220",
+      "label": "Reparasjon og vedlikehold av husholdningsvarer og hageredskaper (95.220)"
+    },
+    {
+      "value": "33.120",
+      "label": "Reparasjon og vedlikehold av maskiner (33.120)"
+    },
+    {
+      "value": "33.180",
+      "label": "Reparasjon og vedlikehold av militære stridskjøretøy, skip, båter, luft- og romfartøy (33.180)"
+    },
+    {
+      "value": "95.320",
+      "label": "Reparasjon og vedlikehold av motorsykler (95.320)"
+    },
+    {
+      "value": "95.310",
+      "label": "Reparasjon og vedlikehold av motorvogner (95.310)"
+    },
+    {
+      "value": "95.240",
+      "label": "Reparasjon og vedlikehold av møbler og boliginnredning (95.240)"
+    },
+    {
+      "value": "33.160",
+      "label": "Reparasjon og vedlikehold av sivile luft- og romfartøy (33.160)"
+    },
+    {
+      "value": "33.150",
+      "label": "Reparasjon og vedlikehold av sivile skip og båter (33.150)"
+    },
+    {
+      "value": "95.230",
+      "label": "Reparasjon og vedlikehold av skotøy og lærvarer (95.230)"
+    },
+    {
+      "value": "95.250",
+      "label": "Reparasjon og vedlikehold av ur, klokker og smykker (95.250)"
+    },
+    {
+      "value": "33",
+      "label": "Reparasjon, vedlikehold og installasjon av maskiner og utstyr (33)"
+    },
+    {
+      "value": "18.200",
+      "label": "Reproduksjon av innspilte opptak (18.200)"
+    },
+    {
+      "value": "69.201",
+      "label": "Revisjon (69.201)"
+    },
+    {
+      "value": "66.210",
+      "label": "Risiko- og skadevurdering (66.210)"
+    },
+    {
+      "value": "43.110",
+      "label": "Riving av bygninger og andre byggverk (43.110)"
+    },
+    {
+      "value": "51.220",
+      "label": "Romfart (51.220)"
+    },
+    {
+      "value": "43.221",
+      "label": "Rørleggerarbeid (43.221)"
+    },
+    {
+      "value": "49.500",
+      "label": "Rørtransport (49.500)"
+    },
+    {
+      "value": "16.110",
+      "label": "Saging og høvling av tre (16.110)"
+    },
+    {
+      "value": "01.451",
+      "label": "Sauehold (01.451)"
+    },
+    {
+      "value": "64.110",
+      "label": "Sentralbank (64.110)"
+    },
+    {
+      "value": "56",
+      "label": "Serveringsvirksomhet (56)"
+    },
+    {
+      "value": "50",
+      "label": "Sjøfart (50)"
+    },
+    {
+      "value": "65.120",
+      "label": "Skadeforsikring (65.120)"
+    },
+    {
+      "value": "90.112",
+      "label": "Skapende kunstnerisk virksomhet innenfor komposisjon av musikk (90.112)"
+    },
+    {
+      "value": "90.111",
+      "label": "Skapende kunstnerisk virksomhet innenfor litteratur (90.111)"
+    },
+    {
+      "value": "90.120",
+      "label": "Skapende kunstnerisk virksomhet innenfor visuell kunst (90.120)"
+    },
+    {
+      "value": "69.203",
+      "label": "Skatterådgivning (69.203)"
+    },
+    {
+      "value": "96.220",
+      "label": "Skjønnhetspleie (96.220)"
+    },
+    {
+      "value": "02",
+      "label": "Skogbruk og tjenester tilknyttet skogbruk (02)"
+    },
+    {
+      "value": "02.100",
+      "label": "Skogskjøtsel og andre skogbruksaktiviteter (02.100)"
+    },
+    {
+      "value": "10.202",
+      "label": "Slakting av fisk, skalldyr og bløtdyr (10.202)"
+    },
+    {
+      "value": "25.400",
+      "label": "Smiing, stansing og valsing av metall, og pulvermetallurgi (25.400)"
+    },
+    {
+      "value": "43.320",
+      "label": "Snekkerarbeid (43.320)"
+    },
+    {
+      "value": "86.101",
+      "label": "Somatiske sykehustjenester (86.101)"
+    },
+    {
+      "value": "88.995",
+      "label": "Sosialkontortjenester (88.995)"
+    },
+    {
+      "value": "43",
+      "label": "Spesialisert bygge- og anleggsvirksomhet (43)"
+    },
+    {
+      "value": "43.500",
+      "label": "Spesialisert byggevirksomhet i forbindelse med anleggsarbeid (43.500)"
+    },
+    {
+      "value": "86.103",
+      "label": "Spesialisert rusbehandling (86.103)"
+    },
+    {
+      "value": "86.221",
+      "label": "Spesialiserte legetjenester, unntatt psykiatriske legetjenester (86.221)"
+    },
+    {
+      "value": "85.202",
+      "label": "Spesialskoleundervisning på grunnskolenivå (85.202)"
+    },
+    {
+      "value": "64.220",
+      "label": "Spesielle holdingselskaper (64.220)"
+    },
+    {
+      "value": "93",
+      "label": "Sports-, fornøyelses- og fritidsaktiviteter (93)"
+    },
+    {
+      "value": "93.190",
+      "label": "Sportsaktiviteter ikke nevnt annet sted (93.190)"
+    },
+    {
+      "value": "08.920",
+      "label": "Stikking av torv (08.920)"
+    },
+    {
+      "value": "43.310",
+      "label": "Stukkatørarbeid og pussing (43.310)"
+    },
+    {
+      "value": "24.540",
+      "label": "Støping av andre ikke-jernholdige metaller (24.540)"
+    },
+    {
+      "value": "24.510",
+      "label": "Støping av jern (24.510)"
+    },
+    {
+      "value": "24.530",
+      "label": "Støping av lettmetaller (24.530)"
+    },
+    {
+      "value": "24.520",
+      "label": "Støping av stål (24.520)"
+    },
+    {
+      "value": "88.106",
+      "label": "Støttekontakt- og besøkstjeneste (88.106)"
+    },
+    {
+      "value": "01.460",
+      "label": "Svinehold (01.460)"
+    },
+    {
+      "value": "87.102",
+      "label": "Sykehjemstjenester (87.102)"
+    },
+    {
+      "value": "86.941",
+      "label": "Sykepleietjenester og andre helsetjenester i hjemmet (86.941)"
+    },
+    {
+      "value": "43.410",
+      "label": "Takarbeid (43.410)"
+    },
+    {
+      "value": "86.230",
+      "label": "Tannlegetjenester (86.230)"
+    },
+    {
+      "value": "71.200",
+      "label": "Teknisk prøving og analyse (71.200)"
+    },
+    {
+      "value": "61",
+      "label": "Telekommunikasjon (61)"
+    },
+    {
+      "value": "61.900",
+      "label": "Telekommunikasjon ellers (61.900)"
+    },
+    {
+      "value": "87.104",
+      "label": "Tjenester i avlastningsboliger/-institusjoner (87.104)"
+    },
+    {
+      "value": "87.105",
+      "label": "Tjenester i barneboliger (87.105)"
+    },
+    {
+      "value": "87.991",
+      "label": "Tjenester i barneverninstitusjoner (87.991)"
+    },
+    {
+      "value": "88.103",
+      "label": "Tjenester i seniorsentre (88.103)"
+    },
+    {
+      "value": "87.101",
+      "label": "Tjenester i spesialinstitusjon innenfor helse- og omsorg (87.101)"
+    },
+    {
+      "value": "09.900",
+      "label": "Tjenester tilknyttet annen bergverksdrift (09.900)"
+    },
+    {
+      "value": "09",
+      "label": "Tjenester tilknyttet bergverksdrift og utvinning (09)"
+    },
+    {
+      "value": "81",
+      "label": "Tjenester tilknyttet eiendomsdrift og beplanting av hager og parkanlegg (81)"
+    },
+    {
+      "value": "66",
+      "label": "Tjenester tilknyttet finansiell virksomhet (66)"
+    },
+    {
+      "value": "03.300",
+      "label": "Tjenester tilknyttet fiske, fangst og akvakultur (03.300)"
+    },
+    {
+      "value": "66.290",
+      "label": "Tjenester tilknyttet forsikringsvirksomhet ikke nevnt annet sted (66.290)"
+    },
+    {
+      "value": "01.620",
+      "label": "Tjenester tilknyttet husdyrhold (01.620)"
+    },
+    {
+      "value": "52.219",
+      "label": "Tjenester tilknyttet landtransport ikke nevnt annet sted (52.219)"
+    },
+    {
+      "value": "01.610",
+      "label": "Tjenester tilknyttet planteproduksjon (01.610)"
+    },
+    {
+      "value": "02.400",
+      "label": "Tjenester tilknyttet skogbruk (02.400)"
+    },
+    {
+      "value": "85.692",
+      "label": "Tjenester utført ved spesialpedagogiske kompetansesentre og tjenester utenom PPT (85.692)"
+    },
+    {
+      "value": "93.130",
+      "label": "Treningssentervirksomhet (93.130)"
+    },
+    {
+      "value": "18.110",
+      "label": "Trykking av aviser (18.110)"
+    },
+    {
+      "value": "18.120",
+      "label": "Trykking ellers (18.120)"
+    },
+    {
+      "value": "18",
+      "label": "Trykking og reproduksjon av innspilte opptak (18)"
+    },
+    {
+      "value": "85",
+      "label": "Undervisning (85)"
+    },
+    {
+      "value": "85.592",
+      "label": "Undervisning i form av arbeidsmarkedskurs/arbeidsrettede kurs (85.592)"
+    },
+    {
+      "value": "85.510",
+      "label": "Undervisning innenfor idrett og rekreasjon (85.510)"
+    },
+    {
+      "value": "85.330",
+      "label": "Undervisning innenfor kort høyere yrkesfaglig utdanning (85.330)"
+    },
+    {
+      "value": "85.404",
+      "label": "Undervisning innenfor lang høyere yrkesfaglig utdanning (85.404)"
+    },
+    {
+      "value": "85.595",
+      "label": "Undervisning innenfor religion (85.595)"
+    },
+    {
+      "value": "85.403",
+      "label": "Undervisning ved andre høgskoler (85.403)"
+    },
+    {
+      "value": "85.591",
+      "label": "Undervisning ved folkehøgskoler (85.591)"
+    },
+    {
+      "value": "85.531",
+      "label": "Undervisning ved godkjente trafikkskoler (85.531)"
+    },
+    {
+      "value": "85.401",
+      "label": "Undervisning ved universiteter (85.401)"
+    },
+    {
+      "value": "85.402",
+      "label": "Undervisning ved vitenskapelige høgskoler (85.402)"
+    },
+    {
+      "value": "85.593",
+      "label": "Undervisning ved voksenopplæringssentre, aktiviteter i studieforbund og undervisning i form av frivillige organisasjoners kurs (85.593)"
+    },
+    {
+      "value": "46.900",
+      "label": "Uspesifisert engroshandel (46.900)"
+    },
+    {
+      "value": "71.123",
+      "label": "Utarbeidelse av kart og oppmåling (71.123)"
+    },
+    {
+      "value": "50.201",
+      "label": "Utenriks sjøfart med gods (50.201)"
+    },
+    {
+      "value": "50.101",
+      "label": "Utenriks sjøfart med passasjerer (50.101)"
+    },
+    {
+      "value": "84.210",
+      "label": "Utenrikssaker (84.210)"
+    },
+    {
+      "value": "58.290",
+      "label": "Utgivelse av annen programvare (58.290)"
+    },
+    {
+      "value": "58.120",
+      "label": "Utgivelse av aviser (58.120)"
+    },
+    {
+      "value": "58.130",
+      "label": "Utgivelse av blader og tidsskrifter (58.130)"
+    },
+    {
+      "value": "58.110",
+      "label": "Utgivelse av bøker (58.110)"
+    },
+    {
+      "value": "58.210",
+      "label": "Utgivelse av programvare for dataspill (58.210)"
+    },
+    {
+      "value": "58",
+      "label": "Utgivelsesvirksomhet (58)"
+    },
+    {
+      "value": "58.190",
+      "label": "Utgivelsesvirksomhet ellers, unntatt utgivelse av programvare (58.190)"
+    },
+    {
+      "value": "78.200",
+      "label": "Utleie av arbeidskraft og andre personaladministrative tjenester (78.200)"
+    },
+    {
+      "value": "68.200",
+      "label": "Utleie av egen eller leid fast eiendom (68.200)"
+    },
+    {
+      "value": "77.220",
+      "label": "Utleie og leasing av andre husholdningsvarer og varer til personlig bruk (77.220)"
+    },
+    {
+      "value": "77.390",
+      "label": "Utleie og leasing av andre maskiner og annet utstyr og materiell ikke nevnt annet sted (77.390)"
+    },
+    {
+      "value": "77.110",
+      "label": "Utleie og leasing av biler og andre lette motorvogner (77.110)"
+    },
+    {
+      "value": "77.320",
+      "label": "Utleie og leasing av bygge- og anleggsmaskiner og -utstyr (77.320)"
+    },
+    {
+      "value": "77.330",
+      "label": "Utleie og leasing av kontor- og datamaskiner (77.330)"
+    },
+    {
+      "value": "77.310",
+      "label": "Utleie og leasing av landbruksmaskiner og -utstyr (77.310)"
+    },
+    {
+      "value": "77.120",
+      "label": "Utleie og leasing av lastebiler (77.120)"
+    },
+    {
+      "value": "77.350",
+      "label": "Utleie og leasing av lufttransportmateriell (77.350)"
+    },
+    {
+      "value": "77.340",
+      "label": "Utleie og leasing av sjøtransportmateriell (77.340)"
+    },
+    {
+      "value": "77.210",
+      "label": "Utleie og leasing av sports- og fritidsutstyr (77.210)"
+    },
+    {
+      "value": "77",
+      "label": "Utleie- og leasingvirksomhet (77)"
+    },
+    {
+      "value": "36",
+      "label": "Uttak fra kilde, rensing og distribusjon av vann (36)"
+    },
+    {
+      "value": "36.000",
+      "label": "Uttak fra kilde, rensing og distribusjon av vann (36.000)"
+    },
+    {
+      "value": "81.220",
+      "label": "Utvendig rengjøring av bygninger og industriell rengjøring (81.220)"
+    },
+    {
+      "value": "68.120",
+      "label": "Utvikling og salg av byggeprosjekter (68.120)"
+    },
+    {
+      "value": "06.200",
+      "label": "Utvinning av naturgass (06.200)"
+    },
+    {
+      "value": "06.100",
+      "label": "Utvinning av råolje (06.100)"
+    },
+    {
+      "value": "06",
+      "label": "Utvinning av råolje og naturgass (06)"
+    },
+    {
+      "value": "08.930",
+      "label": "Utvinning av salt (08.930)"
+    },
+    {
+      "value": "08.120",
+      "label": "Utvinning fra grus- og sandtak, og utvinning av leire og kaolin (08.120)"
+    },
+    {
+      "value": "90.201",
+      "label": "Utøvende kunstnerisk virksomhet og underholdningsvirksomhet innenfor musikk (90.201)"
+    },
+    {
+      "value": "90.202",
+      "label": "Utøvende kunstnerisk virksomhet og underholdningsvirksomhet innenfor scenekunst (90.202)"
+    },
+    {
+      "value": "80.090",
+      "label": "Vakttjenester ikke nevnt annet sted (80.090)"
+    },
+    {
+      "value": "35.300",
+      "label": "Vannbåren og luftbåren varme- og kjøleforsyning (35.300)"
+    },
+    {
+      "value": "25.520",
+      "label": "Varmebehandling av metaller (25.520)"
+    },
+    {
+      "value": "96.100",
+      "label": "Vaskeri- og renserivirksomhet (96.100)"
+    },
+    {
+      "value": "88.994",
+      "label": "Velferdstjenester til sårbare grupper (88.994)"
+    },
+    {
+      "value": "43.223",
+      "label": "Ventilasjonsarbeid (43.223)"
+    },
+    {
+      "value": "64.311",
+      "label": "Verdipapirfond (64.311)"
+    },
+    {
+      "value": "66.120",
+      "label": "Verdipapirmegling (66.120)"
+    },
+    {
+      "value": "75",
+      "label": "Veterinærtjenester (75)"
+    },
+    {
+      "value": "75.000",
+      "label": "Veterinærtjenester (75.000)"
+    },
+    {
+      "value": "13.200",
+      "label": "Veving av tekstiler (13.200)"
+    },
+    {
+      "value": "85.310",
+      "label": "Videregående opplæring innenfor studieforberedende utdanningsprogram (85.310)"
+    },
+    {
+      "value": "85.320",
+      "label": "Videregående opplæring innenfor yrkesfaglige utdanningsprogram (85.320)"
+    },
+    {
+      "value": "61.200",
+      "label": "Videresalg av telekommunikasjon og formidlingstjenester tilknyttet telekommunikasjon (61.200)"
+    },
+    {
+      "value": "87.103",
+      "label": "Øyeblikkelig hjelp døgntilbud (87.103)"
+    }
+  ]
+}

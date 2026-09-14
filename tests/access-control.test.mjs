@@ -11,14 +11,14 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as importRoute from './app/api/import/route';\nexport {matchesCustomer} from './lib/customer-search';\nexport {activeReminder,validateReminderMinutes} from './lib/followup-reminder';\nexport {guessColumns,mapImportRow,importDate} from './lib/data-import';\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/lib\/email-campaigns$/},()=>({path:'campaigns',namespace:'test'}));
  b.onResolve({filter:/^@\/lib\/user-mail$/},()=>({path:'user-mail',namespace:'test'}));
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));
  b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
  b.onResolve({filter:/^next\//},args=>({path:args.path,namespace:'test'}));
- b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='campaigns'?'export const createCampaign=()=>{throw Error("Unexpected campaign")};export const dispatchCampaign=()=>{};export const campaignOutcome=()=>{};':p==='user-mail'?'export const getMailAccount=async()=>globalThis.testMailAccount;export const sendFromMailbox=async(a,p)=>globalThis.testMailSend(a,p);':p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
+ b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='campaigns'?'export const createCampaign=()=>{throw Error("Unexpected campaign")};export const dispatchCampaign=()=>{};export const campaignOutcome=()=>{};':p==='user-mail'?'export const getMailAccount=async()=>globalThis.testMailAccount;export const sendFromMailbox=async(a,p)=>globalThis.testMailSend(a,p);':p==='db'?'export const getDb=()=>globalThis.testDb':p==='env'?'export const env={SUPABASE_URL:"https://auth.test",SUPABASE_ANON_KEY:"public",get AI(){return globalThis.testAI},get RESEND_API_KEY(){return globalThis.testMailKey},BUCKET:{get(){throw Error("Unexpected bucket access")}}}':'export const headers=async()=>new Headers({"oai-authenticated-user-email":"joakimfn@gmail.com"});export const redirect=()=>{};'}));
 }}],nodePaths:[path.join(root,'node_modules')]});
 // External packages resolve from the repository, not the temporary directory.
 const {symlink}=await import('node:fs/promises');await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
@@ -42,7 +42,7 @@ const request=(user=1,org=1,body,query='')=>new Request('https://crm.test/'+quer
 const route=name=>app['route'+routes.indexOf(name)];
 test('caller-supplied legacy identity is not authentication',async()=>assert.equal(await app.getChatGPTUser(new Request('https://crm.test',{headers:{'oai-authenticated-user-email':'jfn@noracre.no'}})),null));
 test('invalid and unverified identities are rejected',async()=>{assert.equal(await app.getChatGPTUser(request('invalid')),null);assert.equal(await app.getChatGPTUser(request('unverified')),null)});
-for(const name of routes)test(`${name}: switching organization header cannot grant access`,async()=>assert.equal((await route(name).GET(request(1,2))).status,403));
+for(const name of routes.filter(n=>n!=='call-list-ai'))test(`${name}: switching organization header cannot grant access`,async()=>assert.equal((await route(name).GET(request(1,2))).status,403));
 test('customer lists remain tenant-scoped in both directions',async()=>{for(const id of [1,2])assert.deepEqual((await (await route('companies').GET(request(id,id))).json()).companies.map(x=>x.id),[id])});
 test('foreign customer cannot be updated',async()=>{const r=request(1,1,{id:2,name:'Wrong'});assert.equal((await route('companies').PATCH(r)).status,404);assert.equal(sql.prepare('select name from companies where id=2').get().name,'Customer 2')});
 test('foreign parent and contact rejected for followups',async()=>{for(const body of [{companyId:2},{companyId:1,contactId:2}])assert.equal((await route('activities').POST(request(1,1,body))).status,404)});
@@ -570,4 +570,44 @@ test('imports validate complete batches and cannot access another tenant',async(
  assert.equal(sql.prepare("SELECT count(*) n FROM companies WHERE name='Atomic import'").get().n,0);assert.equal(sql.prepare('SELECT count(*) n FROM data_imports WHERE id=?').get(`1:${key}`).n,0);
  sql.exec('DROP TRIGGER fail_import');
  assert.equal((await app.importRoute.POST(importRequest('customers',[{name:'Atomic import',contactName:'Fail import'}],key))).status,201);
+});
+
+test('AI call-list search requires the assigned module and enforces tenant isolation',async()=>{
+ let calls=0;globalThis.testAI={run:async()=>{calls++;throw Error('Must not call AI')}};
+ assert.equal((await route('call-list-ai').POST(request('invalid',1,{prompt:'Find companies'}))).status,401);
+ assert.equal((await route('call-list-ai').POST(request(1,2,{prompt:'Find companies'}))).status,403);
+ add('organizations',{id:980,name:'AI tenant',created_at:'now'});
+ add('memberships',{id:980,organization_id:980,user_id:'980',email:'980@test.no',name:'AI user',role:'Bruker',created_at:'now'});
+ assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Find companies'}))).status,403);
+ assert.equal(calls,0);
+ add('organization_modules',{organization_id:980,module_key:'ringelister',active:1,activated_at:'now'});
+ add('module_licenses',{organization_id:980,membership_id:980,module_key:'ringelister',active:1,activated_at:'now'});
+});
+
+test('AI validates output, preserves all requested filters and limits usage before inference',async()=>{
+ let calls=0;const output={count:20,minEmployees:1,maxEmployees:15,locationCodes:['county:18','county:55','county:56'],industryCodes:[],organizationForms:['AS'],establishedFrom:'2025-01-01',establishedTo:'2026-12-31',requirePhone:false,requireEmail:false,unsupported:[]};
+ globalThis.testAI={run:async(model,input)=>{calls++;assert.match(model,/llama/);assert.equal(input.messages.length,2);return {response:output};}};
+ let r=await route('call-list-ai').POST(request(980,980,{prompt:'20 bedrifter i Nord-Norge med 1–15 ansatte etablert i 2025 eller 2026'}));assert.equal(r.status,200);let result=await r.json();assert.deepEqual(result.filters.locationCodes,output.locationCodes);assert.equal(result.filters.establishedFrom,'2025-01-01');assert.equal(result.filters.count,20);
+ output.locationCodes=['county:00'];r=await route('call-list-ai').POST(request(980,980,{prompt:'Find companies in nowhere'}));assert.equal(r.status,422);
+ output.locationCodes=[];output.unsupported=['Omsetning støttes ikke'];r=await route('call-list-ai').POST(request(980,980,{prompt:'Bedrifter med 10 millioner i omsetning'}));assert.equal(r.status,422);assert.match((await r.json()).error,/Omsetning/);
+ sql.prepare('UPDATE call_list_ai_usage SET count=30 WHERE membership_id=980').run();const before=calls;assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Finn 20 bedrifter'}))).status,429);assert.equal(calls,before);
+ sql.prepare('UPDATE call_list_ai_usage SET window_started=0 WHERE membership_id=980').run();output.unsupported=[];output.locationCodes=['county:18'];assert.equal((await route('call-list-ai').POST(request(980,980,{prompt:'Finn 20 bedrifter'}))).status,200);
+ globalThis.testAI=undefined;
+});
+
+test('ringeliste generation combines places, industries, employees and establishment dates with atomic replacement',async()=>{
+ const authFetch=globalThis.fetch,requests=[];
+ const company=(id,extra={})=>({organisasjonsnummer:String(id),navn:'Fixture '+id,antallAnsatte:10,stiftelsesdato:'2025-06-01',forretningsadresse:{kommunenummer:'1804',kommune:'Bodø'},naeringskode1:{kode:'43.210',beskrivelse:'Elektro'},...extra});
+ let rows=[company(980000001),company(980000002,{antallAnsatte:undefined,harRegistrertAntallAnsatte:true}),company(980000003,{stiftelsesdato:'2024-12-31'}),company(980000004,{antallAnsatte:16}),company(980000005,{forretningsadresse:{kommunenummer:'0301'}}),company(980000006,{naeringskode1:{kode:'99.999'}}),company(980000007,{forretningsadresse:{kommunenummer:'5501'},naeringskode1:{kode:'41.000'}})];
+ globalThis.fetch=async(url,init)=>{const u=new URL(url);if(u.hostname==='auth.test')return authFetch(url,init);if(u.hostname==='data.ssb.no')return new Response('',{status:503});assert.equal(u.hostname,'data.brreg.no');requests.push(u);return Response.json({_embedded:{enheter:rows},page:{totalPages:1}});};
+ const filters={type:'generate',count:20,minEmployees:1,maxEmployees:15,locationCodes:['county:18','5501'],industryCodes:['43.210','41.000'],organizationForms:['AS'],establishedFrom:'2025-01-01',establishedTo:'2026-12-31'};
+ try{
+  let r=await route('call-lists').POST(request(980,980,filters));assert.equal(r.status,200,JSON.stringify(await r.clone().json()));let d=await r.json();assert.equal(d.added,3);assert.deepEqual(d.entries.map(x=>x.orgNumber).sort(),['980000001','980000002','980000007']);assert.equal(d.entries.find(x=>x.orgNumber==='980000002').employees,null);
+  assert.equal(requests[0].searchParams.get('fraAntallAnsatte'),'1');assert.equal(requests[0].searchParams.get('tilAntallAnsatte'),'15');assert.equal(requests[0].searchParams.get('fraStiftelsesdato'),'2025-01-01');assert.equal(requests[0].searchParams.get('naeringskode'),'43.210,41.000');assert.ok(requests[0].searchParams.get('forretningsadresse.kommunenummer').split(',').includes('5501'));
+  rows=[];assert.equal((await route('call-lists').POST(request(980,980,filters))).status,404);assert.equal(sql.prepare('SELECT count(*) n FROM call_list_entries WHERE organization_id=980').get().n,3);
+  rows=[company(980000009)];sql.exec("CREATE TRIGGER fail_call_list BEFORE INSERT ON call_list_entries WHEN NEW.org_number='980000009' BEGIN SELECT RAISE(ABORT,'forced failure'); END");
+  assert.equal((await route('call-lists').POST(request(980,980,filters))).status,500);assert.equal(sql.prepare('SELECT count(*) n FROM call_list_entries WHERE organization_id=980').get().n,3);sql.exec('DROP TRIGGER fail_call_list');
+  assert.equal((await route('call-lists').POST(request(980,980,{...filters,minEmployees:3}))).status,400);
+  assert.equal((await route('call-lists').POST(request(980,980,{...filters,establishedFrom:'2026-02-30'}))).status,400);
+ }finally{globalThis.fetch=authFetch;}
 });

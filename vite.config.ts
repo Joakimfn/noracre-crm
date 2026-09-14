@@ -15,6 +15,7 @@ const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
   keep_vars: true,
+  ai: { binding: "AI" },
   routes: [
     { pattern: "crm.noracre.no", custom_domain: true },
     { pattern: "noracre.no", custom_domain: true },

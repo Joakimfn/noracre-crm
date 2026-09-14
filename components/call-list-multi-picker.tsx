@@ -1,0 +1,12 @@
+'use client';
+import {useState} from 'react';
+import {Check,ChevronsUpDown} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {Popover,PopoverContent,PopoverTrigger} from '@/components/ui/popover';
+import {Command,CommandInput,CommandList,CommandEmpty,CommandGroup,CommandItem,CommandSeparator} from '@/components/ui/command';
+type Option={value:string;label:string};
+export function CallListMultiPicker({values,onChange,groups,placeholder,allLabel,noun,allMeansEmpty=true}:{values:string[];onChange:(v:string[])=>void;groups:{heading:string;options:Option[]}[];placeholder:string;allLabel:string;noun:string;allMeansEmpty?:boolean}){
+ const [open,setOpen]=useState(false),options=groups.flatMap(g=>g.options),allSelected=allMeansEmpty?values.length===0:values.length===options.length&&options.length>0;
+ const label=allSelected?allLabel:values.length===0?'Velg '+noun:values.length===1?options.find(x=>x.value===values[0])?.label??values[0]:`${values.length} ${noun} valgt`;
+ return <div className="call-multi-picker"><Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><Button type="button" variant="outline" role="combobox" aria-expanded={open} aria-label={noun+': '+label} className="search-picker"><span>{label}</span><ChevronsUpDown/></Button></PopoverTrigger><PopoverContent className="search-picker-popover" align="start"><Command><CommandInput placeholder={placeholder}/><CommandList><CommandEmpty>Ingen treff.</CommandEmpty><CommandGroup><CommandItem value={allLabel} onSelect={()=>onChange(allMeansEmpty?[]:allSelected?[]:options.map(x=>x.value))}><Check className={allSelected?'visible':'invisible'}/>{allLabel}</CommandItem></CommandGroup>{groups.map((group,i)=><div key={group.heading}>{i>0&&<CommandSeparator/>}<CommandGroup heading={group.heading}>{group.options.map(item=><CommandItem key={item.value} value={`${item.label} ${item.value}`} onSelect={()=>onChange(values.includes(item.value)?values.filter(v=>v!==item.value):[...values,item.value])}><Check className={values.includes(item.value)?'visible':'invisible'}/>{item.label}</CommandItem>)}</CommandGroup></div>)}</CommandList></Command></PopoverContent></Popover>{values.length>1&&!allSelected&&<div className="call-picker-selections">{values.map(value=><button type="button" key={value} onClick={()=>onChange(values.filter(x=>x!==value))} aria-label={'Fjern '+(options.find(x=>x.value===value)?.label??value)}>{options.find(x=>x.value===value)?.label??value}<span aria-hidden="true">×</span></button>)}</div>}</div>;
+}

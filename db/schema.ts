@@ -413,3 +413,10 @@ export const backgroundJobs = sqliteTable("background_jobs", {
 });
 
 export const dataImports=sqliteTable("data_imports",{id:text("id").primaryKey(),organizationId:integer("organization_id").notNull(),fingerprint:text("fingerprint").notNull(),result:text("result").notNull(),createdAt:text("created_at").notNull()});
+
+// One bounded usage counter per membership; no prompts or customer data are stored.
+export const callListAiUsage = sqliteTable('call_list_ai_usage', {
+ membershipId: integer('membership_id').primaryKey().references(()=>memberships.id,{onDelete:'cascade'}),
+ windowStarted: integer('window_started').notNull(),
+ count: integer('count').notNull().default(0),
+});
