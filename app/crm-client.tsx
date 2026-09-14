@@ -4615,6 +4615,8 @@ function Marketing({
   function showPlan() {setPlanView("upcoming");setPlanQuery("");setPlanPage(1);setPlanRevision(n=>n+1);setPlanLoading(true);setPlanOpen(true);}
   const [social,setSocial] = useState<SocialState>({ready:false,connections:[]});
   const [publishId,setPublishId] = useState<number|null>(null);
+  const [publishMode,setPublishMode]=useState<'publish'|'schedule'>('publish'),[publishAt,setPublishAt]=useState('');
+  const [cancellingId,setCancellingId]=useState<number|null>(null);
   const [publishing,setPublishing] = useState(false);
   const [deleteId,setDeleteId]=useState<number|null>(null),[deleting,setDeleting]=useState(false);
   const [preparing,setPreparing]=useState(false),[prepareError,setPrepareError]=useState("");
@@ -4622,7 +4624,8 @@ function Marketing({
   const [confirmedTargets,setConfirmedTargets]=useState<{id:number;accountId:string;platform:string;accountName:string}[]>([]);
   const preparedPreviews=useMemo(()=>preparedImages.map(i=>({...i,url:URL.createObjectURL(i.blob)})),[preparedImages]);
   useEffect(()=>()=>preparedPreviews.forEach(i=>URL.revokeObjectURL(i.url)),[preparedPreviews]);
-  function openPublish(post:typeof posts[number]){
+  function openPublish(post:typeof posts[number],mode:'publish'|'schedule'='publish'){
+    setPublishMode(mode);setPublishAt(post.scheduledAt&&Date.parse(post.scheduledAt)>Date.now()?post.scheduledAt:'');
     setPreparing(true);setPrepareError("");setPreparedImages([]);
     setConfirmedTargets(social.connections.map(c=>({id:c.id,accountId:c.accountId,platform:c.platform,accountName:c.accountName})));
     setPublishId(post.id);
@@ -4664,18 +4667,29 @@ function Marketing({
     return post.kind!=="email" && social.ready && post.status === "Kladd" && selected.length>0 && selected.every(channel=>
       ["Facebook","Instagram","LinkedIn"].includes(channel) && social.connections.some(c=>c.platform===channel&&!c.expired));
   }
+  async function cancelScheduledPost(post:typeof posts[number]){
+    if(cancellingId!==null)return;setCancellingId(post.id);
+    try{
+      const r=await apiFetch('/api/social/publish',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({postId:post.id,action:'cancel',confirm:true})});
+      const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke avbryte.');
+      setPosts(rows=>rows.map(p=>p.id===post.id?{...p,status:'Kladd',error:''}:p));toast.success('Publiseringen er avbrutt. Innlegget er beholdt som kladd.');
+    }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke avbryte.');}
+    finally{setCancellingId(null);setPlanRevision(n=>n+1);}
+  }
   async function publishNow() {
     if(!publishPost||publishing||preparing||prepareError)return;
+    if(publishMode==='schedule'&&(!publishAt||!Number.isFinite(Date.parse(publishAt))||Date.parse(publishAt)<Date.now()+60000))return toast.error('Velg et tidspunkt minst ett minutt frem.');
     setPublishing(true);
     try {
-      const form=new FormData();form.append('payload',JSON.stringify({postId:publishPost.id,confirm:true,targets:confirmedTargets}));
+      const form=new FormData();form.append('payload',JSON.stringify({postId:publishPost.id,confirm:true,targets:confirmedTargets,action:publishMode,scheduledAt:publishMode==='schedule'?new Date(publishAt).toISOString():undefined}));
       preparedImages.forEach(i=>form.append(`image:${i.id}`,i.blob,`image-${i.id}.jpg`));
       const response=await apiFetch("/api/social/publish",{method:"POST",headers:{"x-organization-id":String(organizationId)},body:form});
       const result=await response.json();
       if(!response.ok)throw Error(result.error??"Kunne ikke publisere.");
-      setPosts(rows=>rows.map(p=>p.id===publishPost.id?{...p,status:result.status,deliveries:result.results}:p));
+      setPosts(rows=>rows.map(p=>p.id===publishPost.id?{...p,status:result.status,scheduledAt:result.scheduledAt??p.scheduledAt,deliveries:result.results}:p));
       setPublishId(null);
-      if(result.status==="Publisert")toast.success("Innlegget er publisert.");
+      if(result.status==='Planlagt')toast.success('Innlegget er planlagt og publiseres automatisk.');
+      else if(result.status==="Publisert")toast.success("Innlegget er publisert.");
       else toast.error("Kontroller resultatet for hver kanal i innholdsplanen.");
     } catch(error) {
       toast.error(error instanceof Error?error.message:"Svaret mangler. Kontroller status før du forsøker igjen.");
@@ -4929,7 +4943,7 @@ function Marketing({
           {savingPost ? "Lagrer …" : "Lagre kladd"}
         </Button>
         <p className="form-hint">
-          Innlegget lagres som kladd. Publiser til tilkoblede Facebook-, Instagram- og LinkedIn-kontoer fra innholdsplanen. Tidspunktet er kun til planlegging og starter ingen automatisk publisering.
+          Lagre kladden, og velg «Planlegg publisering» i innholdsplanen for automatisk publisering til Facebook og Instagram. Du kan også publisere med en gang.
         </p>
       </section>
       <button type="button" className="content-plan-launcher" onClick={showPlan} aria-haspopup="dialog">
@@ -4939,7 +4953,7 @@ function Marketing({
       </button>
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent className="content-plan-dialog">
-          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Innlegg, kladder og planlagte e-poster. Publiserte innlegg og sendte e-poster finner du i Historikk.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Kladder og planlagt publisering. Innlegg med status «Planlagt» publiseres automatisk. Publisert innhold finner du i Historikk.</DialogDescription></DialogHeader>
           <div className="content-plan-toolbar">
             <div className="content-plan-tabs" role="group" aria-label="Vis innhold">
               <button type="button" aria-pressed={planView==='upcoming'} onClick={()=>changePlanView('upcoming')}>Kommende <span>{planCounts.upcoming}</span></button>
@@ -4954,26 +4968,27 @@ function Marketing({
                   <span className="content-plan-thumbnail">{post.images?.[0] ? <MarketingPostImage id={post.images[0].id} filename={post.images[0].filename} organizationId={organizationId}/> : post.kind==="email"?<Mail size={24}/>:<Megaphone size={24}/>}</span>
                   <span className="content-plan-copy"><span className="content-plan-post-text">{post.subject?`${post.subject} · `:""}{post.content}</span><small>{JSON.parse(post.platforms).join(' · ')}{post.images?.length ? ` · ${post.images.length} bilder` : ''}</small></span>
                 </button>
-                <div className="content-plan-date"><strong>{post.kind==='email'?post.status:post.status==='Planlagt'?'Kladd':post.status}</strong><small>{post.sentAt ? date(post.sentAt,true) : post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
-                <div className="content-plan-actions">{canPublish(post)&&<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'||post.status==='Sender'||post.canManage===false} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
+                <div className="content-plan-date"><strong>{post.status}</strong><small>{post.sentAt ? date(post.sentAt,true) : post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
+                <div className="content-plan-actions">{canPublish(post)&&<>{(JSON.parse(post.platforms) as string[]).every(c=>['Facebook','Instagram'].includes(c))&&<Button variant="outline" onClick={()=>openPublish(post,'schedule')}>Planlegg publisering</Button>}<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button></>}{post.kind!=='email'&&post.status==='Planlagt'&&<Button variant="outline" disabled={cancellingId!==null} onClick={()=>cancelScheduledPost(post)}>{cancellingId===post.id?'Avbryter …':'Avbryt planlegging'}</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'||post.status==='Sender'||post.canManage===false} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
               </article>
             ))}
           </div>
           <div className="content-plan-footer"><span aria-live="polite">{planLoading?'Henter …':`${planMeta.total} ${planQuery?'treff':'oppføringer'} · Side ${planMeta.page} av ${planMeta.pages}`}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}>Forrige</Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}>Neste</Button></div></div>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:"Innlegg"}</DialogTitle><DialogDescription>{detailPost?.kind==='email'?detailPost.status:detailPost?.status==='Planlagt'?'Kladd':detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
-        {detailPost&&<>{detailPost.kind==="email"&&<><p>Fra: {detailPost.sender} · {detailPost.recipientCount} mottakere</p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint">Vedlegg: {f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
+      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:"Innlegg"}</DialogTitle><DialogDescription>{detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
+        {detailPost&&<>{detailPost.kind!=="email"&&detailPost.error&&<p role="alert">{detailPost.error}</p>}{detailPost.kind==="email"&&<><p>Fra: {detailPost.sender} · {detailPost.recipientCount} mottakere</p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint">Vedlegg: {f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
       </DialogContent></Dialog>
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
-        <DialogContent><DialogHeader><DialogTitle>Publiser innlegget nå?</DialogTitle><DialogDescription>Innlegget blir synlig på kontoene nedenfor med en gang. Et eventuelt planlagt tidspunkt blir ikke brukt.</DialogDescription></DialogHeader>
+        <DialogContent><DialogHeader><DialogTitle>{publishMode==='schedule'?'Planlegg publisering':'Publiser innlegget nå?'}</DialogTitle><DialogDescription>{publishMode==='schedule'?'Innlegget publiseres automatisk på kontoene nedenfor til valgt tidspunkt, også når CRM er lukket.':'Innlegget blir synlig på kontoene nedenfor med en gang.'}</DialogDescription></DialogHeader>
           {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0} bilder</p>
           <ul>{(JSON.parse(publishPost.platforms) as string[]).map(channel=><li key={channel}>{channel}: {confirmedTargets.find(c=>c.platform===channel)?.accountName}</li>)}</ul></>}
+          {publishMode==='schedule'&&<div><Label>Publiseringstidspunkt</Label><DateTimePicker label="Publiseringstidspunkt" value={publishAt} onChange={setPublishAt}/><p className="form-hint">Du kan avbryte i innholdsplanen frem til publiseringen starter.</p></div>}
           {preparing&&<p role="status">Klargjør bilder …</p>}
           {prepareError&&<p role="alert">{prepareError}</p>}
           {preparedPreviews.length>0&&<><div className="marketing-publish-previews">{preparedPreviews.map((i,index)=><img key={i.id} src={i.url} alt={`Bilde ${index+1} slik det publiseres`}/>)}</div><p className="form-hint">Tilpasset for Instagram med proporsjonene bevart. Eventuelle marger og gjennomsiktighet får hvit bakgrunn. Animasjoner blir stillbilder.{preparedImages.some(i=>i.upscaled)?' Små originalbilder er forstørret og kan bli mindre skarpe.':''}</p></>}
           {!preparing&&!prepareError&&!preparedPreviews.length&&publishPost?.images?.length?<div className="marketing-publish-previews">{publishPost.images.map(i=><MarketingPostImage key={i.id} id={i.id} filename={i.filename} organizationId={organizationId}/>)}</div>:null}
-          <Button disabled={publishing||preparing||Boolean(prepareError)} onClick={publishNow}>{publishing?"Publiserer …":"Bekreft og publiser"}</Button>
+          <Button disabled={publishing||preparing||Boolean(prepareError)||(publishMode==='schedule'&&!publishAt)} onClick={publishNow}>{publishing?(publishMode==='schedule'?'Planlegger …':'Publiserer …'):(publishMode==='schedule'?'Bekreft og planlegg':'Bekreft og publiser')}</Button>
         </DialogContent>
       </Dialog>
       <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>{deleteId!==null&&deleteId<0?"Avbryt eller fjern e-post?":"Slett fra innholdsplanen?"}</DialogTitle><DialogDescription>{deleteId!==null&&deleteId<0?"En planlagt e-post avbrytes og blir liggende i historikken. En tidligere utsending fjernes bare fra CRM-oversikten, ikke fra mottakerens postkasse.":"Innlegget fjernes fra oversikten i CRM-et. Publiserte innlegg beholdes hos kanalen."}</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}>Avbryt</Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?'Behandler …':deleteId!==null&&deleteId<0?'Bekreft':'Slett fra innholdsplanen'}</Button></div></DialogContent></Dialog>

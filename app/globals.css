@@ -3541,7 +3541,7 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 .content-plan-copy small,.content-plan-date small{display:block;margin-top:6px;font-size:12px;color:var(--muted-foreground);}
 .content-plan-date{flex:0 0 170px;font-size:12px;}
 .content-plan-date strong{font-weight:500;}
-.content-plan-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex:0 0 156px;}
+.content-plan-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:0 0 210px;flex-wrap:wrap;}
 .content-plan-actions button{font-size:12px;}
 .content-plan-empty{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;min-height:220px;padding:24px;text-align:center;color:var(--muted-foreground);}
 .content-plan-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;font-size:13px;color:var(--muted-foreground);}

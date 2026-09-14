@@ -16,7 +16,7 @@ await build({stdin:{contents:routes.map((r,i)=>`export * as r${i} from './app/ap
  b.onLoad({filter:/.*/,namespace:'next-test'},()=>({contents:'export const headers=async()=>new Headers();export const redirect=()=>{};'}));
  b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='db'?'export const getDb=()=>globalThis.testDb':'export const env=globalThis.testEnv'}));
 }}]});
-await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'));
+await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
 globalThis.testEnv={SUPABASE_URL:'https://auth.test',SUPABASE_ANON_KEY:'public',LINKEDIN_CLIENT_ID:'testclient123',LINKEDIN_CLIENT_SECRET:'test-only-linkedin-secret-1234567',BUCKET:{get:async()=>({arrayBuffer:async()=>new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,120,0,0,0,120]).buffer})}};
 const app=await import(pathToFileURL(path.join(dir,'app.mjs'))),sql=new DatabaseSync(':memory:');
 for(const table of Object.values(app.schema)){

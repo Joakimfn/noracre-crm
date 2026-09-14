@@ -10,13 +10,13 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 const root=path.resolve(import.meta.dirname,'..'),dir=await mkdtemp(path.join(tmpdir(),'noracre-social-'));
 const routes=['meta/start','meta/callback','meta/accounts','connections','publish','media'];
-await build({stdin:{contents:routes.map((r,i)=>`export * as r${i} from './app/api/social/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';export * as meta from './lib/social-meta';export {guardRequest} from './lib/request-security';export {jpegDimensions,publishMeta} from './lib/social-publish';`,resolveDir:root},bundle:true,format:'esm',platform:'node',packages:'external',outfile:path.join(dir,'app.mjs'),nodePaths:[path.join(root,'node_modules')],plugins:[{name:'test',setup(b){
+await build({stdin:{contents:routes.map((r,i)=>`export * as r${i} from './app/api/social/${r}/route';`).join('\n')+`\nexport * as schema from './db/schema';export * as meta from './lib/social-meta';export {guardRequest} from './lib/request-security';export {jpegDimensions,publishMeta} from './lib/social-publish';export {dispatchDueSocialPosts,socialScheduleTime} from './lib/social-publication';`,resolveDir:root},bundle:true,format:'esm',platform:'node',packages:'external',outfile:path.join(dir,'app.mjs'),nodePaths:[path.join(root,'node_modules')],plugins:[{name:'test',setup(b){
  b.onResolve({filter:/^@\/db$/},()=>({path:'db',namespace:'test'}));b.onResolve({filter:/^cloudflare:workers$/},()=>({path:'env',namespace:'test'}));
  b.onResolve({filter:/^next\//},args=>({path:args.path,namespace:'next-test'}));
  b.onLoad({filter:/.*/,namespace:'next-test'},()=>({contents:'export const headers=async()=>new Headers();export const redirect=()=>{};'}));
  b.onLoad({filter:/.*/,namespace:'test'},({path:p})=>({contents:p==='db'?'export const getDb=()=>globalThis.testDb':'export const env=globalThis.testEnv'}));
 }}]});
-await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'));
+await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
 globalThis.testEnv={SUPABASE_URL:'https://auth.test',SUPABASE_ANON_KEY:'public',META_APP_ID:'123',META_APP_SECRET:'test-only-secret-not-production-12345',META_GRAPH_VERSION:'v24.0',BUCKET:{get:async()=>({body:'image bytes'})}};
 const app=await import(pathToFileURL(path.join(dir,'app.mjs'))),sql=new DatabaseSync(':memory:');
 for(const table of Object.values(app.schema)){
@@ -267,6 +267,110 @@ test('prepared JPEG replaces an existing PNG draft only after validation, then s
  assert.equal(uploaded.length,1);assert.equal(uploaded[0].options.httpMetadata.contentType,'image/jpeg');
  const stored=sql.prepare('SELECT content_type,filename,object_key FROM marketing_post_images WHERE id=90').get();assert.equal(stored.content_type,'image/jpeg');assert.equal(stored.filename,'logo.jpg');assert.equal(stored.object_key,uploaded[0].key);
  before=calls.length;assert.equal((await send(90,new Blob([jpeg],{type:'image/jpeg'}))).status,409);assert.equal(calls.slice(before).filter(c=>c.init.method==='POST').length,0);assert.equal(uploaded.length,1);
+});
+
+
+test('scheduling migration keeps previously dated drafts inactive',async()=>{
+ const legacy=new DatabaseSync(':memory:');
+ try{legacy.exec("CREATE TABLE marketing_posts(id INTEGER PRIMARY KEY,status TEXT,scheduled_at TEXT);INSERT INTO marketing_posts VALUES(1,'Kladd','2020-01-01T10:00:00.000Z')");legacy.exec(await readFile(path.join(root,'drizzle/0024_social_scheduling.sql'),'utf8'));const row=legacy.prepare('SELECT * FROM marketing_posts').get();assert.equal(row.status,'Kladd');assert.equal(row.scheduled_membership_id,0);assert.equal(row.scheduled_targets,'[]');}finally{legacy.close();}
+});
+const queue=(id,extra={})=>route('publish').POST(req('publish',1,1,{postId:id,action:'schedule',confirm:true,targets:targets(),scheduledAt:new Date(Date.now()+3600000).toISOString(),...extra}));
+const state=id=>sql.prepare('SELECT * FROM marketing_posts WHERE id=?').get(id);
+const due=id=>sql.prepare("UPDATE marketing_posts SET scheduled_at=? WHERE id=?").run(new Date(Date.now()-1000).toISOString(),id);
+const writes=()=>calls.filter(c=>c.init.method==='POST').length;
+
+test('schedule requires a future zoned date and explicit confirmation, without provider writes',async()=>{
+ sql.prepare('UPDATE social_connections SET expires_at=?').run(Date.now()+86400000);post(100);assert.equal(app.socialScheduleTime('2026-09-15T09:00:00+02:00',Date.parse('2026-09-14T00:00:00Z')),'2026-09-15T07:00:00.000Z');const before=writes();
+ for(const value of ['',new Date(Date.now()-1000).toISOString(),'2026-09-14T10:00','bad','2027-02-30T09:00:00Z',new Date(Date.now()+367*86400000).toISOString()])assert.equal((await queue(100,{scheduledAt:value})).status,400);
+ assert.equal((await queue(100,{confirm:false})).status,400);
+ assert.equal(state(100).status,'Kladd');assert.equal(writes(),before);
+ const future=new Date(Date.now()+3600000).toISOString();
+ const r=await queue(100,{scheduledAt:future});assert.equal(r.status,200);assert.equal((await r.json()).status,'Planlagt');
+ assert.equal(state(100).scheduled_membership_id,1);assert.equal(state(100).scheduled_at,future);
+ assert.deepEqual(JSON.parse(state(100).scheduled_targets),JSON.parse(JSON.stringify(targets().filter(t=>t.platform==='Facebook'))));
+ assert.equal(writes(),before);await app.dispatchDueSocialPosts();assert.equal(writes(),before);
+ assert.equal((await queue(100)).status,409);
+});
+
+test('due job publishes once across overlapping cron runs; old dated drafts stay drafts',async()=>{
+ post(101);due(101);due(100);const before=writes();
+ await Promise.all([app.dispatchDueSocialPosts(),app.dispatchDueSocialPosts()]);
+ assert.equal(state(100).status,'Publisert');assert.equal(state(101).status,'Kladd');assert.equal(writes(),before+1);
+ await app.dispatchDueSocialPosts();assert.equal(writes(),before+1);
+});
+
+test('cancellation is tenant scoped and keeps the draft without publishing',async()=>{
+ post(102);assert.equal((await queue(102)).status,200);
+ const body={postId:102,action:'cancel',confirm:true};
+ assert.equal((await route('publish').POST(req('publish',2,2,body))).status,409);
+ assert.equal(state(102).status,'Planlagt');
+ assert.equal((await route('publish').POST(req('publish',1,1,body))).status,200);
+ assert.equal(state(102).status,'Kladd');assert.equal(state(102).scheduled_targets,'[]');
+ due(102);const before=writes();await app.dispatchDueSocialPosts();assert.equal(writes(),before);
+});
+
+test('revoked membership, organization and module access stop scheduled publication',async()=>{
+ let id=103;
+ for(const [revoke,restore] of [
+  ["UPDATE memberships SET active=0 WHERE id=1","UPDATE memberships SET active=1 WHERE id=1"],
+  ["UPDATE organizations SET status='Inaktiv' WHERE id=1","UPDATE organizations SET status='Aktiv' WHERE id=1"],
+  ["UPDATE module_licenses SET active=0 WHERE membership_id=1","UPDATE module_licenses SET active=1 WHERE membership_id=1"],
+  ["UPDATE organization_modules SET active=0 WHERE organization_id=1","UPDATE organization_modules SET active=1 WHERE organization_id=1"],
+  ["UPDATE memberships SET scheduled_disable_at='2000-01-01' WHERE id=1","UPDATE memberships SET scheduled_disable_at='' WHERE id=1"],
+  ["UPDATE organizations SET scheduled_disable_at='2000-01-01' WHERE id=1","UPDATE organizations SET scheduled_disable_at='' WHERE id=1"]
+ ]){
+  post(id);assert.equal((await queue(id)).status,200);due(id);const before=writes();sql.exec(revoke);
+  try{await app.dispatchDueSocialPosts();assert.equal(state(id).status,'Feilet');assert.ok(state(id).publication_error);assert.equal(writes(),before);}finally{sql.exec(restore);}id++;
+ }
+});
+
+test('changed destination or expired connection never redirects a scheduled post',async()=>{
+ post(110);assert.equal((await queue(110)).status,200);due(110);const before=writes();
+ sql.exec("UPDATE social_connections SET account_id='999' WHERE platform='Facebook'");
+ try{await app.dispatchDueSocialPosts();assert.equal(state(110).status,'Feilet');assert.match(state(110).publication_error,/endret/);assert.equal(writes(),before);}finally{sql.exec("UPDATE social_connections SET account_id='111' WHERE platform='Facebook'");}
+ post(111);assert.equal((await queue(111)).status,200);due(111);
+ const expiry=sql.prepare("SELECT expires_at FROM social_connections WHERE platform='Facebook'").get().expires_at;
+ sql.exec("UPDATE social_connections SET expires_at=0 WHERE platform='Facebook'");
+ try{await app.dispatchDueSocialPosts();assert.equal(state(111).status,'Feilet');assert.equal(writes(),before);}finally{sql.prepare("UPDATE social_connections SET expires_at=? WHERE platform='Facebook'").run(expiry);}
+});
+
+test('prepared Instagram images persist when scheduling and both channels publish at the due time',async()=>{
+ post(112,['Instagram','Facebook']);
+ add('marketing_post_images',{id:112,organization_id:1,post_id:112,object_key:'old-png',filename:'logo.png',content_type:'image/png',size:900,created_at:'now'});
+ const jpeg=new Uint8Array([255,216,255,192,0,8,8,1,64,1,64,1]),objects=new Map(),saved=testEnv.BUCKET;
+ testEnv.BUCKET={put:async(key,bytes)=>objects.set(key,bytes),get:async(key)=>objects.has(key)?{arrayBuffer:async()=>objects.get(key)}:null};
+ try{
+  const form=new FormData();form.append('payload',JSON.stringify({postId:112,action:'schedule',confirm:true,targets:targets(),scheduledAt:new Date(Date.now()+3600000).toISOString()}));form.append('image:112',new Blob([jpeg],{type:'image/jpeg'}),'prepared.jpg');
+  const before=writes();const r=await route('publish').POST(new Request('https://crm.noracre.no/api/social/publish',{method:'POST',headers:{authorization:'Bearer 1','x-organization-id':'1'},body:form}));
+  assert.equal(r.status,200);assert.equal(state(112).status,'Planlagt');assert.equal(objects.size,1);assert.equal(writes(),before);
+  due(112);await app.dispatchDueSocialPosts();assert.equal(state(112).status,'Publisert');
+  assert.equal(sql.prepare("SELECT count(*) n FROM social_deliveries WHERE post_id=112 AND status='published'").get().n,2);
+  const after=writes();await app.dispatchDueSocialPosts();assert.equal(writes(),after);
+ }finally{testEnv.BUCKET=saved;}
+});
+
+test('uncertain provider responses and interrupted jobs are never automatically retried',async()=>{
+ post(113);assert.equal((await queue(113)).status,200);due(113);
+ const normal=globalThis.fetch;globalThis.fetch=async(input,init)=>String(input).includes('/111/feed')?(()=>{throw Error('Connection reset after acceptance');})():normal(input,init);
+ try{await app.dispatchDueSocialPosts();assert.equal(state(113).status,'Kontroller publisering');}finally{globalThis.fetch=normal;}
+ post(114);sql.exec("UPDATE marketing_posts SET status='Publiserer',updated_at='2000-01-01T00:00:00.000Z' WHERE id=114");
+ const before=writes();await app.dispatchDueSocialPosts();assert.equal(state(114).status,'Kontroller publisering');assert.ok(state(114).publication_error);assert.equal(writes(),before);
+});
+
+test('cancellation during preflight wins, while cancellation after the claim is rejected',async()=>{
+ for(const [id,stage,expected] of [[115,'111','Kladd'],[116,'111/feed','Publisert']]){
+  post(id);assert.equal((await queue(id)).status,200);due(id);
+  let release,entered;const blocked=new Promise(r=>release=r),reached=new Promise(r=>entered=r);const normal=globalThis.fetch;
+  globalThis.fetch=async(input,init)=>{if(new URL(String(input)).pathname==='/v24.0/'+stage){entered();await blocked;}return normal(input,init);};
+  const running=app.dispatchDueSocialPosts();
+  try{
+   await reached;
+   const response=await route('publish').POST(req('publish',1,1,{postId:id,action:'cancel',confirm:true}));
+   assert.equal(response.status,stage==='111'?200:409);
+  }finally{release();await running;globalThis.fetch=normal;}
+  assert.equal(state(id).status,expected);
+  assert.equal(sql.prepare('SELECT count(*) n FROM social_deliveries WHERE post_id=?').get(id).n,stage==='111'?0:1);
+ }
 });
 
 test('disconnect is tenant-scoped and removes stored credential',async()=>{

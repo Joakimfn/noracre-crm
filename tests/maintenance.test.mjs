@@ -5,9 +5,10 @@ import {build} from 'esbuild';
 import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-maintenance-'));
-await build({entryPoints:[new URL('../worker/maintenance.ts',import.meta.url).pathname],bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'worker.mjs')});
-const {applyScheduledDeactivations,refreshBrregBatch,osloSchedule}=await import(path.join(dir,'worker.mjs'));
+await build({entryPoints:[fileURLToPath(new URL('../worker/maintenance.ts',import.meta.url))],bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'worker.mjs')});
+const {applyScheduledDeactivations,refreshBrregBatch,osloSchedule}=await import(pathToFileURL(path.join(dir,'worker.mjs')));
 function fixture(){
  const sql=new DatabaseSync(':memory:');
  sql.exec(`CREATE TABLE team_members(id INTEGER PRIMARY KEY,organization_id INTEGER,email TEXT,active INTEGER);CREATE TABLE memberships(id INTEGER PRIMARY KEY,active INTEGER,scheduled_disable_at TEXT DEFAULT '',organization_id INTEGER,email TEXT);

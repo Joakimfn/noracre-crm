@@ -1,4 +1,5 @@
 import {applyScheduledDeactivations,refreshBrregBatch} from "./maintenance";
+import {dispatchDueSocialPosts} from '../lib/social-publication';
 import {dispatchDueCampaigns} from "../lib/email-campaigns";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import handler from "vinext/server/app-router-entry";
@@ -23,6 +24,7 @@ const worker = {
   async scheduled(_event: unknown, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil((async()=>{await applyScheduledDeactivations(env.DB);await refreshBrregBatch(env.DB);})());
     ctx.waitUntil(dispatchDueCampaigns());
+    ctx.waitUntil(dispatchDueSocialPosts());
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {

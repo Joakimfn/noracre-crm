@@ -10,7 +10,7 @@ export async function GET(request:Request){try{
  const ctx=await requireTenant(request);await requireModuleAccess(ctx.organizationId,ctx.membershipId,'markedsforing');
  const db=runtime().DB;await ensureCampaigns(db);
  const p=new URL(request.url).searchParams,history=p.get('view')==='history',q=(p.get('q')??'').trim().toLocaleLowerCase('nb-NO').slice(0,500);
- const union=`SELECT id,'post' kind,content,platforms,scheduled_at scheduledAt,status,created_at createdAt,updated_at updatedAt,'' subject,'' sender,0 recipientCount,0 membershipId,'' error,'' sentAt,'[]' files FROM marketing_posts WHERE organization_id=? AND status<>'Slettet'
+ const union=`SELECT id,'post' kind,content,platforms,scheduled_at scheduledAt,status,created_at createdAt,updated_at updatedAt,'' subject,'' sender,0 recipientCount,0 membershipId,publication_error error,'' sentAt,'[]' files FROM marketing_posts WHERE organization_id=? AND status<>'Slettet'
  UNION ALL SELECT -id,'email',message,'["E-post"]',scheduled_at,status,created_at,updated_at,subject,sender,recipient_count,membership_id,error,sent_at,files FROM email_campaigns WHERE organization_id=? AND hidden=0`;
  const historyExpr="(kind='post' AND status='Publisert') OR (kind='email' AND status NOT IN ('Planlagt','Sender'))";
  const counts=await db.prepare(`SELECT sum(CASE WHEN ${historyExpr} THEN 0 ELSE 1 END) upcoming,sum(CASE WHEN ${historyExpr} THEN 1 ELSE 0 END) history FROM (${union})`).bind(ctx.organizationId,ctx.organizationId).first<{upcoming:number;history:number}>();

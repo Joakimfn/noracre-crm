@@ -1,14 +1,8 @@
-import {LinkedInError,publishLinkedIn,requireLinkedInPage,unsealLinkedIn} from "@/lib/social-linkedin";
-import {validateImage} from "@/lib/safe-image";
-import { env } from "cloudflare:workers";
-import { and, eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { marketingPostImages, marketingPosts, socialConnections, socialDeliveries } from "@/db/schema";
-import { AccessError, accessResponse } from "@/lib/tenant";
-import { graph, mediaUrl, META_CHANNELS, MetaError, socialAccess, tokenContext, unseal } from "@/lib/social-meta";
-import { jpegDimensions, publishMeta } from "@/lib/social-publish";
+import {AccessError,accessResponse} from '@/lib/tenant';
+import {socialAccess} from '@/lib/social-meta';
+import {publishStoredPost,cancelSocialPublication} from '@/lib/social-publication';
 export async function POST(request:Request){
-  try {
+  try{
     const ctx=await socialAccess(request);
     const form=request.headers.get('content-type')?.includes('multipart/form-data')?await request.formData():null;
     const body=form?JSON.parse(String(form.get('payload')??'{}')):await request.json();
@@ -19,96 +13,9 @@ export async function POST(request:Request){
       prepared.set(id,value);
     }
     if(prepared.size>6||[...prepared.values()].reduce((sum,f)=>sum+f.size,0)>20*1024*1024)throw new AccessError(400,"Maks seks bilder og 20 MB samlet.");
-    if(body.confirm!==true)throw new AccessError(400,"Bekreft publisering først.");
-    const [post]=await getDb().select().from(marketingPosts).where(and(eq(marketingPosts.id,Number(body.postId)),eq(marketingPosts.organizationId,ctx.organizationId))).limit(1);
-    if(!post)throw new AccessError(404,"Innlegget finnes ikke.");
-    const channels=JSON.parse(post.platforms) as string[];
-    if(!channels.length||channels.some(p=>![...META_CHANNELS,"LinkedIn"].includes(p)))throw new AccessError(400,"Velg Facebook, Instagram eller LinkedIn for publisering.");
-    const images=await getDb().select().from(marketingPostImages).where(and(eq(marketingPostImages.postId,post.id),eq(marketingPostImages.organizationId,ctx.organizationId))).orderBy(marketingPostImages.id);
-    if([...prepared.keys()].some(id=>!images.some(i=>i.id===id)))throw new AccessError(400,"Bildet tilhører ikke dette innlegget.");
-    if(images.length>6)throw new AccessError(400,"Maks seks bilder per innlegg.");
-    for(const file of prepared.values()){
-      await validateImage(file,8*1024*1024);
-      if(file.type!=="image/jpeg")throw new AccessError(400,"Klargjorte bilder må være JPEG.");
-    }
-    if(channels.includes("Instagram")){
-      if(!images.length)throw new AccessError(400,"Legg til minst ett bilde for Instagram.");
-      if([...post.content].length>2200)throw new AccessError(400,"Instagram-teksten kan være maks 2 200 tegn.");
-      for(const image of images){
-        const replacement=prepared.get(image.id);
-        if((replacement?.type??image.contentType)!=='image/jpeg')throw new AccessError(400,"Bildet må tilpasses for Instagram. Åpne publiseringsvinduet på nytt.");
-        if((replacement?.size??image.size)>8*1024*1024)throw new AccessError(400,`Bildet «${image.filename}» er over 8 MB.`);
-        const file=replacement??await (env.BUCKET as R2Bucket).get(image.objectKey);
-        const size=file?jpegDimensions(new Uint8Array(await file.arrayBuffer())):null;
-        if(!size||size.width<320||size.width>1440||size.height===0||size.width/size.height<.8||size.width/size.height>1.91)
-          throw new AccessError(400,`Bildet «${image.filename}» må tilpasses. Åpne publiseringsvinduet på nytt.`);
-      }
-    }
-    const linkedinImages:{bytes:ArrayBuffer;contentType:string}[]=[];
-    if(channels.includes("LinkedIn")){
-      if([...post.content].length>3000)throw new AccessError(400,"LinkedIn-teksten kan være maks 3 000 tegn.");
-      for(const image of images){
-        const replacement=prepared.get(image.id),type=replacement?.type??image.contentType;
-        if(!["image/jpeg","image/png","image/gif"].includes(type))throw new AccessError(400,"LinkedIn støtter JPEG, PNG og GIF. Last opp bildet i et av disse formatene.");
-        const file=replacement??await (env.BUCKET as R2Bucket).get(image.objectKey);if(!file)throw new AccessError(404,"Et bilde mangler. Ingen innlegg er publisert.");
-        const bytes=await file.arrayBuffer();await validateImage(new File([bytes],image.filename,{type}),10*1024*1024);
-        const raw=new Uint8Array(bytes),v=new DataView(bytes);
-        const size=type==='image/jpeg'?jpegDimensions(raw):type==='image/png'&&bytes.byteLength>=24?{width:v.getUint32(16),height:v.getUint32(20)}:type==='image/gif'&&bytes.byteLength>=10?{width:v.getUint16(6,true),height:v.getUint16(8,true)}:null;
-        if(!size||!size.width||!size.height||size.width*size.height>=36152320)throw new AccessError(400,"LinkedIn-bildene må ha færre enn 36 millioner piksler.");
-        linkedinImages.push({bytes,contentType:type});
-      }
-    }
-    const accounts=[];
-    for(const platform of channels){
-      const [c]=await getDb().select().from(socialConnections).where(and(eq(socialConnections.organizationId,ctx.organizationId),eq(socialConnections.platform,platform))).limit(1);
-      if(!c||c.expiresAt<=Date.now())throw new AccessError(409,`Koble til ${platform} før publisering.`);
-      const expected = Array.isArray(body.targets) ? body.targets.find((t: {platform?:string})=>t?.platform===platform) : undefined;
-      if(!expected || expected.id!==c.id || expected.accountId!==c.accountId)
-        throw new AccessError(409,"Kontotilkoblingen er endret. Åpne publiseringsbekreftelsen på nytt.");
-      const token=await (platform==="LinkedIn"?unsealLinkedIn<string>(c.token,tokenContext(ctx.organizationId,platform,c.accountId)):unseal<string>(c.token,tokenContext(ctx.organizationId,platform,c.accountId)));
-      if(platform==="LinkedIn")await requireLinkedInPage(token,c.accountId);
-      else {const account=await graph<{id:string}>(c.accountId,token,{fields:"id"});if(account.id!==c.accountId)throw new AccessError(409,"Kontoen må kobles til på nytt.");}
-      accounts.push({...c,plainToken:token});
-    }
-    // Atomic post claim prevents parallel requests and retried HTTP calls from duplicating posts.
-    const [claimed]=await getDb().update(marketingPosts).set({status:"Publiserer",updatedAt:new Date().toISOString()}).where(and(eq(marketingPosts.id,post.id),eq(marketingPosts.organizationId,ctx.organizationId),eq(marketingPosts.status,"Kladd"))).returning();
-    if(!claimed)throw new AccessError(409,"Innlegget er allerede behandlet. Kontroller statusen før du gjør noe mer.");
-    // Only the winning publication request can replace images. No Meta writes before preparation succeeds.
-    try {
-      for(const image of images){
-        const file=prepared.get(image.id);if(!file)continue;
-        const objectKey=`marketing/${ctx.organizationId}/${post.id}/${crypto.randomUUID()}`;
-        await (env.BUCKET as R2Bucket).put(objectKey,await file.arrayBuffer(),{httpMetadata:{contentType:'image/jpeg'}});
-        await getDb().update(marketingPostImages).set({objectKey,contentType:'image/jpeg',size:file.size,filename:image.filename.replace(/\.[^.]+$/,'')+'.jpg'}).where(and(eq(marketingPostImages.id,image.id),eq(marketingPostImages.organizationId,ctx.organizationId)));
-      }
-    }catch{
-      await getDb().update(marketingPosts).set({status:"Kladd"}).where(and(eq(marketingPosts.id,post.id),eq(marketingPosts.organizationId,ctx.organizationId),eq(marketingPosts.status,"Publiserer")));
-      throw new AccessError(503,"Bildene kunne ikke klargjøres. Ingenting ble publisert. Prøv igjen.");
-    }
-    const results=[];
-    for(const account of accounts){
-      let deliveryId:number|undefined;
-      try {
-        const [delivery]=await getDb().insert(socialDeliveries).values({organizationId:ctx.organizationId,postId:post.id,platform:account.platform,accountId:account.accountId,createdAt:new Date().toISOString()}).onConflictDoNothing().returning();
-        if(!delivery){results.push({platform:account.platform,status:"unknown",error:"Et publiseringsforsøk finnes allerede. Kontroller kontoen."});continue;}
-        deliveryId=delivery.id;
-        // Recheck entitlement and selected account immediately before each external write.
-        await socialAccess(request);
-        const [current]=await getDb().select({token:socialConnections.token}).from(socialConnections).where(and(eq(socialConnections.id,account.id),eq(socialConnections.organizationId,ctx.organizationId))).limit(1);
-        if(current?.token!==account.token)throw new AccessError(409,"Tilkoblingen ble endret. Publiseringen er stoppet.");
-        const remoteId=account.platform==="LinkedIn" ? await publishLinkedIn(account.accountId,account.plainToken,post.content,linkedinImages) : await publishMeta(account.platform,account.accountId,account.plainToken,post.content,await Promise.all(images.map(i=>mediaUrl(ctx.organizationId,i.id,post.id))));
-        await getDb().update(socialDeliveries).set({status:"published",remoteId}).where(eq(socialDeliveries.id,delivery.id));
-        results.push({platform:account.platform,status:"published",remoteId});
-      }catch(error){
-        const status=(error instanceof MetaError||error instanceof LinkedInError)&&!error.uncertain||error instanceof AccessError&&!(error instanceof MetaError)&&!(error instanceof LinkedInError)?"failed":"unknown";
-        const message=error instanceof AccessError?error.message:"Uklart resultat. Kontroller kontoen på den aktuelle kanalen før du publiserer innholdet på nytt.";
-        if(deliveryId)await getDb().update(socialDeliveries).set({status,error:message}).where(eq(socialDeliveries.id,deliveryId));
-        results.push({platform:account.platform,status,error:message});
-      }
-    }
-    const status=results.every(r=>r.status==="published")?"Publisert":results.some(r=>r.status==="published")?"Delvis publisert":"Kontroller publisering";
-    await getDb().update(marketingPosts).set({status,updatedAt:new Date().toISOString()}).where(and(eq(marketingPosts.id,post.id),eq(marketingPosts.organizationId,ctx.organizationId)));
-    return Response.json({status,results});
-  }catch(e){return accessResponse(e);}
+    if(body.confirm!==true)throw new AccessError(400,'Bekreft handlingen først.');
+    if(body.action==='cancel')return Response.json(await cancelSocialPublication(ctx,Number(body.postId)));
+    if(body.action!==undefined&&!['schedule','publish'].includes(body.action))throw new AccessError(400,'Ugyldig publiseringsvalg.');
+    return Response.json(await publishStoredPost(ctx,body,prepared,()=>socialAccess(request)));
+  }catch(error){return accessResponse(error);}
 }
-
