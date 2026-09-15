@@ -1,4 +1,6 @@
 "use client";
+import {defaultI18n,type MessageKey} from "@/lib/i18n";
+import {useI18n} from "@/lib/i18n/react";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
 import {NorwegianDateInput} from '@/components/norwegian-date-input';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
@@ -495,31 +497,19 @@ const stageClass: Record<string, string> = {
   Vunnet: "stage stage-green",
   Tapt: "stage stage-gray",
 };
-function date(v: string, time = false) {
-  if (!v) return "Ingen dato";
-  return new Intl.DateTimeFormat(
-    "nb-NO",
-    time
-      ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
-      : { day: "numeric", month: "short" },
-  ).format(new Date(v));
+function date(v:string,time=false){
+ if(!v)return defaultI18n.t('common.noDate');
+ const value=new Date(v);if(!Number.isFinite(value.getTime()))return defaultI18n.t('common.noDate');
+ return defaultI18n.date(value,time?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});
 }
-function followUpLabel(v?: string) {
-  if (!v) return "Ingen planlagt oppfølging";
-  const formatted = new Intl.DateTimeFormat("nb-NO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(v));
-  return `Planlagt oppfølging ${formatted}`;
+function followUpLabel(v?:string){
+ if(!v)return defaultI18n.t('followup.none');
+ return defaultI18n.t('followup.planned',{date:defaultI18n.date(new Date(v),{day:'numeric',month:'short',year:'numeric'})});
 }
-function daysSince(v?: string) {
-  if (!v) return "Aldri kontaktet";
-  const days = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(v).getTime()) / 86400000),
-  );
-  return days === 0 ? "I dag" : days === 1 ? "1 dag" : `${days} dager`;
+function daysSince(v?:string){
+ if(!v)return defaultI18n.t('contact.never');
+ const days=Math.max(0,Math.floor((Date.now()-new Date(v).getTime())/86400000));
+ return days===0?defaultI18n.t('common.today'):defaultI18n.t('common.days',{count:days});
 }
 function fileSize(bytes: number) {
   return bytes < 1024
@@ -528,16 +518,16 @@ function fileSize(bytes: number) {
       ? `${Math.round(bytes / 1024)} KB`
       : `${(bytes / 1048576).toFixed(1)} MB`;
 }
-const title: Record<View, string> = {
-  overview: "Oversikt",
-  customers: "Kunder",
-  followup: "Oppfølging",
-  reports: "Rapporter",
-  calllists: "Ringelister",
-  admin: "Administrasjon",
-  marketing: "Markedsføring",
-  superadmin: "Superadmin",
-  operations: "Drift og kunder",
+const titleKeys: Record<View, MessageKey> = {
+  overview: "nav.overview",
+  customers: "nav.customers",
+  followup: "nav.followup",
+  reports: "nav.reports",
+  calllists: "nav.calllists",
+  admin: "nav.admin",
+  marketing: "nav.marketing",
+  superadmin: "nav.superadmin",
+  operations: "nav.operations",
 };
 function icon(kind: string) {
   return kind === "Telefon" ? (
@@ -552,6 +542,7 @@ function icon(kind: string) {
 }
 
 export default function Home() {
+  const {t}=useI18n();
   const [view, setView] = useState<View>("overview"),
     [companies, setCompanies] = useState<Company[]>([]),
     [activities, setActivities] = useState<Activity[]>([]),
@@ -1441,43 +1432,43 @@ export default function Home() {
             alt="Noracre"
           />
         </div>
-        <nav aria-label="Hovedmeny">
+        <nav aria-label={t('nav.main')}>
           <Nav
             a={view === "overview"}
             click={() => setView("overview")}
             ico={<LayoutDashboard size={20} />}
-            text="Oversikt"
+            text={t('nav.overview')}
           />
           <Nav
             a={view === "customers"}
             click={() => setView("customers")}
             ico={<UsersRound size={20} />}
-            text="Kunder"
+            text={t('nav.customers')}
           />
           <Nav
             a={view === "followup"}
             click={() => setView("followup")}
             ico={<CalendarCheck2 size={20} />}
-            text="Oppfølging"
+            text={t('nav.followup')}
             count={overdue.length + dueToday.length}
           />
           <Nav
             a={view === "reports"}
             click={() => setView("reports")}
             ico={<BarChart3 size={20} />}
-            text="Rapporter"
+            text={t('nav.reports')}
           />
           <Nav
             a={view === "calllists"}
             click={() => setView("calllists")}
             ico={<Phone size={20} />}
-            text="Ringelister"
+            text={t('nav.calllists')}
           />
           <Nav
             a={view === "marketing"}
             click={() => setView("marketing")}
             ico={<Megaphone size={20} />}
-            text="Markedsføring"
+            text={t('nav.marketing')}
           />
           {canViewAdministration(rolePreview) && (
             <Nav
@@ -1487,7 +1478,7 @@ export default function Home() {
                 setView("admin");
               }}
               ico={<Settings size={20} />}
-              text="Administrasjon"
+              text={t('nav.admin')}
             />
           )}
         </nav>
@@ -1497,7 +1488,7 @@ export default function Home() {
               a={view === "operations"}
               click={() => setView("operations")}
               ico={<Gauge size={20} />}
-              text="Drift"
+              text={t('nav.operationsShort')}
             />
             <Nav
               a={view === "superadmin"}
@@ -1506,7 +1497,7 @@ export default function Home() {
                 setView("superadmin");
               }}
               ico={<ShieldCheck size={20} />}
-              text="Superadmin"
+              text={t('nav.superadmin')}
             />
           </nav>
         )}
@@ -1706,7 +1697,7 @@ export default function Home() {
         <header className="topbar">
           <div>
             <p className="eyebrow">NORACRE CRM</p>
-            <h1>{title[view]}</h1>
+            <h1>{t(titleKeys[view])}</h1>
           </div>
           <div className="top-actions">
             {view === "customers" && (
@@ -5334,7 +5325,7 @@ function Operations(p: {
         />
         <div className="metric money">
           <span>Beregnet månedsbeløp</span>
-          <strong>{s.monthlyAmount.toLocaleString("nb-NO")} kr</strong>
+          <strong>{defaultI18n.number(s.monthlyAmount)} kr</strong>
         </div>
       </div>
       <OperationsInsights/>
@@ -5424,7 +5415,7 @@ function Operations(p: {
                   .join(" · ") || "Kun CRM"}
               </span>
               <span>{o.activities30d} aktiviteter</span>
-              <strong>{o.monthlyAmount.toLocaleString("nb-NO")} kr</strong>
+              <strong>{defaultI18n.number(o.monthlyAmount)} kr</strong>
               <div className="operations-actions">
                 <Select
                   value={o.status}

@@ -29,3 +29,12 @@ test('migration and runtime schema agree',async()=>{const other=new DatabaseSync
 test.after(async()=>{globalThis.fetch=realFetch;sql.close();await rm(dir,{recursive:true,force:true});});
 
 test('paused AI search is not advertised on public pages',async()=>{for(const p of ['/','/crm','/moduler'])assert.doesNotMatch(await app.publicWebsite(p).text(),/AI-søk|med AI/);});
+
+ test('all enquiry forms use the concise label and language-independent option values',async()=>{
+  for(const path of ['/bli-kunde','/demo']){const html=await app.publicWebsite(path).text();assert.match(html,/<option value="unsure">Usikker<\/option>/);assert.doesNotMatch(html,/Usikker ennå/);assert.match(html,/data-messages=/);}
+ });
+ test('current and cached user-count values validate consistently without translated wire values',()=>{
+  for(const users of ['unsure','Usikker','Usikker ennå'])assert.equal(app.validateEnquiry({...valid(),users}).users,'Usikker');
+  for(const [users,expected] of [['1-5','1–5'],['6-10','6–10'],['11-25','11–25'],['26-plus','26 eller flere']])assert.equal(app.validateEnquiry({...valid(),users}).users,expected);
+  assert.equal(app.validateEnquiry({...valid(),users:'Not sure'}),null);
+ });

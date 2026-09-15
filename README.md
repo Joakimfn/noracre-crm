@@ -91,3 +91,7 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+## Internationalization
+
+See [I18N.md](I18N.md) for the shared translation and formatting foundation and the checklist for publishing additional languages.

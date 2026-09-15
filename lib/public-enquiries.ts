@@ -1,3 +1,5 @@
+import {enquiryUserCounts} from './enquiry-options';
+import {defaultI18n} from './i18n';
 type Statement={bind(...values:unknown[]):Statement;run():Promise<unknown>;first<T=Record<string,unknown>>():Promise<T|null>};
 type PublicEnv={DB:{prepare(sql:string):Statement};RESEND_API_KEY?:string};
 const recipient='jfn@noracre.no';
@@ -17,7 +19,12 @@ export function validateEnquiry(raw:unknown):Enquiry|null{
  for(const [key,max] of Object.entries({requestId:36,type:20,company:160,organizationNumber:12,name:120,email:254,phone:30,users:30,message:3000,website:200})){const value=r[key]??'';if(typeof value!=='string'||value.length>max)return null;data[key as keyof Enquiry]=value.trim();}
  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(data.requestId)||!['customer','demo'].includes(data.type))return null;
  if(!data.company||!data.name||!/^\S+@[^\s@]+\.[^\s@]+$/.test(data.email)||/[\r\n]/.test(data.email))return null;
- if(!['1–5','6–10','11–25','26 eller flere','Usikker ennå'].includes(data.users))return null;
+ // Accept cached forms as well as stable identifiers from the new form.
+ if(data.users==='Usikker ennå')data.users='Usikker';
+ const userCount=enquiryUserCounts.find(option=>option.value===data.users||defaultI18n.t(option.label)===data.users);
+ if(!userCount)return null;
+ // Keep the sales email and existing retry fingerprints in Norwegian.
+ data.users=defaultI18n.t(userCount.label);
  if(data.organizationNumber&&!/^\d{9}$/.test(data.organizationNumber.replace(/\s/g,'')))return null;
  return data as Enquiry;
 }
