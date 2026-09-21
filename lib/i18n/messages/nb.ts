@@ -38,6 +38,7 @@ export const nb = {
   "partner.previewAccount": "Eksempelpartner",
   "nav.partner": "Partneroversikt",
   "partner.historical": "Tidligere kunde",
+  "partner.activeUsers": "Aktive brukere: {count}",
   "partner.intro": "Følg kundene du har vervet og provisjonen din.",
   "partner.loading": "Henter partneroversikten …",
   "partner.error": "Kunne ikke hente partneroversikten.",

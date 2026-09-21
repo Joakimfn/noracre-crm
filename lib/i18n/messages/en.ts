@@ -40,6 +40,7 @@ export const en = {
   "partner.previewAccount": "Sample partner",
   "nav.partner": "Partner overview",
   "partner.historical": "Former customer",
+  "partner.activeUsers": "Active users: {count}",
   "partner.intro": "Follow your referred customers and your commission.",
   "partner.loading": "Loading partner overview …",
   "partner.error": "Could not load partner overview.",

@@ -5,7 +5,7 @@ import {apiFetch} from '@/lib/api-client';
 import {useI18n} from '@/lib/i18n/react';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
-type Row={id:number;name:string;active:boolean;assignedAt:string;currentOre:number;previousOre:number;ytdOre:number;historical:boolean};
+type Row={userCount?:number;id:number;name:string;active:boolean;assignedAt:string;currentOre:number;previousOre:number;ytdOre:number;historical:boolean};
 export type PartnerReport={commissionBps:number|null;commission:CommissionReport;rows:Row[];year:number;previousMonth:string;throughDate:string};
 export function PartnerOverview({organizationId}:{organizationId:number}){
  const {t}=useI18n();
@@ -31,6 +31,7 @@ export function PartnerReportView({report}:{report:PartnerReport}){
  {report.rows.length>0&&<Input className="partner-search" aria-label={t('partner.search')} placeholder={t('partner.search')} value={query} onChange={e=>setQuery(e.target.value)}/>}
  {!report.rows.length?<p className="partner-empty">{t('partner.empty')}</p>:!rows.length?<p>{t('partner.noMatches')}</p>:<div className="partner-customers">{rows.map(row=><article className="partner-customer" key={row.id}>
  <header><div><h2>{row.name}</h2>{row.assignedAt&&<small>{t('partner.since',{date:date(new Date(row.assignedAt),{day:'numeric',month:'long',year:'numeric'})})}</small>}</div><span className={row.active?'stage stage-green':'stage stage-gray'}>{t(row.historical?'partner.historical':row.active?'partner.active':'partner.inactive')}</span></header>
+ {row.userCount!=null&&<p className="form-hint">{t('partner.activeUsers',{count:number(row.userCount)})}</p>}
  <dl>{[[t('partner.monthly'),amount(row.currentOre)],[t('partner.previous'),amount(row.previousOre)],[t('partner.ytd'),amount(row.ytdOre)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
  </article>)}</div>}
  </div>;
