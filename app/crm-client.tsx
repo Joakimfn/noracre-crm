@@ -1,4 +1,6 @@
 "use client";
+import {CommissionField} from "@/components/commission-field";
+import {PartnerPaymentRegister} from "@/components/partner-payment-register";
 import {PartnerOverview} from "@/components/partner-overview";
 import {PartnerPreview} from "@/components/partner-preview";
 import {PartnerPicker,ReferrerSelect} from "@/components/partner-management";
@@ -220,6 +222,7 @@ type NewOrganization = PriceFields & {
   adminEmail: string;
   adminPhone: string;
   adminRole: string;
+  commissionPercent: string;
   referredByPartnerId: string;
 };
 const emptyNewOrganization: NewOrganization = {
@@ -236,6 +239,7 @@ const emptyNewOrganization: NewOrganization = {
   adminEmail: "",
   adminPhone: "",
   adminRole: "Administrator",
+  commissionPercent: "",
   referredByPartnerId: "none",
 };
 type Attachment = {
@@ -255,7 +259,7 @@ type SupportRequest = {
   createdAt: string;
 };
 type OperationOrganization = {
-  isPartner: boolean; referredByPartnerId: number | null; partnerAssignedAt: string;
+  commissionBps: number|null; isPartner: boolean; referredByPartnerId: number | null; partnerAssignedAt: string;
   crmPrice: number | null; ringPrice: number | null; marketingPrice: number | null;
   scheduledDisableAt?: string;
   id: number;
@@ -1347,7 +1351,7 @@ export default function Home() {
       | "industry"
       | "phone"
       | "email"
-    > & PriceFields & {referredByPartnerId:string},
+    > & PriceFields & {referredByPartnerId:string;commissionPercent:string},
   ) {
     const r = await api("/api/superadmin", {
         method: "POST",
@@ -1885,6 +1889,7 @@ export default function Home() {
         {view === "partner" && rolePreview === "Partner" && <PartnerOverview key={activeOrgId} organizationId={activeOrgId}/>}
         {view === "operations" && rolePreview === "Superadmin" && (
           <Operations
+            activeOrgId={activeOrgId}
             data={operations}
             openOrganization={async (id) => {
               await switchOrganization(id);
@@ -5170,6 +5175,7 @@ function SuperadminSettings(p: {
             </SelectContent>
           </Select>
           {p.newOrg.adminRole === "Partner" && <p className="form-hint">{t('partner.newHint')}</p>}
+          {p.newOrg.adminRole === "Partner" && <CommissionField value={p.newOrg.commissionPercent} onChange={commissionPercent=>p.setNewOrg({...p.newOrg,commissionPercent})}/>}
           <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
           <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
@@ -5248,6 +5254,7 @@ function SuperadminSettings(p: {
   );
 }
 function Operations(p: {
+  activeOrgId:number;
   data: OperationsData | null;
   openOrganization: (id: number) => void;
   requestAccess: (id: number) => void;
@@ -5264,7 +5271,7 @@ function Operations(p: {
       | "industry"
       | "phone"
       | "email"
-    > & PriceFields & {referredByPartnerId:string},
+    > & PriceFields & {referredByPartnerId:string;commissionPercent:string},
   ) => Promise<boolean>;
 }) {
   const {t}=useI18n();
@@ -5272,6 +5279,7 @@ function Operations(p: {
     [selectedOrganization, setSelectedOrganization] =
       useState<OperationOrganization | null>(null),
     [details, setDetails] = useState({
+      commissionPercent:"",
       referredByPartnerId:"none",
       crmPrice: "", ringPrice: "", marketingPrice: "",
       name: "",
@@ -5289,6 +5297,7 @@ function Operations(p: {
   function openDetails(organization: OperationOrganization) {
     setSelectedOrganization(organization);
     setDetails({
+      commissionPercent:organization.commissionBps==null?"":String(organization.commissionBps/100),
       referredByPartnerId:organization.referredByPartnerId?String(organization.referredByPartnerId):"none",
       crmPrice: organization.crmPrice == null ? "" : String(organization.crmPrice),
       ringPrice: organization.ringPrice == null ? "" : String(organization.ringPrice),
@@ -5604,6 +5613,7 @@ function Operations(p: {
             <Label>{t('partner.referrer')}</Label>
             <ReferrerSelect rows={(p.data?.organizations??[]).filter(o=>o.id!==selectedOrganization?.id).map(o=>({...o,scheduledDisableAt:o.scheduledDisableAt??""}))} value={details.referredByPartnerId} onChange={referredByPartnerId=>setDetails({...details,referredByPartnerId})}/>
           </div>
+          {selectedOrganization?.isPartner && <CommissionField editing value={details.commissionPercent} onChange={commissionPercent=>setDetails({...details,commissionPercent})}/>}
           <NegotiatedPrices values={details} change={(values) => setDetails({...details,...values})} />
           <p className="form-hint">Lagre prisene dere har avtalt. Endringen gjelder eksisterende og nye brukerlisenser fra nå; tidligere fakturagrunnlag beholdes.</p>
           <div className="offer-actions">
@@ -5623,6 +5633,7 @@ function Operations(p: {
               Lagre informasjon
             </Button>
           </div>
+          {selectedOrganization&&<PartnerPaymentRegister key={selectedOrganization.id} companyId={selectedOrganization.id} organizationId={p.activeOrgId}/>}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,0 +1,3 @@
+"use client";
+import {Input} from '@/components/ui/input';import {Label} from '@/components/ui/label';import {useI18n} from '@/lib/i18n/react';
+export function CommissionField({value,onChange,editing=false}:{value:string;onChange:(value:string)=>void;editing?:boolean}){const {t}=useI18n();return <div className="organization-form"><Label>{t('commission.label')}</Label><Input aria-label={t('commission.label')} inputMode="decimal" maxLength={6} required value={value} onChange={e=>onChange(e.target.value)} placeholder="0–100"/><p className="form-hint">{t(editing?'commission.editHelp':'commission.help')}</p></div>;}

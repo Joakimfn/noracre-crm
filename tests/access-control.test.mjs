@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai','partners'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai','partners','partner-payments'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as importRoute from './app/api/import/route';\nexport {matchesCustomer} from './lib/customer-search';\nexport {activeReminder,validateReminderMinutes} from './lib/followup-reminder';\nexport {guessColumns,mapImportRow,importDate} from './lib/data-import';\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/lib\/email-campaigns$/},()=>({path:'campaigns',namespace:'test'}));
  b.onResolve({filter:/^@\/lib\/user-mail$/},()=>({path:'user-mail',namespace:'test'}));
@@ -679,7 +679,7 @@ test('only superadmin can manage referral ownership; assignment changes revoke f
 
 test('partner role and referrals can be created only by superadmin and must refer to a real partner',async()=>{
  const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
- const data={type:'organization',name:'New partner',adminName:'Partner contact',adminEmail:'newpartner@test.no',adminRole:'Partner',crmPrice:0};
+ const data={type:'organization',name:'New partner',adminName:'Partner contact',adminEmail:'newpartner@test.no',adminRole:'Partner',commissionPercent:'20',crmPrice:0};
  assert.equal((await route('admin').POST(request(1105,1100,data))).status,403);
  const before=sql.prepare('SELECT COUNT(*) n FROM organizations').get().n;
  assert.equal((await route('admin').POST(request('owner',own,{...data,referredByPartnerId:999999}))).status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM organizations').get().n,before);
@@ -713,4 +713,45 @@ test('automatic partner preview is offered to the owner only and preserves real 
  const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
  const owner=await(await route('session').GET(request('owner',own))).json();assert.equal(owner.partnerPreviewVersion,'2026-09-21-v1');assert.equal(owner.role,'Superadmin');
  for(const [id,org]of [[1,1],[1100,1100],[1104,1100]]){const user=await(await route('session').GET(request(id,org))).json();assert.equal(user.partnerPreviewVersion,null);}
+});
+
+
+test('partner creation requires a valid percentage without creating partial companies',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={type:'organization',name:'Percentage partner',adminName:'Test',adminEmail:'percentage@test.no',adminRole:'Partner',crmPrice:0};
+ const before=sql.prepare('SELECT count(*) n FROM organizations').get().n;
+ for(const commissionPercent of ['',null,-1,101,'12.345','abc',true])assert.equal((await route('admin').POST(request('owner',own,{...data,commissionPercent}))).status,400);
+ assert.equal(sql.prepare('SELECT count(*) n FROM organizations').get().n,before);
+ const r=await route('admin').POST(request('owner',own,{...data,commissionPercent:'12,5'}));assert.equal(r.status,201);assert.equal((await r.json()).organization.commissionBps,1250);
+});
+
+test('payment commission is superadmin-only, tenant-scoped, duplicate-safe and snapshots the rate',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ sql.exec("UPDATE organizations SET commission_bps=2500 WHERE id=1100; UPDATE organizations SET commission_bps=4000 WHERE id=1101; UPDATE organizations SET referred_by_partner_id=1100 WHERE id=1102; CREATE UNIQUE INDEX test_payment_reference ON partner_payments(organization_id,reference_key)");
+ const body={type:'payment',organizationId:1102,amount:'1 000,50',paidOn:'2026-09-01',reference:'BANK-001',acceptedPartnerId:1100,acceptedBasisPoints:2500};
+ for(const [user,org]of [[1,1],[3,1],[1100,1100]]){assert.equal((await route('partner-payments').POST(request(user,org,body))).status,403);assert.equal((await route('partner-payments').GET(request(user,org,undefined,'?organizationId=1102'))).status,403);}
+ for(const change of [{amount:'-1'},{amount:'0'},{paidOn:'2099-01-01'},{paidOn:'2026-02-30'},{reference:''}])assert.equal((await route('partner-payments').POST(request('owner',own,{...body,...change}))).status,400);
+ assert.equal((await route('partner-payments').POST(request('owner',own,{...body,acceptedBasisPoints:2000}))).status,409);
+ const created=await route('partner-payments').POST(request('owner',own,body));assert.equal(created.status,201);assert.equal((await created.json()).commissionOre,25013);
+ assert.equal((await route('partner-payments').POST(request('owner',own,{...body,reference:' bank-001 '}))).status,409);
+ const payment=sql.prepare("SELECT * FROM partner_payments WHERE reference='BANK-001'").get();assert.equal(payment.amount_ore,100050);assert.equal(payment.basis_points,2500);
+ const scoped=await(await route('partners').GET(request(1100,1100,undefined,'?partnerId=1101'))).json();assert.equal(scoped.commission.months.find(m=>m.month==='2026-09').commissionOre,25013);
+ assert.equal((await(await route('partners').GET(request(1101,1101))).json()).commission.months.flatMap(m=>m.entries).length,0);
+ sql.exec('UPDATE organizations SET commission_bps=5000 WHERE id=1100; UPDATE organizations SET referred_by_partner_id=1101 WHERE id=1102');
+ assert.equal((await(await route('partners').GET(request(1100,1100))).json()).commission.months.find(m=>m.month==='2026-09').commissionOre,25013);
+ assert.equal((await route('partner-payments').POST(request('owner',own,{...body,reference:'BANK-002'}))).status,409);
+ for(const voided of [true,false]){assert.equal((await route('partner-payments').POST(request('owner',own,{type:'status',id:payment.id,voided}))).status,200);const total=(await(await route('partners').GET(request(1100,1100))).json()).commission.months.flatMap(m=>m.entries).reduce((s,p)=>s+p.commissionOre,0);assert.equal(total,voided?0:25013);}
+ sql.exec("CREATE TRIGGER fail_payment_audit BEFORE INSERT ON audit_logs WHEN NEW.action='Innbetaling registrert' BEGIN SELECT RAISE(ABORT,'test failure'); END");
+ assert.equal((await route('partner-payments').POST(request('owner',own,{...body,reference:'ROLLBACK',acceptedPartnerId:1101,acceptedBasisPoints:4000}))).status,409);assert.equal(sql.prepare("SELECT COUNT(*) n FROM partner_payments WHERE reference='ROLLBACK'").get().n,0);sql.exec('DROP TRIGGER fail_payment_audit');
+});
+
+
+test('only superadmin changes partner commission and older payments keep the agreed rate',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const body={type:'organizationDetails',organizationId:1100,name:'Partner company 1100',crmPrice:0,commissionPercent:'12,5'};
+ assert.equal((await route('superadmin').POST(request(1100,1100,body))).status,403);
+ assert.equal((await route('superadmin').POST(request('owner',own,{...body,commissionPercent:'101'}))).status,400);
+ const old=sql.prepare('SELECT basis_points FROM partner_payments WHERE partner_id=1100 LIMIT 1').get().basis_points;
+ const r=await route('superadmin').POST(request('owner',own,body));assert.equal(r.status,200);assert.equal((await r.json()).organization.commissionBps,1250);
+ assert.equal(sql.prepare('SELECT basis_points FROM partner_payments WHERE partner_id=1100 LIMIT 1').get().basis_points,old);assert.ok(sql.prepare("SELECT count(*) n FROM audit_logs WHERE action='Partnerprovisjon endret'").get().n>0);
 });

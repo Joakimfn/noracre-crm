@@ -1,3 +1,4 @@
+import {parseCommissionPercentage} from "@/lib/commission-percentage";
 import {validateReferral} from "@/lib/partners";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
@@ -137,6 +138,8 @@ export async function POST(request: Request) {
         role = requestedRole;
       if (!["Bruker","Administrator","Partner"].includes(role)) throw new AccessError(400,"Ugyldig rolle.");
       const referredByPartnerId = await validateReferral(data.referredByPartnerId);
+      let commissionBps:number|null=null;
+      if(role === "Partner")try{commissionBps=parseCommissionPercentage(data.commissionPercent);}catch(e){throw new AccessError(400,(e as Error).message); }
       if (orgNumber && orgNumber.length !== 9)
         return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
@@ -151,6 +154,7 @@ export async function POST(request: Request) {
         .values({
           ...prices,
           isPartner: role === "Partner",
+          commissionBps,
           referredByPartnerId,
           partnerAssignedAt: referredByPartnerId ? now : "",
           name: String(data.name ?? "Ny organisasjon"),

@@ -87,6 +87,7 @@ export const auditLogs = sqliteTable("audit_logs", {
 });
 
 export const organizations = sqliteTable("organizations", {
+  commissionBps: integer("commission_bps"),
   isPartner: integer("is_partner", {mode:"boolean"}).notNull().default(false),
   referredByPartnerId: integer("referred_by_partner_id"),
   partnerAssignedAt: text("partner_assigned_at").notNull().default(""),
@@ -428,3 +429,8 @@ export const callListAiUsage = sqliteTable('call_list_ai_usage', {
  windowStarted: integer('window_started').notNull(),
  count: integer('count').notNull().default(0),
 });
+
+
+export const partnerPayments = sqliteTable('partner_payments',{
+ id:integer('id').primaryKey({autoIncrement:true}),organizationId:integer('organization_id').notNull(),partnerId:integer('partner_id').notNull(),companyName:text('company_name').notNull(),reference:text('reference').notNull(),referenceKey:text('reference_key').notNull(),paidOn:text('paid_on').notNull(),amountOre:integer('amount_ore').notNull(),basisPoints:integer('basis_points').notNull(),commissionOre:integer('commission_ore').notNull(),createdAt:text('created_at').notNull(),createdBy:text('created_by').notNull(),voidedAt:text('voided_at').notNull().default(''),
+},t=>[uniqueIndex('partner_payment_reference').on(t.organizationId,t.referenceKey),index('partner_payment_partner').on(t.partnerId,t.paidOn)]);

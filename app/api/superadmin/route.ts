@@ -1,3 +1,4 @@
+import {parseCommissionPercentage} from "@/lib/commission-percentage";
 import {validateReferral} from "@/lib/partners";
 import {sendSupportRequest} from "@/lib/resend";
 import { actorJson, actorRef } from "@/lib/actor-names";
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
         status = org.status === "Tapt" ? "Deaktivert" : org.status;
       return {
         id: org.id,
-        isPartner: org.isPartner, referredByPartnerId: org.referredByPartnerId, partnerAssignedAt: org.partnerAssignedAt,
+        commissionBps: org.commissionBps, isPartner: org.isPartner, referredByPartnerId: org.referredByPartnerId, partnerAssignedAt: org.partnerAssignedAt,
         crmPrice: org.crmPrice, ringPrice: org.ringPrice, marketingPrice: org.marketingPrice,
         scheduledDisableAt: org.scheduledDisableAt,
         name: org.name,
@@ -214,6 +215,8 @@ export async function POST(request: Request) {
       const [existing] = await db.select().from(organizations).where(eq(organizations.id,organizationId)).limit(1);
       if (!existing) throw new AccessError(404,"Bedriften finnes ikke.");
       const referredByPartnerId = data.referredByPartnerId === undefined || (data.referredByPartnerId === existing.referredByPartnerId || (existing.referredByPartnerId !== null && data.referredByPartnerId === String(existing.referredByPartnerId))) ? existing.referredByPartnerId : await validateReferral(data.referredByPartnerId,organizationId);
+      let commissionBps=existing.commissionBps;
+      if(existing.isPartner && data.commissionPercent!==undefined)try{commissionBps=parseCommissionPercentage(data.commissionPercent);}catch(e){throw new AccessError(400,(e as Error).message);}
       const referralChanged = referredByPartnerId !== existing.referredByPartnerId;
       const partnerAssignedAt = referralChanged ? referredByPartnerId ? now : "" : existing.partnerAssignedAt;
       const orgNumber = String(data.orgNumber ?? "").replace(/\D/g, "");
@@ -231,7 +234,7 @@ export async function POST(request: Request) {
         .update(organizations)
         .set({
           ...prices,
-          referredByPartnerId, partnerAssignedAt,
+          referredByPartnerId, partnerAssignedAt, commissionBps,
           name: String(data.name ?? "").trim(),
           orgNumber,
           address: String(data.address ?? "").trim(),
@@ -244,7 +247,7 @@ export async function POST(request: Request) {
             .toLowerCase(),
         })
         .where(eq(organizations.id, organizationId))
-        .returning(), ...(referralChanged ? [db.insert(auditLogs).values({organizationId,actor:actorRef(ctx.user),action:"Partnerkobling endret",detail:JSON.stringify({previousPartnerId:existing.referredByPartnerId,referredByPartnerId,partnerAssignedAt}),createdAt:now})] : [])]);
+        .returning(), ...(referralChanged ? [db.insert(auditLogs).values({organizationId,actor:actorRef(ctx.user),action:"Partnerkobling endret",detail:JSON.stringify({previousPartnerId:existing.referredByPartnerId,referredByPartnerId,partnerAssignedAt}),createdAt:now})] : []), ...(commissionBps!==existing.commissionBps ? [db.insert(auditLogs).values({organizationId,actor:actorRef(ctx.user),action:"Partnerprovisjon endret",detail:JSON.stringify({previousBasisPoints:existing.commissionBps,basisPoints:commissionBps}),createdAt:now})] : [])]);
       const [org] = updated;
       if (!org)
         return await actorJson(ctx,

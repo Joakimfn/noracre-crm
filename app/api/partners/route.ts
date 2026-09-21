@@ -1,10 +1,11 @@
 import {actorRef} from "@/lib/actor-names";
 import {and,asc,eq,inArray} from 'drizzle-orm';
 import {getDb} from '@/db';
-import {organizations,memberships,billingEvents,auditLogs} from '@/db/schema';
+import {organizations,memberships,billingEvents,auditLogs,partnerPayments} from '@/db/schema';
 import {requireTenant,AccessError,accessResponse} from '@/lib/tenant';
 import {validateReferral} from '@/lib/partners';
 import {invoiceReport,monthlyRate} from '@/lib/invoice-report';
+import {paymentCommissionReport} from '@/lib/partner-payments';
 const json=(data:unknown)=>Response.json(data,{headers:{'Cache-Control':'private, no-store'}});
 export async function GET(request:Request){try{
  const ctx=await requireTenant(request),db=getDb();
@@ -25,7 +26,8 @@ export async function GET(request:Request){try{
  return {id:org.id,name:org.name,active,assignedAt:org.partnerAssignedAt,monthlyOre:active?monthlyRate(state):0,previousOre:invoice.previousOre,ytdOre:invoice.ytdOre,previousComplete:invoice.previousComplete,ytdComplete:invoice.ytdComplete};
  }).sort((a,b)=>a.name.localeCompare(b.name,'nb'));
  // No billing event labels, employees, contact details or customer CRM data leave this endpoint.
- return json({rows,year:invoices.year,previousMonth:invoices.previousMonth,throughDate:invoices.throughDate});
+ const payments=await db.select().from(partnerPayments).where(eq(partnerPayments.partnerId,ctx.organizationId));
+ return json({rows,year:invoices.year,previousMonth:invoices.previousMonth,throughDate:invoices.throughDate,commissionBps:partner.commissionBps,commission:paymentCommissionReport(payments,now)});
 }catch(e){return accessResponse(e);}}
 export async function POST(request:Request){try{
  const ctx=await requireTenant(request);
