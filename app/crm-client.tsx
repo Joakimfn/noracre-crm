@@ -1,4 +1,6 @@
 "use client";
+import {PartnerOverview} from "@/components/partner-overview";
+import {PartnerManagement,PartnerPicker} from "@/components/partner-management";
 import {defaultI18n,type MessageKey} from "@/lib/i18n";
 import {useI18n} from "@/lib/i18n/react";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
@@ -142,7 +144,8 @@ type View =
   | "admin"
   | "marketing"
   | "superadmin"
-  | "operations";
+  | "operations"
+  | "partner";
 type Company = {
   id: number;
   customerType?: string;
@@ -201,7 +204,7 @@ type Contact = {
   email: string;
   isPrimary: boolean;
 };
-type Organization = { id: number; name: string; status?: string };
+type Organization = { id: number; name: string; status?: string; isPartner?: boolean };
 type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string };
 type NewOrganization = PriceFields & {
   name: string;
@@ -216,6 +219,7 @@ type NewOrganization = PriceFields & {
   adminEmail: string;
   adminPhone: string;
   adminRole: string;
+  referredByPartnerId: string;
 };
 const emptyNewOrganization: NewOrganization = {
   crmPrice: "", ringPrice: "", marketingPrice: "",
@@ -231,6 +235,7 @@ const emptyNewOrganization: NewOrganization = {
   adminEmail: "",
   adminPhone: "",
   adminRole: "Administrator",
+  referredByPartnerId: "none",
 };
 type Attachment = {
   id: number;
@@ -528,6 +533,7 @@ const titleKeys: Record<View, MessageKey> = {
   marketing: "nav.marketing",
   superadmin: "nav.superadmin",
   operations: "nav.operations",
+  partner: "nav.partner",
 };
 function icon(kind: string) {
   return kind === "Telefon" ? (
@@ -1470,6 +1476,7 @@ export default function Home() {
             ico={<Megaphone size={20} />}
             text={t('nav.marketing')}
           />
+          {rolePreview === "Partner" && organizations.find(o=>o.id===activeOrgId)?.isPartner && <Nav a={view === "partner"} click={()=>setView("partner")} ico={<Building2 size={20}/>} text={t("nav.partner")}/>}
           {canViewAdministration(rolePreview) && (
             <Nav
               a={view === "admin"}
@@ -1858,6 +1865,7 @@ export default function Home() {
             exportBackup={exportBackup}
           />
         )}{" "}
+        {view === "partner" && rolePreview === "Partner" && <PartnerOverview key={activeOrgId} organizationId={activeOrgId}/>}
         {view === "operations" && rolePreview === "Superadmin" && (
           <Operations
             data={operations}
@@ -5000,6 +5008,8 @@ function SuperadminSettings(p: {
   addMember: () => void;
   ownerEmail: string;
 }) {
+  const {t}=useI18n();
+  const [partnerRefresh,setPartnerRefresh]=useState(0);
   const [companyQuery, setCompanyQuery] = useState("");
   const [companyResults, setCompanyResults] = useState<Partial<Company>[]>([]);
   const [companySearchBusy, setCompanySearchBusy] = useState(false);
@@ -5107,14 +5117,14 @@ function SuperadminSettings(p: {
             }
           />
           <Input
-            placeholder="Administratorens navn"
+            placeholder="Kontaktpersonens navn"
             value={p.newOrg.adminName}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminName: e.target.value })
             }
           />
           <Input
-            placeholder="Administratorens e-post"
+            placeholder="Kontaktpersonens e-post"
             value={p.newOrg.adminEmail}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminEmail: e.target.value })
@@ -5122,7 +5132,7 @@ function SuperadminSettings(p: {
           />
           <Input
             type="tel"
-            placeholder="Administratorens telefonnummer"
+            placeholder="Kontaktpersonens telefonnummer"
             value={p.newOrg.adminPhone}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminPhone: e.target.value })
@@ -5134,24 +5144,28 @@ function SuperadminSettings(p: {
               p.setNewOrg({ ...p.newOrg, adminRole })
             }
           >
-            <SelectTrigger aria-label="Administratorens rolle">
+            <SelectTrigger aria-label="Kontaktpersonens rolle">
               <SelectValue placeholder="Velg rolle" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Administrator">Administrator</SelectItem>
               <SelectItem value="Bruker">Bruker</SelectItem>
+              <SelectItem value="Partner">Partner</SelectItem>
             </SelectContent>
           </Select>
+          {p.newOrg.adminRole === "Partner" && <p className="form-hint">{t('partner.newHint')}</p>}
+          <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey+partnerRefresh} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
           <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
         </div>
       </AdminCard>
+      <AdminCard eye="PARTNERE" title={t('partner.manage')} ico={<Building2/>}><PartnerManagement organizationId={p.activeOrgId} refreshKey={p.refreshKey} onChanged={()=>setPartnerRefresh(n=>n+1)}/></AdminCard>
       <AdminCard
         eye="BEDRIFTSBRUKERE"
         title="Opprett bruker i en bedrift"
         ico={<Building2 />}
       >
-        <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey} onCreated={p.onUserCreated} />
+        <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey+partnerRefresh} onCreated={p.onUserCreated} />
       </AdminCard>
       <AdminCard
         eye="EIERKONTROLL"

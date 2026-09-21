@@ -61,3 +61,13 @@ test('company history preserves lifecycle, user identity, price changes and base
  const events=[e('user','2026-04-01T12:00:00Z',{label:'Ola',eventKind:'baseline'}),e('license','2026-04-02T12:00:00Z'),e('license','2026-04-03T12:00:00Z',{monthlyPrice:79}),e('license','2026-04-04T12:00:00Z',{active:false,monthlyPrice:79}),e('user','2026-04-05T12:00:00Z',{organizationId:2,label:'Other tenant'})];
  const rows=billingHistory(events,1);assert.equal(rows.length,4);assert.equal(rows[0].action,'Deaktivert');assert.equal(rows[1].action,'Pris endret');assert.equal(rows[1].previousPrice,49);assert.equal(rows[2].item,'Markedsføring · Ola');assert.equal(rows[3].action,'Registrert startstatus');assert.equal(events.length,5);
 });
+
+
+test('partner attribution preserves opening subscription state but excludes revenue before assignment',()=>{
+ const events=setup('2025-12-31T12:00:00Z');events.push(e('license','2026-04-20T10:00:00Z',{active:false}));
+ const rows=invoiceReport(events,[{id:1,name:'Referred company',revenueFrom:'2026-04-15T10:00:00Z'}],new Date('2026-05-01T12:00:00Z')).rows;
+ // April 16-20: 548/month; April 21-30: 499/month. Previous months are excluded.
+ assert.equal(rows[0].previousOre,25767);assert.equal(rows[0].ytdOre,25767);assert.equal(rows[0].previousComplete,true);
+ const baseline=setup('2026-04-01T10:00:00Z').map(x=>({...x,eventKind:'baseline'}));
+ const r=invoiceReport(baseline,[{id:1,name:'Referred',revenueFrom:'2026-04-15T10:00:00Z'}],new Date('2026-05-01T12:00:00Z')).rows[0];assert.equal(r.ytdComplete,true);assert.equal(r.ytdOre,27400);
+});

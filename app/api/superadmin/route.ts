@@ -102,6 +102,7 @@ export async function GET(request: Request) {
         status = org.status === "Tapt" ? "Deaktivert" : org.status;
       return {
         id: org.id,
+        isPartner: org.isPartner, referredByPartnerId: org.referredByPartnerId, partnerAssignedAt: org.partnerAssignedAt,
         crmPrice: org.crmPrice, ringPrice: org.ringPrice, marketingPrice: org.marketingPrice,
         scheduledDisableAt: org.scheduledDisableAt,
         name: org.name,

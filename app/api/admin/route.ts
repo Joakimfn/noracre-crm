@@ -1,3 +1,4 @@
+import {validateReferral} from "@/lib/partners";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
@@ -133,7 +134,9 @@ export async function POST(request: Request) {
         orgNumber = String(data.orgNumber ?? "").replace(/\D/g, ""),
         phone = String(data.adminPhone ?? "").trim(),
         requestedRole = String(data.adminRole ?? "Administrator"),
-        role = requestedRole === "Bruker" ? "Bruker" : "Administrator";
+        role = requestedRole;
+      if (!["Bruker","Administrator","Partner"].includes(role)) throw new AccessError(400,"Ugyldig rolle.");
+      const referredByPartnerId = await validateReferral(data.referredByPartnerId);
       if (orgNumber && orgNumber.length !== 9)
         return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
@@ -147,6 +150,9 @@ export async function POST(request: Request) {
         .insert(organizations)
         .values({
           ...prices,
+          isPartner: role === "Partner",
+          referredByPartnerId,
+          partnerAssignedAt: referredByPartnerId ? now : "",
           name: String(data.name ?? "Ny organisasjon"),
           orgNumber,
           address: String(data.address ?? "").trim(),
@@ -208,8 +214,10 @@ export async function POST(request: Request) {
       if (!name || name.length > 160 || !/^[^\s<>@,;]+@[^\s<>@,;]+\.[^\s<>@,;]+$/.test(email) || email.length > 254)
         throw new AccessError(400, "Navn og gyldig e-postadresse må fylles ut.");
       const role = String(data.role ?? "Bruker");
-      if (!["Bruker", "Administrator", "Superadmin"].includes(role))
+      if (!["Bruker", "Administrator", "Superadmin", "Partner"].includes(role))
         throw new AccessError(400, "Ugyldig rolle.");
+      if (role === "Partner" && (ctx.role !== "Superadmin" || !organization.isPartner))
+        throw new AccessError(403, "Bare superadmin kan gi partnerrollen, og bare i partnerbedrifter.");
       if (role === "Superadmin" && (!isOwner || targeted))
         throw new AccessError(403, "Superadmintilgang må gis av eierkontoen under Superadministratorer.");
       const phone = String(data.phone ?? "").trim().slice(0, 50);

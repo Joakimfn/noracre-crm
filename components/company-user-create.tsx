@@ -9,7 +9,7 @@ import { moduleCatalog, type ModuleKey } from "@/lib/module-catalog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-type Company = { id: number; name: string; status: string; crmPrice: number | null; ringPrice: number | null; marketingPrice: number | null; scheduledDisableAt: string };
+type Company = { isPartner: boolean; id: number; name: string; status: string; crmPrice: number | null; ringPrice: number | null; marketingPrice: number | null; scheduledDisableAt: string };
 type Draft = { organizationId: number; name: string; email: string; phone: string; role: string; moduleKeys: ModuleKey[] };
 const emptyDraft: Draft = { organizationId: 0, name: "", email: "", phone: "", role: "Bruker", moduleKeys: [] };
 const totalPrice = (company: Company, draft: Draft) => (company.crmPrice ?? 0) + moduleCatalog.filter(module => draft.moduleKeys.includes(module.key)).reduce((sum, module) => sum + (company[module.priceKey] ?? 0), 0);
@@ -72,7 +72,7 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       if (selected && selected.crmPrice != null) { setError(""); setResult(""); setReview({ draft: { ...draft, name: draft.name.trim(), email: draft.email.trim().toLowerCase() }, company: selected }); }
     }}>
       <Label htmlFor="customer-user-company">Bedrift</Label>
-      <Select value={draft.organizationId ? String(draft.organizationId) : ""} onValueChange={value => setDraft({ ...draft, organizationId: Number(value), moduleKeys: [] })} disabled={loading || busy}>
+      <Select value={draft.organizationId ? String(draft.organizationId) : ""} onValueChange={value => setDraft({ ...draft, organizationId: Number(value), role: "Bruker", moduleKeys: [] })} disabled={loading || busy}>
         <SelectTrigger id="customer-user-company"><SelectValue placeholder={loading ? "Henter bedrifter …" : "Velg bedrift"} /></SelectTrigger>
         <SelectContent>{activeCompanies.map(company => <SelectItem key={company.id} value={String(company.id)}>{company.name}</SelectItem>)}</SelectContent>
       </Select>
@@ -85,7 +85,7 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       <Label htmlFor="customer-user-role">Rolle</Label>
       <Select value={draft.role} onValueChange={role => setDraft({ ...draft, role })}>
         <SelectTrigger id="customer-user-role"><SelectValue /></SelectTrigger>
-        <SelectContent><SelectItem value="Bruker">Bruker</SelectItem><SelectItem value="Administrator">Administrator</SelectItem></SelectContent>
+        <SelectContent><SelectItem value="Bruker">Bruker</SelectItem><SelectItem value="Administrator">Administrator</SelectItem>{selected?.isPartner&&<SelectItem value="Partner">Partner</SelectItem>}</SelectContent>
       </Select>
       <fieldset className="company-user-modules" disabled={!selected || loading || busy}>
         <legend>Tilleggsmoduler (valgfritt)</legend>

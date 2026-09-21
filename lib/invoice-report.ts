@@ -7,7 +7,7 @@ function calendarDay(at:string|Date){
  const n=(type:string)=>Number(parts.find(p=>p.type===type)?.value);
  return Date.UTC(n('year'),n('month')-1,n('day'));
 }
-function monthlyRate(state:Map<string,BillingEvent>){
+export function monthlyRate(state:Map<string,BillingEvent>){
  const values=[...state.values()];
  if(!values.some(e=>e.entityType==='organization'&&e.active))return 0;
  const users=values.filter(e=>e.entityType==='user'&&e.active);
@@ -17,7 +17,7 @@ function monthlyRate(state:Map<string,BillingEvent>){
 }
 
 /** Changes take effect the following Norwegian calendar day. Round once per company/month. */
-export function invoiceReport(events:BillingEvent[],organizations:{id:number;name:string}[],now=new Date()){
+export function invoiceReport(events:BillingEvent[],organizations:{id:number;name:string;revenueFrom?:string}[],now=new Date()){
  const today=calendarDay(now),current=new Date(today);
  const monthStart=Date.UTC(current.getUTCFullYear(),current.getUTCMonth(),1);
  const previousStart=Date.UTC(current.getUTCFullYear(),current.getUTCMonth()-1,1);
@@ -37,7 +37,9 @@ export function invoiceReport(events:BillingEvent[],organizations:{id:number;nam
   const firstOrg=ordered.find(e=>e.entityType==='organization');
   // Baselines prove state only from the recorded date, never the old reference date.
   const knownFrom=firstOrg?.eventKind==='baseline'?calendarDay(firstOrg.occurredAt)+DAY:firstOrg? -Infinity:Infinity;
-  const previousComplete=knownFrom<=previousStart,ytdComplete=knownFrom<=yearStart;
+  const assignedAt=organizations.find(o=>o.id===organizationId)?.revenueFrom;
+  const revenueFrom=assignedAt?calendarDay(assignedAt)+DAY:-Infinity;
+  const previousComplete=knownFrom<=Math.max(previousStart,revenueFrom),ytdComplete=knownFrom<=Math.max(yearStart,revenueFrom);
   const state=new Map<string,BillingEvent>();
   let index=0,rate=0,previousOre=0,ytdOre=0,monthNumerator=0;
   for(let day=from;day<=today;day+=DAY){
@@ -47,7 +49,7 @@ export function invoiceReport(events:BillingEvent[],organizations:{id:number;nam
    }
    if(changed)rate=monthlyRate(state);
    // Current day is not complete yet; YTD is accrued through yesterday.
-   if(day<today)monthNumerator+=rate;
+   if(day<today && day>=revenueFrom)monthNumerator+=rate;
    const date=new Date(day),next=new Date(day+DAY);
    if(next.getUTCMonth()!==date.getUTCMonth()||day===today){
     const start=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1);

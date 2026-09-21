@@ -87,6 +87,9 @@ export const auditLogs = sqliteTable("audit_logs", {
 });
 
 export const organizations = sqliteTable("organizations", {
+  isPartner: integer("is_partner", {mode:"boolean"}).notNull().default(false),
+  referredByPartnerId: integer("referred_by_partner_id"),
+  partnerAssignedAt: text("partner_assigned_at").notNull().default(""),
   crmPrice: integer("crm_price"),
   ringPrice: integer("ring_price"),
   marketingPrice: integer("marketing_price"),

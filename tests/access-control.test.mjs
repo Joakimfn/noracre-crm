@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai','partners'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as importRoute from './app/api/import/route';\nexport {matchesCustomer} from './lib/customer-search';\nexport {activeReminder,validateReminderMinutes} from './lib/followup-reminder';\nexport {guessColumns,mapImportRow,importDate} from './lib/data-import';\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/lib\/email-campaigns$/},()=>({path:'campaigns',namespace:'test'}));
  b.onResolve({filter:/^@\/lib\/user-mail$/},()=>({path:'user-mail',namespace:'test'}));
@@ -641,4 +641,52 @@ test('support requests notify only customer administrators, consent is specific,
 test('paused AI endpoint cannot invoke a model or consume quota',async()=>{
  globalThis.testAIEnabled=false;globalThis.testAI={run(){throw Error('Paused AI must not run');}};
  try{const before=sql.prepare('SELECT SUM(count) n FROM call_list_ai_usage').get().n;const r=await route('call-list-ai').POST(request(980,980,{prompt:'10 håndverkere i Midt-Norge'}));assert.equal(r.status,503);assert.match((await r.json()).error,/midlertidig deaktivert/);assert.equal(sql.prepare('SELECT SUM(count) n FROM call_list_ai_usage').get().n,before);}finally{delete globalThis.testAIEnabled;delete globalThis.testAI;}
+});
+
+
+test('partner referrals are scoped to the authenticated partner and expose no customer records',async()=>{
+ for(const [id,isPartner,referrer] of [[1100,1,null],[1101,1,null],[1102,0,1100],[1103,0,1101]])add('organizations',{id,name:'Partner company '+id,is_partner:isPartner,referred_by_partner_id:referrer,partner_assigned_at:referrer?'2026-01-01T00:00:00Z':'',created_at:'2026-01-01'});
+ for(const [id,org,role] of [[1100,1100,'Partner'],[1101,1101,'Partner'],[1104,1100,'Bruker'],[1105,1100,'Administrator']])add('memberships',{id,organization_id:org,user_id:String(id),email:id+'@test.no',name:'Test',role,created_at:'2026-01-01'});
+ for(const org of [1102,1103])for(const [type,price] of [['organization',0],['user',499],['module',0],['license',49]])add('billing_events',{organization_id:org,entity_type:type,entity_id:org,membership_id:org,module_key:'ringelister',label:'PRIVATE EMPLOYEE DATA',active:1,monthly_price:price,event_kind:'activated',occurred_at:'2026-01-01T10:00:00Z'});
+ const r=await route('partners').GET(request(1100,1100,undefined,'?partnerId=1101&organizationId=1103'));
+ assert.equal(r.status,200);assert.match(r.headers.get('cache-control'),/no-store/);
+ const data=await r.json();assert.deepEqual(data.rows.map(r=>r.id),[1102]);assert.equal(data.rows[0].monthlyOre,54800);assert.doesNotMatch(JSON.stringify(data),/PRIVATE EMPLOYEE|email|membershipId/);
+ assert.deepEqual((await(await route('partners').GET(request(1101,1101))).json()).rows.map(r=>r.id),[1103]);
+ for(const user of [1104,1105])assert.equal((await route('partners').GET(request(user,1100))).status,403);
+ for(const target of [1101,1102,1103]){assert.equal((await route('partners').GET(request(1100,target))).status,403);assert.equal((await route('companies').GET(request(1100,target))).status,403);}
+ assert.equal((await route('superadmin').GET(request(1100,1100))).status,403);
+ assert.equal((await route('operations').GET(request(1100,1100))).status,403);
+ for(const mutation of ["UPDATE organizations SET is_partner=0 WHERE id=1100","UPDATE memberships SET active=0 WHERE id=1100","UPDATE organizations SET status='Deaktivert' WHERE id=1100","UPDATE memberships SET scheduled_disable_at='2000-01-01' WHERE id=1100"]){sql.exec(mutation);assert.equal((await route('partners').GET(request(1100,1100))).status,403);sql.exec("UPDATE organizations SET is_partner=1,status='Aktiv' WHERE id=1100; UPDATE memberships SET active=1,scheduled_disable_at='' WHERE id=1100");}
+});
+
+test('only superadmin can manage referral ownership; assignment changes revoke former partner access',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={organizationId:1102,isPartner:false,referredByPartnerId:1101};
+ for(const user of [1100,1104,1105])assert.equal((await route('partners').POST(request(user,1100,data))).status,403);
+ assert.equal((await route('partners').POST(request('owner',own,{...data,referredByPartnerId:1102}))).status,400);
+ assert.equal((await route('partners').POST(request('owner',own,{...data,referredByPartnerId:1103}))).status,400);
+ sql.exec("UPDATE organizations SET status='Deaktivert' WHERE id=1101");assert.equal((await route('partners').POST(request('owner',own,data))).status,400);sql.exec("UPDATE organizations SET status='Aktiv' WHERE id=1101");
+ assert.equal((await route('partners').POST(request('owner',own,data))).status,200);
+ assert.deepEqual((await(await route('partners').GET(request(1100,1100))).json()).rows,[]);
+ const row=(await(await route('partners').GET(request(1101,1101))).json()).rows.find(r=>r.id===1102);assert.equal(row.ytdOre,0);assert.equal(row.previousOre,0);assert.equal(row.monthlyOre,54800);
+ assert.ok(sql.prepare("SELECT count(*) n FROM audit_logs WHERE organization_id=1102 AND action='Partnerkobling endret'").get().n>0);
+ const assigned=sql.prepare('SELECT partner_assigned_at t FROM organizations WHERE id=1102').get().t;
+ assert.equal((await route('partners').POST(request('owner',own,data))).status,200);assert.equal(sql.prepare('SELECT partner_assigned_at t FROM organizations WHERE id=1102').get().t,assigned);
+ assert.equal((await route('partners').POST(request('owner',own,{organizationId:1101,isPartner:false,referredByPartnerId:null}))).status,409);
+ assert.equal((await route('partners').POST(request('owner',own,{...data,referredByPartnerId:null}))).status,200);
+ assert.equal((await(await route('partners').GET(request(1101,1101))).json()).rows.some(r=>r.id===1102),false);
+});
+
+test('partner role and referrals can be created only by superadmin and must refer to a real partner',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={type:'organization',name:'New partner',adminName:'Partner contact',adminEmail:'newpartner@test.no',adminRole:'Partner',crmPrice:0};
+ assert.equal((await route('admin').POST(request(1105,1100,data))).status,403);
+ const before=sql.prepare('SELECT COUNT(*) n FROM organizations').get().n;
+ assert.equal((await route('admin').POST(request('owner',own,{...data,referredByPartnerId:999999}))).status,400);assert.equal(sql.prepare('SELECT COUNT(*) n FROM organizations').get().n,before);
+ const r=await route('admin').POST(request('owner',own,data));assert.equal(r.status,201);const org=(await r.json()).organization;assert.equal(org.isPartner,true);assert.equal(sql.prepare('SELECT role FROM memberships WHERE organization_id=?').get(org.id).role,'Partner');
+ const customer=await route('admin').POST(request('owner',own,{...data,name:'Referred customer',adminEmail:'referral@test.no',adminRole:'Administrator',referredByPartnerId:org.id}));assert.equal(customer.status,201);const referred=(await customer.json()).organization;assert.equal(referred.isPartner,false);assert.equal(referred.referredByPartnerId,org.id);assert.ok(referred.partnerAssignedAt);
+ const member={type:'member',organizationId:org.id,role:'Partner',name:'Partner staff',email:'staffpartner@test.no',acceptedPrice:0};
+ assert.equal((await route('admin').POST(request('owner',own,member))).status,201);
+ assert.equal((await route('admin').POST(request('owner',own,{...member,organizationId:referred.id,email:'badpartner@test.no'}))).status,403);
+ assert.equal((await route('admin').POST(request(1105,1100,{type:'member',role:'Partner',name:'Escalation',email:'e@test.no'}))).status,403);
 });
