@@ -1,4 +1,5 @@
 "use client";
+import {canManageModules} from "@/lib/roles";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api-client";
@@ -19,7 +20,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   const [pages,setPages]=useState<Choice[]>([]),[pageId,setPageId]=useState("");
   const [allowed,setAllowed]=useState<string[]>([]),[selected,setSelected]=useState<string[]>([]);
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),popup=useRef<Window|null>(null),generation=useRef(0);
-  const admin=["Administrator","Superadmin"].includes(role);
+  const admin=canManageModules(role);
   const headers={"x-organization-id":String(organizationId)};
   async function load(){
     const g=generation.current;

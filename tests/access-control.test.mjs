@@ -755,3 +755,46 @@ test('only superadmin changes partner commission and older payments keep the agr
  const r=await route('superadmin').POST(request('owner',own,body));assert.equal(r.status,200);assert.equal((await r.json()).organization.commissionBps,1250);
  assert.equal(sql.prepare('SELECT basis_points FROM partner_payments WHERE partner_id=1100 LIMIT 1').get().basis_points,old);assert.ok(sql.prepare("SELECT count(*) n FROM audit_logs WHERE action='Partnerprovisjon endret'").get().n>0);
 });
+
+
+test('partner administers its own CRM at agreed prices while employees and referred companies stay isolated',async()=>{
+ add('organizations',{id:1200,name:'Working partner',is_partner:1,crm_price:199,ring_price:29,marketing_price:39,created_at:'2026-01-01'});
+ for(const [id,role]of [[1200,'Partner'],[1201,'Bruker']])add('memberships',{id,organization_id:1200,user_id:String(id),email:id+'@test.no',name:'Partner team '+id,role,created_at:'2026-01-01'});
+ const summary=await(await route('admin').GET(request(1200,1200))).json();assert.equal(summary.pricing.crmPrice,199);assert.equal(summary.members.length,2);
+ assert.equal((await route('companies').GET(request(1200,1200))).status,200);
+ assert.equal((await route('partners').GET(request(1200,1200))).status,200);
+ for(const action of ['superadmin','operations','partner-payments'])assert.equal((await route(action).GET(request(1200,1200))).status,403);
+ assert.equal((await route('admin').GET(request(1200,1102))).status,403);
+ const employee=await(await route('admin').GET(request(1201,1200))).json();assert.deepEqual(employee.members,[]);assert.deepEqual(employee.audit,[]);
+ assert.equal((await route('partners').GET(request(1201,1200))).status,403);
+ const member={type:'member',role:'Bruker',name:'New employee',email:'partner-employee@test.no',acceptedPrice:199};
+ assert.equal((await route('admin').POST(request(1201,1200,member))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...member,acceptedPrice:0}))).status,409);
+ for(const role of ['Partner','Superadmin'])assert.equal((await route('admin').POST(request(1200,1200,{...member,role}))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...member,organizationId:1102}))).status,403);
+ const created=await route('admin').POST(request(1200,1200,member));assert.equal(created.status,201);assert.equal((await created.json()).monthlyPrice,199);
+ assert.equal((await route('admin').POST(request(1200,1200,{type:'memberStatus',id:1201,active:false}))).status,200);
+ assert.equal((await route('admin').POST(request(1200,1200,{type:'memberStatus',id:1201,active:true,acceptedPrice:199}))).status,200);
+ assert.equal((await route('marketing').GET(request(1200,1200))).status,403);
+ const module={type:'moduleStatus',moduleKey:'markedsforing',membershipIds:[1200],acceptedPrice:39};
+ assert.equal((await route('admin').POST(request(1201,1200,module))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...module,membershipIds:[1104]}))).status,400);
+ assert.equal((await route('admin').POST(request(1200,1200,module))).status,200);
+ assert.equal(sql.prepare("SELECT price_per_user FROM module_licenses WHERE membership_id=1200 AND module_key='markedsforing'").get().price_per_user,39);
+ assert.equal((await route('marketing').GET(request(1200,1200))).status,200);assert.equal((await route('marketing').GET(request(1201,1200))).status,403);
+ const template={name:'Partner offer',subject:'Quote',body:'Agreed services'};
+ assert.equal((await route('offers').POST(request(1201,1200,template))).status,403);
+ const offer=await route('offers').POST(request(1200,1200,template));assert.equal(offer.status,201);assert.equal((await offer.json()).template.organizationId,1200);
+});
+
+test('support requests go to the partner administrator and require that companys consent',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const authFetch=globalThis.fetch,sent=[];globalThis.testMailKey='test-key';
+ globalThis.fetch=async(url,init)=>{if(String(url)==='https://api.resend.com/emails'){sent.push(JSON.parse(init.body));return Response.json({id:'test'});}return authFetch(url,init);};
+ try{
+ const r=await route('superadmin').POST(request('owner',own,{type:'requestAccess',organizationId:1200}));assert.equal(r.status,201);const d=await r.json();assert.equal(d.notificationSent,true);assert.deepEqual(sent.map(m=>m.to),[['1200@test.no']]);
+ assert.equal((await route('admin').POST(request(1201,1200,{type:'supportApproval',requestId:d.request.id}))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{type:'supportApproval',requestId:d.request.id,duration:'24h'}))).status,200);
+ assert.equal((await route('admin').POST(request(1200,1200,{type:'support',enabled:false}))).status,200);
+ }finally{globalThis.fetch=authFetch;globalThis.testMailKey=undefined;}
+});

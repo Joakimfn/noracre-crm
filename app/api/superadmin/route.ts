@@ -4,7 +4,7 @@ import {sendSupportRequest} from "@/lib/resend";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   activities,
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
             new Date(s.expiresAt).getTime() > now,
         ),
         primary =
-          orgUsers.find((u) => u.active && u.role === "Administrator") ??
+          orgUsers.find((u) => u.active && ["Administrator","Partner"].includes(u.role)) ??
           orgUsers.find((u) => u.active) ??
           orgUsers[0],
         ringModule = modules.find(
@@ -179,7 +179,7 @@ export async function POST(request: Request) {
       if(!Number.isSafeInteger(organizationId)||organizationId<1)throw new AccessError(400,'Velg en gyldig bedrift.');
       const [org]=await db.select().from(organizations).where(eq(organizations.id,organizationId)).limit(1);
       if(!org||org.status!=='Aktiv')throw new AccessError(404,'Bedriften er ikke aktiv.');
-      const admins=await db.select().from(memberships).where(and(eq(memberships.organizationId,organizationId),eq(memberships.role,'Administrator'),eq(memberships.active,true)));
+      const admins=await db.select().from(memberships).where(and(eq(memberships.organizationId,organizationId),inArray(memberships.role,['Administrator','Partner']),eq(memberships.active,true)));
       const emails=[...new Set(admins.filter(a=>!a.scheduledDisableAt||a.scheduledDisableAt>now).map(a=>a.email))];
       if(!emails.length)throw new AccessError(409,'Bedriften har ingen aktiv administrator som kan godkjenne forespørselen.');
       let [created]=await db.select().from(supportRequests).where(and(eq(supportRequests.organizationId,organizationId),eq(supportRequests.requestedUserId,ctx.user.id),eq(supportRequests.status,'Venter'))).limit(1);

@@ -1,6 +1,6 @@
 "use client";
 import {partnerCommissionOverview} from '@/lib/partner-payments';
-import {Building2,LayoutDashboard,UsersRound,CalendarCheck2,BarChart3,Phone,Megaphone} from 'lucide-react';
+import {Building2,LayoutDashboard,UsersRound,CalendarCheck2,BarChart3,Phone,Megaphone,Settings} from 'lucide-react';
 import {PartnerReportView,type PartnerReport} from './partner-overview';
 import {Button} from '@/components/ui/button';
 import {useI18n} from '@/lib/i18n/react';
@@ -18,7 +18,7 @@ function exampleReport():PartnerReport{
 }
 export function PartnerPreview({onClose}:{onClose:()=>void}){
  const {t}=useI18n();
- const items:[MessageKey,typeof Building2][]=[['nav.overview',LayoutDashboard],['nav.customers',UsersRound],['nav.followup',CalendarCheck2],['nav.reports',BarChart3],['nav.calllists',Phone],['nav.marketing',Megaphone]];
+ const items:[MessageKey,typeof Building2][]=[['nav.overview',LayoutDashboard],['nav.customers',UsersRound],['nav.followup',CalendarCheck2],['nav.reports',BarChart3],['nav.calllists',Phone],['nav.marketing',Megaphone],['nav.admin',Settings]];
  return <main className="app-shell signature-shell partner-preview">
  <aside className="sidebar"><div className="brand"><img className="brand-wordmark brand-wordmark-light" src="/noracre-logo-primary.svg" alt="Noracre"/><img className="brand-wordmark brand-wordmark-dark" src="/noracre-logo-dark.svg" alt="Noracre"/><img className="brand-icon brand-icon-sidebar" src="/noracre-app-icon.svg" alt="Noracre"/></div>
  <nav aria-label={t('nav.main')}>{items.map(([key,Icon])=><button type="button" disabled key={key}><Icon size={20}/><span className="nav-label">{t(key)}</span></button>)}</nav>

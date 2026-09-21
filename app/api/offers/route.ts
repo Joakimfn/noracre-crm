@@ -1,3 +1,4 @@
+import {canViewAdministration} from "@/lib/roles";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -5,7 +6,7 @@ import { offerTemplates } from "@/db/schema";
 import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
 
 function requireAdmin(ctx: Awaited<ReturnType<typeof requireTenant>>) {
-  if (ctx.role !== "Administrator" && !ctx.isSuperadmin)
+  if (!canViewAdministration(ctx.role))
     throw new AccessError(403, "Bare administrator kan endre tilbudsmaler.");
 }
 

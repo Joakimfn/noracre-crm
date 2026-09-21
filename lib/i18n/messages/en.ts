@@ -70,7 +70,7 @@ export const en = {
   "partner.saveError": "Could not save referral assignment.",
   "partner.directoryError": "Could not load partner companies.",
   "partner.changeHint": "Changing the partner removes this company from the previous partner’s overview. Revenue for the new partner is counted from the following day.",
-  "partner.newHint": "The Partner role grants access to this company’s Partner overview.",
+  "partner.newHint": "Partners administer their own company and also have access to the Partner overview. Add employees as Users.",
   "common.unsure": "Not sure",
   "common.optional": "(optional)",
   "common.noDate": "No date",

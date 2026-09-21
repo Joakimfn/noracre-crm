@@ -14,6 +14,8 @@ test('all migrations apply and negotiated prices update only the selected compan
   db.prepare("INSERT INTO organization_modules(organization_id,module_key,price_per_user,activated_at) VALUES(?,?,?,?)").run(a,key,price,'2026-09-12');
   db.prepare("INSERT INTO module_licenses(organization_id,membership_id,module_key,price_per_user,activated_at) VALUES(?,?,?,?,?)").run(a,user,key,price,'2026-09-12');
  }
+ db.prepare('UPDATE organizations SET is_partner=1 WHERE id=?').run(a);
+ db.prepare("UPDATE memberships SET role='Partner' WHERE id=?").run(user);
  const oldEvents=db.prepare('SELECT * FROM billing_events ORDER BY id').all();
  db.prepare('UPDATE organizations SET crm_price=209,ring_price=39,marketing_price=79 WHERE id=?').run(a);
  assert.deepEqual(db.prepare('SELECT * FROM billing_events WHERE id<=? ORDER BY id').all(oldEvents.at(-1).id),oldEvents);

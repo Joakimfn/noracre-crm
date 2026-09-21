@@ -1,3 +1,4 @@
+import {canViewAdministration} from "@/lib/roles";
 import {parseCommissionPercentage} from "@/lib/commission-percentage";
 import {validateReferral} from "@/lib/partners";
 import { actorJson, actorRef } from "@/lib/actor-names";
@@ -201,7 +202,7 @@ export async function POST(request: Request) {
       );
     }
     if (data.type === "member") {
-      if (!ctx.isSuperadmin && ctx.role !== "Administrator")
+      if (!canViewAdministration(ctx.role))
         throw new AccessError(403, "Bare administrator kan legge til brukere.");
       const targeted = data.organizationId !== undefined;
       if (targeted && ctx.role !== "Superadmin")
@@ -262,7 +263,7 @@ export async function POST(request: Request) {
       return await actorJson(ctx, { member, monthlyPrice, modules: selectedModules.map(module => module.key), invitationSent: invitation.sent }, { status: 201 });
     }
     if (data.type === "memberStatus") {
-      if (!ctx.isSuperadmin && ctx.role !== "Administrator")
+      if (!canViewAdministration(ctx.role))
         throw new AccessError(
           403,
           "Bare administrator kan endre brukertilgang.",

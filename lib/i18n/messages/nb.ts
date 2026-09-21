@@ -68,7 +68,7 @@ export const nb = {
   "partner.saveError": "Kunne ikke lagre partnerkoblingen.",
   "partner.directoryError": "Kunne ikke hente partnerbedriftene.",
   "partner.changeHint": "Ved bytte av partner fjernes bedriften fra den forrige partnerens oversikt. Omsetning for den nye partneren telles fra dagen etter endringen.",
-  "partner.newHint": "Partnerrollen gir tilgang til Partneroversikt for denne bedriften.",
+  "partner.newHint": "Partner er administrator for egen bedrift og har i tillegg tilgang til Partneroversikt. Ansatte legges til som Bruker.",
   "common.unsure": "Usikker",
   "common.optional": "(valgfritt)",
   "common.noDate": "Ingen dato",

@@ -18,14 +18,14 @@ for(const moduleKey of ['ringelister','markedsforing']){
   const html=render(moduleKey,'Bruker');assert.match(html,/Ta kontakt med administratoren/);assert.match(html,/Eksempeldata/);assert.doesNotMatch(html,/Velg brukere og aktiver|per bruker \/ måned|bekrefter/);
  });
  test(`${moduleKey}: only recognized administrators see priced activation`,()=>{
-  for(const role of ['Administrator','Superadmin']){const html=render(moduleKey,role);assert.match(html,/Velg brukere og aktiver/);assert.match(html,/49 kr/);assert.doesNotMatch(html,/Du ser totalprisen/);assert.doesNotMatch(html,/Ta kontakt med administratoren/);}
+  for(const role of ['Administrator','Partner','Superadmin']){const html=render(moduleKey,role);assert.match(html,/Velg brukere og aktiver/);assert.match(html,/49 kr/);assert.doesNotMatch(html,/Du ser totalprisen/);assert.doesNotMatch(html,/Ta kontakt med administratoren/);}
   const unknown=render(moduleKey,'unknown');assert.doesNotMatch(unknown,/Velg brukere og aktiver/);
   assert.match(render(moduleKey,'Administrator',null),/disabled=""/);
  });
 }
-test('administration is available only to customer administrators and superadmins',()=>{
+test('administration is available only to customer administrators, partners and superadmins',()=>{
  for(const role of ['Bruker','','unknown'])assert.equal(canViewAdministration(role),false);
- for(const role of ['Administrator','Superadmin'])assert.equal(canViewAdministration(role),true);
+ for(const role of ['Administrator','Partner','Superadmin'])assert.equal(canViewAdministration(role),true);
 });
 
 test('paused AI search is absent from module previews',()=>assert.doesNotMatch(render('ringelister','Bruker'),/AI-SØK|med AI|module-preview-ai/));
