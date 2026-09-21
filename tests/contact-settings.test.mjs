@@ -1,3 +1,4 @@
+import {pathToFileURL} from 'node:url';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
@@ -7,9 +8,9 @@ import path from 'node:path';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 const dir=await mkdtemp(path.join(tmpdir(),'contact-settings-'));
-await symlink(path.resolve('node_modules'),path.join(dir,'node_modules'));
+await symlink(path.resolve('node_modules'),path.join(dir,'node_modules'),'junction');
 await build({stdin:{contents:`export {MailAccount} from './components/mail-account'; export {PhoneLink} from './components/phone-link'; export {teamsPhoneLink} from './lib/phone-link';`,resolveDir:process.cwd()},bundle:true,platform:'node',format:'esm',jsx:'automatic',packages:'external',outfile:path.join(dir,'ui.mjs')});
-const {MailAccount,PhoneLink,teamsPhoneLink}=await import(path.join(dir,'ui.mjs'));
+const {MailAccount,PhoneLink,teamsPhoneLink}=await import(pathToFileURL(path.join(dir,'ui.mjs')));
 test('pending account status never claims user is disconnected or shows manual refresh',()=>{
  const html=renderToStaticMarkup(React.createElement(MailAccount,{organizationId:1}));
  assert.equal(html.split('Henter kontostatus …').length-1,1);assert.ok(!html.includes('Koble til kontoen du vil sende fra'));assert.ok(!html.includes('Oppdater kontostatus'));

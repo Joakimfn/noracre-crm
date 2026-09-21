@@ -1,12 +1,14 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import {useState} from 'react';
-import {apiFetch} from '@/lib/api-client';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {toast} from 'sonner';
 type Contact={id:number;name:string;title:string;email:string;phone:string};
 export function ContactEditor({contact,organizationId,onChanged}:{contact:Contact;organizationId:number;onChanged:()=>Promise<void>}){
+ const apiFetch=useCrmApi();
+
  const [draft,setDraft]=useState<Contact|null>(null),[deleting,setDeleting]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  async function save(remove=false){if(!draft||busy)return;setBusy(true);setError('');try{
   const r=await apiFetch(`/api/contacts${remove?`?id=${draft.id}`:''}`,{method:remove?'DELETE':'PATCH',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},...(remove?{}:{body:JSON.stringify(draft)})});const d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke endre kontaktpersonen.');

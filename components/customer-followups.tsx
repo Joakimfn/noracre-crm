@@ -1,10 +1,10 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import {ReminderFields} from "@/components/reminder-fields";
 import {reminderMinutes} from "@/lib/followup-reminder";
 import {useEffect,useState} from "react";
 import {CalendarCheck2,Plus,Check,Trash2,Pencil} from "lucide-react";
 import {toast} from "sonner";
-import {apiFetch} from "@/lib/api-client";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {DateTimePicker} from "@/components/date-time-picker";
@@ -12,6 +12,8 @@ type Task={id:number;companyId:number;note:string;dueAt:string;createdBy:string;
 type Contact={id:number;name:string};
 const blank={id:0,note:"",dueAt:"",contactId:null as number|null,reminderMinutes:[15] as number[]};
 export function CustomerFollowups({company,contacts,organizationId,onChanged,revision}:{company:{id:number;name:string};contacts:Contact[];organizationId:number;onChanged:()=>Promise<void>;revision:readonly unknown[]}){
+ const apiFetch=useCrmApi();
+
  const [tasks,setTasks]=useState<Task[]>([]),[draft,setDraft]=useState<typeof blank|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const headers={"x-organization-id":String(organizationId),"content-type":"application/json"};
  async function load(){const r=await apiFetch(`/api/activities?companyId=${company.id}`,{headers});if(!r.ok)throw Error();const d=await r.json();setTasks(d.activities.filter((a:Task)=>a.companyId===company.id&&!a.completedAt).sort((a:Task,b:Task)=>a.dueAt.localeCompare(b.dueAt)));}

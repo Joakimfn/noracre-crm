@@ -1,9 +1,9 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import {PartnerPaymentRegister} from "@/components/partner-payment-register";
 import {billingHistory} from "@/lib/billing-history";
 import {useEffect,useState} from "react";
 import {Activity,Download,RefreshCw,ChevronRight,Search} from "lucide-react";
-import {apiFetch} from "@/lib/api-client";
 import {Button} from "@/components/ui/button";
 import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription} from "@/components/ui/dialog";
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from "@/components/ui/select";
@@ -20,6 +20,8 @@ const invoiceMoney=(ore:number)=>(ore/100).toLocaleString('nb-NO',{minimumFracti
 function csv(name:string,rows:(string|number)[][]){const text='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v).replace(/^[\s]*[=+@-]/,"'$&").replaceAll('"','""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 type Health={checkedAt:string;status:string;scope:string;checks:{name:string;ok:boolean;ms:number;detail:string}[]};
 export function HealthStatus(){
+ const apiFetch=useCrmApi();
+
  const [open,setOpen]=useState(false),[health,setHealth]=useState<Health|null>(null),[busy,setBusy]=useState(true),[error,setError]=useState('');
  async function check(){setBusy(true);setError('');try{const r=await apiFetch('/api/system-health');if(!r.ok)throw Error();setHealth(await r.json());}catch{setError('Status kunne ikke kontrolleres. CRM eller innlogging kan være utilgjengelig. Prøv igjen.');setHealth(null);}finally{setBusy(false);}}
  useEffect(()=>{check();},[]);
@@ -32,6 +34,8 @@ export function HealthStatus(){
 type Event=BillingEvent&{organizationName:string};
 type Report=ReturnType<typeof operationsReport>&{events:Event[];invoices:ReturnType<typeof invoiceReport>};
 export function OperationsInsights({organizationId}:{organizationId:number}){
+ const apiFetch=useCrmApi();
+
  const [data,setData]=useState<Report|null>(null),[error,setError]=useState(''),[org,setOrg]=useState('all'),[query,setQuery]=useState(''),[page,setPage]=useState(0),[historyOrg,setHistoryOrg]=useState<{id:number;name:string}|null>(null),[historyPage,setHistoryPage]=useState(0),[paymentOrg,setPaymentOrg]=useState<{id:number;name:string}|null>(null);
  async function load(){setError('');try{const r=await apiFetch('/api/operations');if(!r.ok)throw Error();setData(await r.json());}catch{setError('Driftshistorikken kunne ikke hentes. Prøv igjen.');}}
  useEffect(()=>{load();},[]);

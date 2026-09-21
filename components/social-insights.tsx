@@ -1,6 +1,6 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import type { PostInsights, InsightReason } from "@/lib/social-insights";
@@ -19,6 +19,8 @@ const reasons: Record<InsightReason,string> = {
   temporary:"Kunne ikke hente alle tall fra kanalen. Prøv å oppdatere statistikken senere.",
 };
 export function SocialInsights({organizationId, connections, revision}:{organizationId:number;connections:SocialState;revision:number}) {
+ const apiFetch=useCrmApi();
+
   const [entries, setEntries] = useState<Entry[]>([]), [loading,setLoading] = useState(true), [error,setError] = useState("");
   const [refresh,setRefresh] = useState(0), [updated,setUpdated] = useState("");
   useEffect(() => {

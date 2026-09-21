@@ -1,7 +1,7 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import {useMemo,useRef,useState} from 'react';
 import * as XLSX from 'xlsx';
-import {apiFetch} from '@/lib/api-client';
 import {fieldsForMode,guessColumns,mapImportRow,importRowProblem,type ImportMode} from '@/lib/data-import';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
@@ -9,6 +9,8 @@ import {Input} from '@/components/ui/input';
 type Totals={customers:number;contacts:number;activities:number;skipped:number;processed:number};
 const empty:Totals={customers:0,contacts:0,activities:0,skipped:0,processed:0};
 export function DataImporter({organizationId,onImported}:{organizationId:number;onImported:()=>Promise<void>}){
+ const apiFetch=useCrmApi();
+
  const [book,setBook]=useState<XLSX.WorkBook|null>(null),[sheet,setSheet]=useState(''),[fileName,setFileName]=useState(''),[mode,setMode]=useState<ImportMode>('customers'),[source,setSource]=useState('Import'),[mapping,setMapping]=useState<Record<string,number>>({}),[headerRow,setHeaderRow]=useState(1),[error,setError]=useState(''),[busy,setBusy]=useState(false),[started,setStarted]=useState(false),[done,setDone]=useState(false),[totals,setTotals]=useState<Totals>(empty);
  const run=useRef({id:'',next:0}),lock=useRef(false);
  const matrix=useMemo(()=>book&&sheet?XLSX.utils.sheet_to_json<string[]>(book.Sheets[sheet],{header:1,defval:'',raw:false,blankrows:true}).map(row=>row.map(String)):[],[book,sheet]);

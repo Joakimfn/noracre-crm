@@ -1,7 +1,7 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 
 import { useEffect, useRef, useState } from "react";
-import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,8 @@ const totalPrice = (company: Company, draft: Draft) => (company.crmPrice ?? 0) +
 export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
   organizationId: number; refreshKey: number; onCreated: () => void;
 }) {
+ const apiFetch=useCrmApi();
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [draft, setDraft] = useState(emptyDraft);
   const [review, setReview] = useState<{ draft: Draft; company: Company } | null>(null);

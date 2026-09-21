@@ -1,12 +1,13 @@
 "use client";
 import {useEffect,useState} from 'react';
-import {apiFetch} from '@/lib/api-client';
+import {useCrmApi} from '@/lib/crm-api';
 import {useI18n} from '@/lib/i18n/react';
 import {Button} from '@/components/ui/button';
 import {Label} from '@/components/ui/label';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 export type PartnerCompany={id:number;name:string;status:string;isPartner:boolean;referredByPartnerId:number|null;partnerAssignedAt:string;scheduledDisableAt:string};
 function useDirectory(organizationId:number,refreshKey:number){
+ const apiFetch=useCrmApi();
  const {t}=useI18n(),[rows,setRows]=useState<PartnerCompany[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true),[reload,setReload]=useState(0);
  useEffect(()=>{let cancelled=false;setLoading(true);setError('');apiFetch('/api/partners',{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||t('partner.directoryError'));if(!cancelled)setRows(d.organizations);}).catch(e=>{if(!cancelled)setError(e.message);}).finally(()=>{if(!cancelled)setLoading(false);});return()=>{cancelled=true;};},[organizationId,refreshKey,reload,t]);
  return {rows,error,loading,reload:()=>setReload(n=>n+1)};

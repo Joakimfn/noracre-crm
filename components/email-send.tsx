@@ -1,14 +1,16 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import { useEffect, useRef, useState } from "react";
 import { MailAccount } from "@/components/mail-account";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type Props = { organizationId: number; companyIds: number[]; contactId?: number; attachmentIds?: number[]; files?: File[]; subject: string; message: string; recipientLabel: string; bulk?: boolean; scheduledAt?: string; onSent?: () => void };
 export function EmailSend(p: Props) {
+ const apiFetch=useCrmApi();
+
   const [open,setOpen]=useState(false), [sending,setSending]=useState(false), [config,setConfig]=useState<{configured:boolean;from:string;replyTo:string}|null>(null);
   const attempt = useRef({fingerprint:"",key:""});
   function refresh(){apiFetch("/api/email",{headers:{"x-organization-id":String(p.organizationId)}}).then(async r=>{if(r.ok)setConfig(await r.json());}).catch(()=>{});}

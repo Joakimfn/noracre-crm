@@ -1,4 +1,5 @@
 "use client";
+import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {PartnerOverview} from "@/components/partner-overview";
 import {PartnerPreview} from "@/components/partner-preview";
@@ -392,7 +393,8 @@ type CallListCache = {
 };
 const callListCache = new Map<number, CallListCache>();
 const callListLoads = new Map<number, Promise<CallListCache>>();
-function loadCallListInitial(organizationId: number, force = false) {
+function loadCallListInitial(organizationId: number, force = false, request=apiFetch) {
+  force ||= organizationId < 0;
   const cached = callListCache.get(organizationId);
   if (!force && cached && Date.now() - cached.loadedAt < 120_000)
     return Promise.resolve(cached);
@@ -400,13 +402,13 @@ function loadCallListInitial(organizationId: number, force = false) {
   if (!force && running) return running;
   const headers = { "x-organization-id": String(organizationId) };
   const promise = Promise.allSettled([
-    apiFetch("/api/call-lists", { headers }).then(async (response) => {
+    request("/api/call-lists", { headers }).then(async (response) => {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Kunne ikke hente ringelisten");
       return data.entries ?? [];
     }),
-    apiFetch("/api/call-list-options", { headers }).then(async (response) => {
+    request("/api/call-list-options", { headers }).then(async (response) => {
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error ?? "Kunne ikke hente filtrene");
@@ -436,7 +438,7 @@ function loadCallListInitial(organizationId: number, force = false) {
               organizationForms: organizationFormFallbackOptions,
             };
       const next = { entries, options, loadedAt: Date.now() };
-      callListCache.set(organizationId, next);
+      if(organizationId>0)callListCache.set(organizationId, next);
       callListLoads.delete(organizationId);
       return next;
     })
@@ -444,7 +446,7 @@ function loadCallListInitial(organizationId: number, force = false) {
       callListLoads.delete(organizationId);
       throw error;
     });
-  callListLoads.set(organizationId, promise);
+  if(organizationId>0)callListLoads.set(organizationId, promise);
   return promise;
 }
 const osloDateFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -552,7 +554,9 @@ function icon(kind: string) {
   );
 }
 
-export default function Home() {
+export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?:boolean;onDemoClose?:()=>void;onDemoReset?:()=>void}={}) {
+ const apiFetch=useCrmApi();
+
   const {t}=useI18n();
   const [partnerPreview,setPartnerPreview]=useState(false),[partnerPreviewKey,setPartnerPreviewKey]=useState("");
   const [view, setView] = useState<View>("overview"),
@@ -703,7 +707,7 @@ export default function Home() {
     setMarketingModuleActive(
       Boolean(ad.modules?.markedsforing?.currentUserActive),
     );
-    if (ringActive) void loadCallListInitial(orgId).catch(() => undefined);
+    if (ringActive) void loadCallListInitial(orgId,false,apiFetch).catch(() => undefined);
     setSelectedId(c.companies?.[0]?.id ?? 0);
   }
   async function refreshCrmData() {
@@ -716,7 +720,7 @@ export default function Home() {
     if (!a.error) setActivities(a.activities ?? []);
   }
   useEffect(() => {
-    const entry=new URLSearchParams(window.location.search),entryOrg=Number(entry.get("organization"));
+    const entry=new URLSearchParams(demoMode?"":window.location.search),entryOrg=Number(entry.get("organization"));
     apiFetch("/api/session",entry.has("supportRequest")&&Number.isSafeInteger(entryOrg)&&entryOrg>0?{headers:{"x-organization-id":String(entryOrg)}}:{})
       .then(async (r) => {
         const s = await r.json();
@@ -727,7 +731,7 @@ export default function Home() {
         return s;
       })
       .then(async (s) => {
-        const supportLink=new URLSearchParams(window.location.search);
+        const supportLink=new URLSearchParams(demoMode?"":window.location.search);
         const linkedOrg=Number(supportLink.get("organization"));
         const id = supportLink.has("supportRequest") && (s.organizations??[]).some((o:{id:number})=>o.id===linkedOrg) ? linkedOrg : s.currentOrganizationId ?? 1;
         setActiveOrgId(id);
@@ -795,6 +799,7 @@ export default function Home() {
       .finally(() => setSessionReady(true));
   }, []);
   useEffect(() => {
+    if(demoMode)return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => document.documentElement.classList.toggle("dark", profile.theme === "dark" || (profile.theme === "system" && media.matches));
     apply();
@@ -826,7 +831,7 @@ export default function Home() {
         setAvatarVersion(v => v + 1);
       }
       callListCache.delete(activeOrgId);
-      window.dispatchEvent(new Event("crm-profile-updated"));
+      if(!demoMode)window.dispatchEvent(new Event("crm-profile-updated"));
       if (snapshot.displayName !== user.displayName) {
         await Promise.allSettled([
           refreshCrmData(),
@@ -853,7 +858,7 @@ export default function Home() {
     noFollow = companies.filter((c) => !c.nextActionDate);
   useEffect(() => {
     if (
-      !sessionReady ||
+      demoMode || partnerPreview || !sessionReady ||
       !("Notification" in window)
     )
       return;
@@ -878,7 +883,7 @@ export default function Home() {
     const timer = window.setInterval(check, 15_000);
     window.addEventListener("focus", check);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", check); };
-  }, [sessionReady, activities, activeOrgId, user.id]);
+  }, [sessionReady, activities, activeOrgId, user.id, demoMode, partnerPreview]);
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
@@ -1204,11 +1209,11 @@ export default function Home() {
       const d = await r.json();
       if (!r.ok) return toast.error(d.error ?? "Kunne ikke invitere brukeren");
       m.id = d.member.id;
-      await navigator.clipboard?.writeText(window.location.origin)
+      if(!demoMode)await navigator.clipboard?.writeText(window.location.origin)
         .catch(() => undefined);
       setMembers((x) => [...x, m]);
       setNewMember({ name: "", email: "", role: "Bruker" });
-      toast.success(d.invitationSent ? "Brukeren er opprettet og invitasjonen er sendt" : "Brukeren er opprettet. Invitasjonen kunne ikke sendes; del innloggingslenken manuelt.");
+      toast.success(demoMode ? "Demobrukeren er opprettet" : d.invitationSent ? "Brukeren er opprettet og invitasjonen er sendt" : "Brukeren er opprettet. Invitasjonen kunne ikke sendes; del innloggingslenken manuelt.");
     } catch {
       toast.error("Kunne ikke invitere brukeren");
     } finally { setMemberBusy(false); }
@@ -1387,7 +1392,7 @@ export default function Home() {
   }
   async function finishOnboarding() {
     if (!accepted) return;
-    localStorage.setItem("noracre-tutorial-2026-09-09-v2", "seen");
+    if(!demoMode)localStorage.setItem("noracre-tutorial-2026-09-09-v2", "seen");
     setOnboardingOpen(false);
     toast.success("Du er klar til å bruke Noracre CRM");
     const r = await apiFetch("/api/session", {
@@ -1439,7 +1444,7 @@ export default function Home() {
     setPartnerPreview(false);
   }}/>;
   return (
-    <main className="app-shell signature-shell">
+    <main className="app-shell signature-shell" onClickCapture={demoMode?e=>{const target=e.target as HTMLElement;const link=target.closest("a");if(link){e.preventDefault();e.stopPropagation();toast.info("Eksterne lenker er deaktivert i demoen.");}}:undefined}>
       <Toaster position="top-right" />
       <aside className="sidebar">
         <div className="brand">
@@ -1567,6 +1572,7 @@ export default function Home() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
+                if(demoMode){onDemoClose?.();return;}
                 const usesSupabase = Boolean(getStoredAccessToken());
                 clearStoredSession();
                 window.location.assign(
@@ -1726,6 +1732,7 @@ export default function Home() {
             <h1>{t(titleKeys[view])}</h1>
           </div>
           <div className="top-actions">
+            {demoMode&&<><Button variant="outline" onClick={onDemoReset}>Nullstill demo</Button><Button variant="outline" onClick={onDemoClose}>Tilbake til min konto</Button></>}
             {rolePreview === "Superadmin" && (view === "operations" || view === "superadmin") && <Button variant="outline" onClick={()=>setPartnerPreview(true)}>{t("partner.previewOpen")}</Button>}
             {view === "customers" && (
               <span className={`save-state ${saveState}`}>
@@ -1753,6 +1760,7 @@ export default function Home() {
             )}
           </div>
         </header>
+        {demoMode&&<div className="partner-preview-notice" role="status"><strong>{t("partner.previewLabel")}</strong><p>{t("partner.previewHint")}</p></div>}
         {view === "overview" && (
           <Overview
             displayName={user.displayName}
@@ -2416,6 +2424,8 @@ function OfferComposer({
   upload: (e: ChangeEvent<HTMLInputElement>) => void;
   uploading: boolean;
 }) {
+ const apiFetch=useCrmApi();
+
   const [templates, setTemplates] = useState<OfferTemplate[]>([]),
     [templateId, setTemplateId] = useState("new"),
     [contactId, setContactId] = useState("none"),
@@ -2612,6 +2622,8 @@ function Customers(p: {
   onFollowupsChanged: () => Promise<void>;
   activityRevision: Activity[];
 }) {
+ const apiFetch=useCrmApi();
+
   const [openHistory, setOpenHistory] = useState<Activity | null>(null);
   const [historyDraft, setHistoryDraft] = useState("");
   const [savingHistory, setSavingHistory] = useState(false);
@@ -3480,6 +3492,8 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
   );
 }
 function OfferTemplateManager({ organizationId }: { organizationId: number }) {
+ const apiFetch=useCrmApi();
+
   const blank = {
     id: 0,
     name: "",
@@ -3611,10 +3625,12 @@ function CallLists({
   onDataChanged: () => Promise<void>;
   onGoToCustomer: (company: Company) => void;
 }) {
+ const apiFetch=useCrmApi();
+
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
-  const initialCache = callListCache.get(organizationId);
+  const initialCache = organizationId < 0 ? undefined : callListCache.get(organizationId);
   const [entries, setEntries] = useState<CallListEntry[]>(
       initialCache?.entries ?? [],
     ),
@@ -3659,7 +3675,7 @@ function CallLists({
     if (active) {
       const cached = callListCache.get(organizationId);
       if (!cached) setLoadingEntries(true);
-      loadCallListInitial(organizationId)
+      loadCallListInitial(organizationId,false,apiFetch)
         .then((data) => {
           if (cancelled) return;
           setEntries(data.entries);
@@ -3790,7 +3806,7 @@ function CallLists({
     let cancelled=false;
     const refresh=async()=>{
       if(!active)return;
-      try {const d=await loadCallListInitial(organizationId,true);if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
+      try {const d=await loadCallListInitial(organizationId,true,apiFetch);if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
         const r=await apiFetch("/api/call-lists?view=history",{headers:{"x-organization-id":String(organizationId)}});
         if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
       }catch{if(!cancelled)toast.error("Kunne ikke oppdatere navnene i ringelisten.");}
@@ -4438,6 +4454,8 @@ function ProspectRows({
   );
 }
 function Prospects() {
+ const apiFetch=useCrmApi();
+
   const [rows, setRows] = useState<Prospect[]>([]),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
@@ -4544,6 +4562,8 @@ function MarketingPostImage({
   filename: string;
   organizationId: number;
 }) {
+ const apiFetch=useCrmApi();
+
   const [src, setSrc] = useState("");
   useEffect(() => {
     let objectUrl = "";
@@ -4592,6 +4612,8 @@ function Marketing({
   onActivated: (active: boolean) => void;
   companies: Company[];
 }) {
+ const apiFetch=useCrmApi();
+
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
@@ -5029,6 +5051,8 @@ function SuperadminSettings(p: {
   addMember: () => void;
   ownerEmail: string;
 }) {
+ const apiFetch=useCrmApi();
+
   const {t}=useI18n();
   const [companyQuery, setCompanyQuery] = useState("");
   const [companyResults, setCompanyResults] = useState<Partial<Company>[]>([]);

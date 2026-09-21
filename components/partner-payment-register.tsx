@@ -1,7 +1,10 @@
 "use client";
-import {useEffect,useRef,useState} from 'react';import {apiFetch} from '@/lib/api-client';import {useI18n} from '@/lib/i18n/react';import {norwegianToday,paymentAmountOre,paymentCommission} from '@/lib/partner-payments';import {NorwegianDateInput} from '@/components/norwegian-date-input';import {Button} from '@/components/ui/button';import {Input} from '@/components/ui/input';import {Label} from '@/components/ui/label';
+import {useCrmApi} from "@/lib/crm-api";
+import {useEffect,useRef,useState} from 'react';import {useI18n} from '@/lib/i18n/react';import {norwegianToday,paymentAmountOre,paymentCommission} from '@/lib/partner-payments';import {NorwegianDateInput} from '@/components/norwegian-date-input';import {Button} from '@/components/ui/button';import {Input} from '@/components/ui/input';import {Label} from '@/components/ui/label';
 type Payment={id:number;reference:string;paidOn:string;amountOre:number;basisPoints:number;commissionOre:number;voidedAt:string};type Data={partner:{id:number;name:string;basisPoints:number|null}|null;payments:Payment[]};
 export function PartnerPaymentRegister({companyId,organizationId}:{companyId:number;organizationId:number}){
+ const apiFetch=useCrmApi();
+
  const {t,money,number,calendarDate}=useI18n(),[open,setOpen]=useState(true),[data,setData]=useState<Data|null>(null),[error,setError]=useState(''),[saved,setSaved]=useState(false),[reload,setReload]=useState(0),[busy,setBusy]=useState(false),[amount,setAmount]=useState(''),[reference,setReference]=useState(''),[paidOn,setPaidOn]=useState(norwegianToday),locked=useRef(false);
  const headers={'Content-Type':'application/json','x-organization-id':String(organizationId)};
  useEffect(()=>{if(!open)return;let cancelled=false;setData(null);setError('');apiFetch('/api/partner-payments?organizationId='+companyId,{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||t('payment.error'));if(!cancelled)setData(d);}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[open,companyId,organizationId,reload,t]);

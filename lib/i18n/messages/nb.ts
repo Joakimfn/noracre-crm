@@ -33,7 +33,7 @@ export const nb = {
   "payment.voidConfirm": "Annullere denne registreringen? Den tas ut av partnerens fakturagrunnlag.",
   "partner.previewOpen": "Vis som partner",
   "partner.previewLabel": "Forhåndsvisning · Eksempeldata",
-  "partner.previewHint": "Slik ser partneroversikten ut. Bedriftene og beløpene her er fiktive.",
+  "partner.previewHint": "Utforsk CRM-et med fiktive kunder og oppfølginger. Endringer gjelder bare denne demoøkten. E-post og publisering er deaktivert.",
   "partner.previewClose": "Tilbake til min konto",
   "partner.previewAccount": "Eksempelpartner",
   "nav.partner": "Partneroversikt",

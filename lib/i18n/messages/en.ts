@@ -35,7 +35,7 @@ export const en = {
   "payment.voidConfirm": "Void this entry? It will be removed from the partner’s invoice basis.",
   "partner.previewOpen": "View as partner",
   "partner.previewLabel": "Preview · Sample data",
-  "partner.previewHint": "This is how the partner overview looks. The companies and amounts shown here are fictional.",
+  "partner.previewHint": "Explore the CRM with fictional customers and follow-ups. Changes apply only to this demo session. Email and publishing are disabled.",
   "partner.previewClose": "Back to my account",
   "partner.previewAccount": "Sample partner",
   "nav.partner": "Partner overview",

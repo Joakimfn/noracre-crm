@@ -1,8 +1,8 @@
 "use client";
+import {useCrmApi,useDemoMode} from "@/lib/crm-api";
 import {canManageModules} from "@/lib/roles";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api-client";
 import { SOCIAL_CHANNELS } from "@/lib/social-channels";
 import { SocialChannelIcon } from "@/components/social-channel-icon";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ export interface SocialConnection {id:number;platform:string;accountId:string;ac
 export interface SocialState {ready:boolean;connections:SocialConnection[];providers?:{meta:boolean;linkedin:boolean}}
 interface Choice {id:string;name:string;instagram:{id:string;name:string}|null}
 export function SocialConnections({organizationId,role,onChange}:{organizationId:number;role:string;onChange:(value:SocialState)=>void}){
+ const apiFetch=useCrmApi(),demoMode=useDemoMode();
+
   const [data,setData]=useState<SocialState>({ready:false,connections:[]});
   const [loading,setLoading]=useState(true),[error,setError]=useState("");
   const [connectionError,setConnectionError]=useState("");
@@ -39,6 +41,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[organizationId]);
   async function connect(){
+ if(demoMode)return toast.info("Kontotilkobling er deaktivert i demoen.");
     if(busy)return;
     const g=generation.current;
     popup.current=window.open("about:blank","noracre-meta","width=650,height=760");
@@ -81,6 +84,7 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   const [linkedinPages,setLinkedinPages]=useState<{id:string;name:string}[]>([]),[linkedinPage,setLinkedinPage]=useState("");
   const [disconnectId,setDisconnectId]=useState<number|null>(null);
   async function connectLinkedIn(){
+ if(demoMode)return toast.info("Kontotilkobling er deaktivert i demoen.");
     if(busy)return;const g=generation.current;
     popup.current=window.open("about:blank","noracre-linkedin","width=650,height=760");
     if(!popup.current)return toast.error("Tillat sprettoppvinduer for å koble til LinkedIn.");
