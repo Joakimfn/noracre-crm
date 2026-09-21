@@ -1476,7 +1476,6 @@ export default function Home() {
             ico={<Megaphone size={20} />}
             text={t('nav.marketing')}
           />
-          {rolePreview === "Partner" && organizations.find(o=>o.id===activeOrgId)?.isPartner && <Nav a={view === "partner"} click={()=>setView("partner")} ico={<Building2 size={20}/>} text={t("nav.partner")}/>}
           {canViewAdministration(rolePreview) && (
             <Nav
               a={view === "admin"}
@@ -1489,6 +1488,7 @@ export default function Home() {
             />
           )}
         </nav>
+        <div className="sidebar-bottom">
         {rolePreview === "Superadmin" && (
           <nav className="super-nav" aria-label="Superadmin">
             <Nav
@@ -1508,6 +1508,7 @@ export default function Home() {
             />
           </nav>
         )}
+        {rolePreview === "Partner" && organizations.find(o=>o.id===activeOrgId)?.isPartner && <nav className="super-nav" aria-label={t("nav.partner")}><Nav a={view === "partner"} click={()=>setView("partner")} ico={<Building2 size={20}/>} text={t("nav.partner")}/></nav>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="sidebar-foot account-trigger" title={user.displayName} aria-label={`Konto: ${user.displayName}`}>
@@ -1561,6 +1562,7 @@ export default function Home() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </aside>
       {!profileOpen && profileAutosave.state === "error" && <div role="alert" className="form-hint">Innstillingene kunne ikke lagres. <Button variant="outline" onClick={() => setProfileOpen(true)}>Åpne innstillinger</Button></div>}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
