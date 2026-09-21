@@ -3,6 +3,8 @@ CREATE TABLE partner_payments(id INTEGER PRIMARY KEY AUTOINCREMENT,organization_
 CREATE UNIQUE INDEX partner_payment_reference ON partner_payments(organization_id,reference_key);
 CREATE INDEX partner_payment_partner ON partner_payments(partner_id,paid_on);
 -- Preserve the agreed rate and referral at registration, even if either changes later.
-CREATE TRIGGER partner_payment_validate BEFORE INSERT ON partner_payments BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM organizations c JOIN organizations p ON p.id=c.referred_by_partner_id WHERE c.id=NEW.organization_id AND p.id=NEW.partner_id AND p.is_partner=1 AND p.commission_bps=NEW.basis_points) THEN RAISE(ABORT,'Partner agreement changed; reload before registering payment') END;
+CREATE TRIGGER partner_payment_validate BEFORE INSERT ON partner_payments
+WHEN NOT EXISTS(SELECT 1 FROM organizations c JOIN organizations p ON p.id=c.referred_by_partner_id WHERE c.id=NEW.organization_id AND p.id=NEW.partner_id AND p.is_partner=1 AND p.commission_bps=NEW.basis_points)
+BEGIN
+ SELECT RAISE(ABORT,'Partner agreement changed, reload before registering payment');
 END;
