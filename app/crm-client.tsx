@@ -1,6 +1,7 @@
 "use client";
 import {PartnerOverview} from "@/components/partner-overview";
-import {PartnerManagement,PartnerPicker} from "@/components/partner-management";
+import {PartnerPreview} from "@/components/partner-preview";
+import {PartnerPicker,ReferrerSelect} from "@/components/partner-management";
 import {defaultI18n,type MessageKey} from "@/lib/i18n";
 import {useI18n} from "@/lib/i18n/react";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
@@ -254,6 +255,7 @@ type SupportRequest = {
   createdAt: string;
 };
 type OperationOrganization = {
+  isPartner: boolean; referredByPartnerId: number | null; partnerAssignedAt: string;
   crmPrice: number | null; ringPrice: number | null; marketingPrice: number | null;
   scheduledDisableAt?: string;
   id: number;
@@ -549,6 +551,7 @@ function icon(kind: string) {
 
 export default function Home() {
   const {t}=useI18n();
+  const [partnerPreview,setPartnerPreview]=useState(false),[partnerPreviewKey,setPartnerPreviewKey]=useState("");
   const [view, setView] = useState<View>("overview"),
     [companies, setCompanies] = useState<Company[]>([]),
     [activities, setActivities] = useState<Activity[]>([]),
@@ -728,7 +731,14 @@ export default function Home() {
         setOrganizations(s.organizations ?? []);
         setRolePreview(s.role ?? "Bruker");
         if (supportLink.has("supportRequest")) setView("admin");
-        else if (s.role === "Superadmin") setView("operations");
+        else if (s.role === "Superadmin") {
+          setView("operations");
+          if(s.partnerPreviewVersion){
+            const key="noracre:partner-preview:"+s.partnerPreviewVersion+":"+(s.user?.id||s.user?.email);
+            setPartnerPreviewKey(key);
+            try { if(localStorage.getItem(key)!=="seen")setPartnerPreview(true); } catch {setPartnerPreview(true);}
+          }
+        }
         setUser(s.user ?? { displayName: "Min konto", email: "" });
         apiFetch("/api/profile", { headers: { "x-organization-id": String(id) } })
           .then((r) => r.json())
@@ -1337,7 +1347,7 @@ export default function Home() {
       | "industry"
       | "phone"
       | "email"
-    > & PriceFields,
+    > & PriceFields & {referredByPartnerId:string},
   ) {
     const r = await api("/api/superadmin", {
         method: "POST",
@@ -1421,6 +1431,10 @@ export default function Home() {
     return (
       <AccessDenied message={accessError.message} code={accessError.code} />
     );
+  if(partnerPreview && rolePreview === "Superadmin")return <PartnerPreview onClose={()=>{
+    if(partnerPreviewKey)try{localStorage.setItem(partnerPreviewKey,"seen");}catch{}
+    setPartnerPreview(false);
+  }}/>;
   return (
     <main className="app-shell signature-shell">
       <Toaster position="top-right" />
@@ -1709,6 +1723,7 @@ export default function Home() {
             <h1>{t(titleKeys[view])}</h1>
           </div>
           <div className="top-actions">
+            {rolePreview === "Superadmin" && (view === "operations" || view === "superadmin") && <Button variant="outline" onClick={()=>setPartnerPreview(true)}>{t("partner.previewOpen")}</Button>}
             {view === "customers" && (
               <span className={`save-state ${saveState}`}>
                 {saveState === "saving"
@@ -5011,7 +5026,6 @@ function SuperadminSettings(p: {
   ownerEmail: string;
 }) {
   const {t}=useI18n();
-  const [partnerRefresh,setPartnerRefresh]=useState(0);
   const [companyQuery, setCompanyQuery] = useState("");
   const [companyResults, setCompanyResults] = useState<Partial<Company>[]>([]);
   const [companySearchBusy, setCompanySearchBusy] = useState(false);
@@ -5156,18 +5170,17 @@ function SuperadminSettings(p: {
             </SelectContent>
           </Select>
           {p.newOrg.adminRole === "Partner" && <p className="form-hint">{t('partner.newHint')}</p>}
-          <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey+partnerRefresh} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
+          <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
           <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
         </div>
       </AdminCard>
-      <AdminCard eye="PARTNERE" title={t('partner.manage')} ico={<Building2/>}><PartnerManagement organizationId={p.activeOrgId} refreshKey={p.refreshKey} onChanged={()=>setPartnerRefresh(n=>n+1)}/></AdminCard>
       <AdminCard
         eye="BEDRIFTSBRUKERE"
         title="Opprett bruker i en bedrift"
         ico={<Building2 />}
       >
-        <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey+partnerRefresh} onCreated={p.onUserCreated} />
+        <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey} onCreated={p.onUserCreated} />
       </AdminCard>
       <AdminCard
         eye="EIERKONTROLL"
@@ -5251,13 +5264,15 @@ function Operations(p: {
       | "industry"
       | "phone"
       | "email"
-    > & PriceFields,
+    > & PriceFields & {referredByPartnerId:string},
   ) => Promise<boolean>;
 }) {
+  const {t}=useI18n();
   const [q, setQ] = useState(""),
     [selectedOrganization, setSelectedOrganization] =
       useState<OperationOrganization | null>(null),
     [details, setDetails] = useState({
+      referredByPartnerId:"none",
       crmPrice: "", ringPrice: "", marketingPrice: "",
       name: "",
       orgNumber: "",
@@ -5274,6 +5289,7 @@ function Operations(p: {
   function openDetails(organization: OperationOrganization) {
     setSelectedOrganization(organization);
     setDetails({
+      referredByPartnerId:organization.referredByPartnerId?String(organization.referredByPartnerId):"none",
       crmPrice: organization.crmPrice == null ? "" : String(organization.crmPrice),
       ringPrice: organization.ringPrice == null ? "" : String(organization.ringPrice),
       marketingPrice: organization.marketingPrice == null ? "" : String(organization.marketingPrice),
@@ -5583,6 +5599,10 @@ function Operations(p: {
                 placeholder="Ikke registrert"
               />
             </div>
+          </div>
+          <div className="organization-form partner-assignment">
+            <Label>{t('partner.referrer')}</Label>
+            <ReferrerSelect rows={(p.data?.organizations??[]).filter(o=>o.id!==selectedOrganization?.id).map(o=>({...o,scheduledDisableAt:o.scheduledDisableAt??""}))} value={details.referredByPartnerId} onChange={referredByPartnerId=>setDetails({...details,referredByPartnerId})}/>
           </div>
           <NegotiatedPrices values={details} change={(values) => setDetails({...details,...values})} />
           <p className="form-hint">Lagre prisene dere har avtalt. Endringen gjelder eksisterende og nye brukerlisenser fra nå; tidligere fakturagrunnlag beholdes.</p>

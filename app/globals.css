@@ -3664,3 +3664,5 @@ body {line-height:1.5; -webkit-font-smoothing:antialiased;}
 }
 
 .partner-assignment [data-slot="select-trigger"] {width:100%;}
+
+.partner-preview-notice {margin:24px 36px 0;padding:16px 20px;border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:8px;background:var(--accent);}.partner-preview-notice p{margin-top:5px;font-size:14px}.partner-preview .topbar{flex-wrap:wrap;gap:16px;}@media(max-width:620px){.partner-preview-notice{margin:16px 14px 0;}}

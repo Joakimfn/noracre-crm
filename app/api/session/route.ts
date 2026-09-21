@@ -1,7 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { memberships, organizations } from "@/db/schema";
-import { accessResponse, requireTenant } from "@/lib/tenant";
+import { accessResponse, requireTenant, isOwnerEmail } from "@/lib/tenant";
 
 export async function GET(request: Request) {
   try {
@@ -33,6 +33,7 @@ export async function GET(request: Request) {
       user: ctx.user,
       currentOrganizationId: ctx.organizationId,
       role: ctx.role,
+      partnerPreviewVersion: ctx.role === "Superadmin" && isOwnerEmail(ctx.user.email) ? "2026-09-21-v1" : null,
       organizations: all,
       acceptedTermsAt: current?.acceptedTermsAt ?? "",
       acceptedTermsVersion: current?.acceptedTermsVersion ?? "",

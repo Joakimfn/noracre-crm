@@ -1,4 +1,9 @@
 export const nb = {
+  "partner.previewOpen": "Vis som partner",
+  "partner.previewLabel": "Forhåndsvisning · Eksempeldata",
+  "partner.previewHint": "Slik ser partneroversikten ut. Bedriftene og beløpene her er fiktive.",
+  "partner.previewClose": "Tilbake til min konto",
+  "partner.previewAccount": "Eksempelpartner",
   "nav.partner": "Partneroversikt",
   "partner.intro": "Følg bedriftene du har vervet til Noracre og verdien av abonnementene deres.",
   "partner.loading": "Henter partneroversikten …",

@@ -690,3 +690,27 @@ test('partner role and referrals can be created only by superadmin and must refe
  assert.equal((await route('admin').POST(request('owner',own,{...member,organizationId:referred.id,email:'badpartner@test.no'}))).status,403);
  assert.equal((await route('admin').POST(request(1105,1100,{type:'member',role:'Partner',name:'Escalation',email:'e@test.no'}))).status,403);
 });
+
+
+test('Drift saves referral and company details atomically without changing partner status',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const data={type:'organizationDetails',organizationId:1102,name:'Edited referral',orgNumber:'',crmPrice:499,ringPrice:49,marketingPrice:49,referredByPartnerId:'1100',isPartner:true};
+ assert.equal((await route('superadmin').POST(request(1100,1100,data))).status,403);
+ assert.equal((await route('superadmin').POST(request('owner',own,{...data,referredByPartnerId:'1103'}))).status,400);
+ assert.equal(sql.prepare('SELECT name FROM organizations WHERE id=1102').get().name,'Partner company 1102');
+ const response=await route('superadmin').POST(request('owner',own,data));assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+ const result=(await response.json()).organization;assert.equal(result.referredByPartnerId,1100);assert.equal(result.isPartner,false);assert.equal(result.name,'Edited referral');
+ const assignedAt=result.partnerAssignedAt;
+ sql.exec("UPDATE organizations SET status='Deaktivert' WHERE id=1100");
+ assert.equal((await route('superadmin').POST(request('owner',own,data))).status,200);assert.equal(sql.prepare('SELECT partner_assigned_at d FROM organizations WHERE id=1102').get().d,assignedAt);
+ sql.exec("UPDATE organizations SET status='Aktiv' WHERE id=1100; CREATE TRIGGER fail_referral_audit BEFORE INSERT ON audit_logs WHEN NEW.organization_id=1102 BEGIN SELECT RAISE(ABORT,'test failure'); END");
+ assert.equal((await route('superadmin').POST(request('owner',own,{...data,name:'Should roll back',referredByPartnerId:'1101'}))).status,500);
+ const unchanged=sql.prepare('SELECT name,referred_by_partner_id p FROM organizations WHERE id=1102').get();assert.equal(unchanged.p,1100);assert.equal(unchanged.name,'Edited referral');sql.exec('DROP TRIGGER fail_referral_audit');
+ assert.equal((await route('superadmin').POST(request('owner',own,{...data,referredByPartnerId:'none'}))).status,200);assert.equal(sql.prepare('SELECT referred_by_partner_id p FROM organizations WHERE id=1102').get().p,null);
+});
+
+test('automatic partner preview is offered to the owner only and preserves real role',async()=>{
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const owner=await(await route('session').GET(request('owner',own))).json();assert.equal(owner.partnerPreviewVersion,'2026-09-21-v1');assert.equal(owner.role,'Superadmin');
+ for(const [id,org]of [[1,1],[1100,1100],[1104,1100]]){const user=await(await route('session').GET(request(id,org))).json();assert.equal(user.partnerPreviewVersion,null);}
+});

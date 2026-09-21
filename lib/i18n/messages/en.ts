@@ -1,6 +1,11 @@
 import type {MessageKey,Message} from '../types';
 // Draft catalogue: English is not enabled for customers until the remaining screens are translated.
 export const en = {
+  "partner.previewOpen": "View as partner",
+  "partner.previewLabel": "Preview · Sample data",
+  "partner.previewHint": "This is how the partner overview looks. The companies and amounts shown here are fictional.",
+  "partner.previewClose": "Back to my account",
+  "partner.previewAccount": "Sample partner",
   "nav.partner": "Partner overview",
   "partner.intro": "Follow the companies you have referred to Noracre and the value of their subscriptions.",
   "partner.loading": "Loading partner overview …",

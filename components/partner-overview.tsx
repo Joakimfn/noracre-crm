@@ -5,14 +5,19 @@ import {useI18n} from '@/lib/i18n/react';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 type Row={id:number;name:string;active:boolean;assignedAt:string;monthlyOre:number;previousOre:number;ytdOre:number;previousComplete:boolean;ytdComplete:boolean};
-type Report={rows:Row[];year:number;previousMonth:string;throughDate:string};
+export type PartnerReport={rows:Row[];year:number;previousMonth:string;throughDate:string};
 export function PartnerOverview({organizationId}:{organizationId:number}){
- const {t,money,date,calendarDate,number}=useI18n();
- const [report,setReport]=useState<Report|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0),[query,setQuery]=useState('');
+ const {t}=useI18n();
+ const [report,setReport]=useState<PartnerReport|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0);
  useEffect(()=>{let cancelled=false;setReport(null);setError('');apiFetch('/api/partners',{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||t('partner.error'));if(!cancelled)setReport(data);}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[organizationId,reload,t]);
- const amount=(ore:number)=>money(ore/100);
  if(error)return <div className="page-pad"><p role="alert">{error}</p><Button onClick={()=>setReload(n=>n+1)}>{t('partner.retry')}</Button></div>;
  if(!report)return <div className="page-pad" role="status">{t('partner.loading')}</div>;
+ return <PartnerReportView report={report}/>;
+}
+export function PartnerReportView({report}:{report:PartnerReport}){
+ const {t,money,date,calendarDate,number}=useI18n();
+ const [query,setQuery]=useState('');
+ const amount=(ore:number)=>money(ore/100);
  const rows=report.rows.filter(r=>r.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
  const sum=(key:'monthlyOre'|'previousOre'|'ytdOre')=>report.rows.reduce((sum,r)=>sum+r[key],0);
  const stats=[[t('partner.customers'),number(report.rows.length)],[t('partner.monthly'),amount(sum('monthlyOre'))],[t('partner.previous'),report.rows.every(r=>r.previousComplete)?amount(sum('previousOre')):t('partner.incomplete')],[t('partner.ytd'),report.rows.every(r=>r.ytdComplete)?amount(sum('ytdOre')):t('partner.incomplete')]];
