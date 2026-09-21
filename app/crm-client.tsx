@@ -1,6 +1,5 @@
 "use client";
 import {CommissionField} from "@/components/commission-field";
-import {PartnerPaymentRegister} from "@/components/partner-payment-register";
 import {PartnerOverview} from "@/components/partner-overview";
 import {PartnerPreview} from "@/components/partner-preview";
 import {PartnerPicker,ReferrerSelect} from "@/components/partner-management";
@@ -5369,7 +5368,7 @@ function Operations(p: {
           <strong>{defaultI18n.number(s.monthlyAmount)} kr</strong>
         </div>
       </div>
-      <OperationsInsights/>
+      <OperationsInsights organizationId={p.activeOrgId}/>
       <details className="surface operations-fold customer-organizations-fold"><summary className="operations-fold-trigger"><span><strong>Kundeorganisasjoner</strong></span><ChevronRight size={20}/></summary><div className="operations-fold-body">
         <div className="operations-head">
           <div className="operations-toolbar">
@@ -5633,7 +5632,6 @@ function Operations(p: {
               Lagre informasjon
             </Button>
           </div>
-          {selectedOrganization&&<PartnerPaymentRegister key={selectedOrganization.id} companyId={selectedOrganization.id} organizationId={p.activeOrgId}/>}
         </DialogContent>
       </Dialog>
     </div>
