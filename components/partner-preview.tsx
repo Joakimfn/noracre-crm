@@ -1,5 +1,5 @@
 "use client";
-import {paymentCommissionReport} from '@/lib/partner-payments';
+import {partnerCommissionOverview} from '@/lib/partner-payments';
 import {Building2,LayoutDashboard,UsersRound,CalendarCheck2,BarChart3,Phone,Megaphone} from 'lucide-react';
 import {PartnerReportView,type PartnerReport} from './partner-overview';
 import {Button} from '@/components/ui/button';
@@ -7,13 +7,14 @@ import {useI18n} from '@/lib/i18n/react';
 import type {MessageKey} from '@/lib/i18n';
 /** Synthetic presentation only. Never changes a role, tenant, subscription or customer record. */
 function exampleReport():PartnerReport{
- const now=new Date(),year=now.getUTCFullYear(),previousMonth=new Date(Date.UTC(year,now.getUTCMonth()-1,1)).toISOString().slice(0,7),throughDate=new Date(now.getTime()-86400000).toISOString().slice(0,10);
+ const now=new Date(),year=now.getUTCFullYear(),previousMonth=new Date(Date.UTC(year,now.getUTCMonth()-1,1)).toISOString().slice(0,7);
  const assignedAt=previousMonth+'-01T10:00:00Z';
- const commission=paymentCommissionReport([{id:1,companyName:'Nordlys Elektro AS',reference:'DEMO-101',paidOn:previousMonth+'-15',amountOre:274000,basisPoints:2000,commissionOre:54800,voidedAt:''},{id:2,companyName:'Vestland Regnskap AS',reference:'DEMO-102',paidOn:previousMonth+'-20',amountOre:164400,basisPoints:2000,commissionOre:32880,voidedAt:''}],now);
- return {commissionBps:2000,commission,year,previousMonth,throughDate,rows:[
- {id:1,name:'Nordlys Elektro AS',active:true,assignedAt,monthlyOre:274000,previousOre:274000,ytdOre:438400,previousComplete:true,ytdComplete:true},
- {id:2,name:'Vestland Regnskap AS',active:true,assignedAt,monthlyOre:164400,previousOre:164400,ytdOre:263040,previousComplete:true,ytdComplete:true},
- {id:3,name:'Fjord Bygg AS',active:false,assignedAt,monthlyOre:0,previousOre:49900,ytdOre:65702,previousComplete:true,ytdComplete:true}]};
+ return {commissionBps:2000,...partnerCommissionOverview([
+ {id:1,name:'Nordlys Elektro AS',active:true,assignedAt},
+ {id:2,name:'Vestland Regnskap AS',active:true,assignedAt},
+ {id:3,name:'Fjord Bygg AS',active:false,assignedAt}],
+ [{id:1,organizationId:1,companyName:'Nordlys Elektro AS',reference:'DEMO-101',paidOn:previousMonth+'-15',amountOre:274000,basisPoints:2000,commissionOre:54800,voidedAt:''},
+ {id:2,organizationId:2,companyName:'Vestland Regnskap AS',reference:'DEMO-102',paidOn:previousMonth+'-20',amountOre:164400,basisPoints:2000,commissionOre:32880,voidedAt:''}],now)};
 }
 export function PartnerPreview({onClose}:{onClose:()=>void}){
  const {t}=useI18n();

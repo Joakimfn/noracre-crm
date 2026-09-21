@@ -16,3 +16,19 @@ export function paymentCommissionReport(payments:CommissionPayment[],now=new Dat
  for(const p of payments){if(p.voidedAt)continue;const key=p.paidOn.slice(0,7);if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push(p);}
  return {previousMonth,months:[...groups].sort(([a],[b])=>b.localeCompare(a)).map(([month,entries])=>({month,closed:month<today.slice(0,7),amountOre:entries.reduce((s,p)=>s+p.amountOre,0),commissionOre:entries.reduce((s,p)=>s+p.commissionOre,0),entries:entries.sort((a,b)=>b.paidOn.localeCompare(a.paidOn)||b.id-a.id).map(({id,companyName,reference,paidOn,amountOre,basisPoints,commissionOre})=>({id,companyName,reference,paidOn,amountOre,basisPoints,commissionOre}))}))};
 }
+
+export type PartnerCustomer={id:number;name:string;active:boolean;assignedAt:string};
+/** Every displayed amount comes from the same received-payment ledger. */
+export function partnerCommissionOverview(customers:PartnerCustomer[],payments:(CommissionPayment&{organizationId:number})[],now=new Date()){
+ const today=norwegianToday(now),year=Number(today.slice(0,4)),commission=paymentCommissionReport(payments,now);
+ const rows=new Map(customers.map(c=>[c.id,{...c,historical:false,currentOre:0,previousOre:0,ytdOre:0}]));
+ for(const p of payments){
+  if(p.voidedAt)continue;
+  if(!rows.has(p.organizationId))rows.set(p.organizationId,{id:p.organizationId,name:p.companyName,active:false,assignedAt:'',historical:true,currentOre:0,previousOre:0,ytdOre:0});
+  const row=rows.get(p.organizationId)!;
+  if(p.paidOn.slice(0,7)===today.slice(0,7))row.currentOre+=p.commissionOre;
+  if(p.paidOn.slice(0,7)===commission.previousMonth)row.previousOre+=p.commissionOre;
+  if(p.paidOn.slice(0,4)===String(year)&&p.paidOn<=today)row.ytdOre+=p.commissionOre;
+ }
+ return {commission,rows:[...rows.values()].sort((a,b)=>a.name.localeCompare(b.name,'nb')),year,previousMonth:commission.previousMonth,throughDate:today};
+}

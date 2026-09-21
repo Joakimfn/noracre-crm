@@ -650,7 +650,7 @@ test('partner referrals are scoped to the authenticated partner and expose no cu
  for(const org of [1102,1103])for(const [type,price] of [['organization',0],['user',499],['module',0],['license',49]])add('billing_events',{organization_id:org,entity_type:type,entity_id:org,membership_id:org,module_key:'ringelister',label:'PRIVATE EMPLOYEE DATA',active:1,monthly_price:price,event_kind:'activated',occurred_at:'2026-01-01T10:00:00Z'});
  const r=await route('partners').GET(request(1100,1100,undefined,'?partnerId=1101&organizationId=1103'));
  assert.equal(r.status,200);assert.match(r.headers.get('cache-control'),/no-store/);
- const data=await r.json();assert.deepEqual(data.rows.map(r=>r.id),[1102]);assert.equal(data.rows[0].monthlyOre,54800);assert.doesNotMatch(JSON.stringify(data),/PRIVATE EMPLOYEE|email|membershipId/);
+ const data=await r.json();assert.deepEqual(data.rows.map(r=>r.id),[1102]);assert.equal(data.rows[0].currentOre,0);assert.doesNotMatch(JSON.stringify(data),/PRIVATE EMPLOYEE|email|membershipId/);
  assert.deepEqual((await(await route('partners').GET(request(1101,1101))).json()).rows.map(r=>r.id),[1103]);
  for(const user of [1104,1105])assert.equal((await route('partners').GET(request(user,1100))).status,403);
  for(const target of [1101,1102,1103]){assert.equal((await route('partners').GET(request(1100,target))).status,403);assert.equal((await route('companies').GET(request(1100,target))).status,403);}
@@ -668,7 +668,7 @@ test('only superadmin can manage referral ownership; assignment changes revoke f
  sql.exec("UPDATE organizations SET status='Deaktivert' WHERE id=1101");assert.equal((await route('partners').POST(request('owner',own,data))).status,400);sql.exec("UPDATE organizations SET status='Aktiv' WHERE id=1101");
  assert.equal((await route('partners').POST(request('owner',own,data))).status,200);
  assert.deepEqual((await(await route('partners').GET(request(1100,1100))).json()).rows,[]);
- const row=(await(await route('partners').GET(request(1101,1101))).json()).rows.find(r=>r.id===1102);assert.equal(row.ytdOre,0);assert.equal(row.previousOre,0);assert.equal(row.monthlyOre,54800);
+ const row=(await(await route('partners').GET(request(1101,1101))).json()).rows.find(r=>r.id===1102);assert.equal(row.ytdOre,0);assert.equal(row.previousOre,0);assert.equal(row.currentOre,0);
  assert.ok(sql.prepare("SELECT count(*) n FROM audit_logs WHERE organization_id=1102 AND action='Partnerkobling endret'").get().n>0);
  const assigned=sql.prepare('SELECT partner_assigned_at t FROM organizations WHERE id=1102').get().t;
  assert.equal((await route('partners').POST(request('owner',own,data))).status,200);assert.equal(sql.prepare('SELECT partner_assigned_at t FROM organizations WHERE id=1102').get().t,assigned);

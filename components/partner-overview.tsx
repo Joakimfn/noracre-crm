@@ -5,7 +5,7 @@ import {apiFetch} from '@/lib/api-client';
 import {useI18n} from '@/lib/i18n/react';
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
-type Row={id:number;name:string;active:boolean;assignedAt:string;monthlyOre:number;previousOre:number;ytdOre:number;previousComplete:boolean;ytdComplete:boolean};
+type Row={id:number;name:string;active:boolean;assignedAt:string;currentOre:number;previousOre:number;ytdOre:number;historical:boolean};
 export type PartnerReport={commissionBps:number|null;commission:CommissionReport;rows:Row[];year:number;previousMonth:string;throughDate:string};
 export function PartnerOverview({organizationId}:{organizationId:number}){
  const {t}=useI18n();
@@ -20,8 +20,8 @@ export function PartnerReportView({report}:{report:PartnerReport}){
  const [query,setQuery]=useState('');
  const amount=(ore:number)=>money(ore/100);
  const rows=report.rows.filter(r=>r.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
- const sum=(key:'monthlyOre'|'previousOre'|'ytdOre')=>report.rows.reduce((sum,r)=>sum+r[key],0);
- const stats=[[t('partner.customers'),number(report.rows.length)],[t('partner.monthly'),amount(sum('monthlyOre'))],[t('partner.previous'),report.rows.every(r=>r.previousComplete)?amount(sum('previousOre')):t('partner.incomplete')],[t('partner.ytd'),report.rows.every(r=>r.ytdComplete)?amount(sum('ytdOre')):t('partner.incomplete')]];
+ const sum=(key:'currentOre'|'previousOre'|'ytdOre')=>report.rows.reduce((sum,r)=>sum+r[key],0);
+ const stats=[[t('partner.customers'),number(report.rows.length)],[t('partner.monthly'),amount(sum('currentOre'))],[t('partner.previous'),amount(sum('previousOre'))],[t('partner.ytd'),amount(sum('ytdOre'))]];
  return <div className="page-pad partner-overview">
  <p>{t('partner.intro')}</p>
  {report.commission&&<PartnerCommission report={report.commission} basisPoints={report.commissionBps}/>}
@@ -30,8 +30,8 @@ export function PartnerReportView({report}:{report:PartnerReport}){
  <p className="form-hint">{t('partner.basis',{date:calendarDate(report.throughDate,{day:'numeric',month:'long',year:'numeric'})})}</p>
  {report.rows.length>0&&<Input className="partner-search" aria-label={t('partner.search')} placeholder={t('partner.search')} value={query} onChange={e=>setQuery(e.target.value)}/>}
  {!report.rows.length?<p className="partner-empty">{t('partner.empty')}</p>:!rows.length?<p>{t('partner.noMatches')}</p>:<div className="partner-customers">{rows.map(row=><article className="partner-customer" key={row.id}>
- <header><div><h2>{row.name}</h2>{row.assignedAt&&<small>{t('partner.since',{date:date(new Date(row.assignedAt),{day:'numeric',month:'long',year:'numeric'})})}</small>}</div><span className={row.active?'stage stage-green':'stage stage-gray'}>{t(row.active?'partner.active':'partner.inactive')}</span></header>
- <dl>{[[t('partner.monthly'),amount(row.monthlyOre)],[t('partner.previous'),row.previousComplete?amount(row.previousOre):t('partner.incomplete')],[t('partner.ytd'),row.ytdComplete?amount(row.ytdOre):t('partner.incomplete')]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+ <header><div><h2>{row.name}</h2>{row.assignedAt&&<small>{t('partner.since',{date:date(new Date(row.assignedAt),{day:'numeric',month:'long',year:'numeric'})})}</small>}</div><span className={row.active?'stage stage-green':'stage stage-gray'}>{t(row.historical?'partner.historical':row.active?'partner.active':'partner.inactive')}</span></header>
+ <dl>{[[t('partner.monthly'),amount(row.currentOre)],[t('partner.previous'),amount(row.previousOre)],[t('partner.ytd'),amount(row.ytdOre)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
  </article>)}</div>}
  </div>;
 }
