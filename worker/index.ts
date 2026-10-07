@@ -43,7 +43,7 @@ const worker = {
         if(!['GET','HEAD'].includes(request.method))return secureResponse(request,new Response(null,{status:405,headers:{Allow:'GET, HEAD'}}));
         if(isWebsite&&url.hostname==='www.noracre.no'){url.hostname='noracre.no';return secureResponse(request,Response.redirect(url.toString(),308));}
         if(url.pathname==='/robots.txt')return secureResponse(request,new Response('User-agent: *\nAllow: /\nSitemap: https://noracre.no/sitemap.xml\n',{headers:{'Content-Type':'text/plain'}}));
-        if(url.pathname==='/sitemap.xml')return secureResponse(request,new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['','/crm','/moduler','/om-noracre','/kontakt','/demo','/bli-kunde','/personvern'].map(p=>'<url><loc>https://noracre.no'+p+'</loc></url>').join('')+'</urlset>',{headers:{'Content-Type':'application/xml'}}));
+        if(url.pathname==='/sitemap.xml')return secureResponse(request,new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['','/crm','/moduler','/om-noracre','/kontakt','/demo','/bli-kunde','/bli-partner','/personvern'].map(p=>'<url><loc>https://noracre.no'+p+'</loc></url>').join('')+'</urlset>',{headers:{'Content-Type':'application/xml'}}));
         if(isPreview||!url.pathname.match(/\.[a-z0-9]+$/i)){
           const savedLanguage=readLanguagePreference(request.headers.get('cookie'));
           const locale=resolveLocale(url.searchParams.has('lang')?url.searchParams.get('lang'):savedLanguage);

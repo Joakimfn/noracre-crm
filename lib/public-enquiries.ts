@@ -12,19 +12,24 @@ async function init(db:PublicEnv['DB']){let p=initialized.get(db);if(!p){p=(asyn
 const hash=async(text:string)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,'0')).join('');
 const fail=(error:string,status=400)=>Response.json({error},{status,headers:{'Cache-Control':'no-store'}});
 const okay=()=>Response.json({sent:true},{headers:{'Cache-Control':'no-store'}});
-type Enquiry={requestId:string;type:'customer'|'demo';company:string;organizationNumber:string;name:string;email:string;phone:string;users:string;message:string;website:string};
+type Enquiry={requestId:string;type:'customer'|'demo'|'partner';company:string;organizationNumber:string;name:string;email:string;phone:string;users:string;partnerModel:string;message:string;website:string};
 export function validateEnquiry(raw:unknown):Enquiry|null{
  if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
  const r=raw as Record<string,unknown>,data={} as Record<keyof Enquiry,string>;
- for(const [key,max] of Object.entries({requestId:36,type:20,company:160,organizationNumber:12,name:120,email:254,phone:30,users:30,message:3000,website:200})){const value=r[key]??'';if(typeof value!=='string'||value.length>max)return null;data[key as keyof Enquiry]=value.trim();}
- if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(data.requestId)||!['customer','demo'].includes(data.type))return null;
+ for(const [key,max] of Object.entries({requestId:36,type:20,company:160,organizationNumber:12,name:120,email:254,phone:30,users:30,partnerModel:20,message:3000,website:200})){const value=r[key]??'';if(typeof value!=='string'||value.length>max)return null;data[key as keyof Enquiry]=value.trim();}
+ if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(data.requestId)||!['customer','demo','partner'].includes(data.type))return null;
  if(!data.company||!data.name||!/^\S+@[^\s@]+\.[^\s@]+$/.test(data.email)||/[\r\n]/.test(data.email))return null;
  // Accept cached forms as well as stable identifiers from the new form.
  if(data.users==='Usikker ennå')data.users='Usikker';
- const userCount=enquiryUserCounts.find(option=>option.value===data.users||defaultI18n.t(option.label)===data.users);
- if(!userCount)return null;
- // Keep the sales email and existing retry fingerprints in Norwegian.
- data.users=defaultI18n.t(userCount.label);
+ if(data.type==='partner'){
+  if(!['referral','sales'].includes(data.partnerModel)||data.users||data.organizationNumber)return null;
+ }else{
+  if(data.partnerModel)return null;
+  const userCount=enquiryUserCounts.find(option=>option.value===data.users||defaultI18n.t(option.label)===data.users);
+  if(!userCount)return null;
+  // Keep the sales email and existing retry fingerprints in Norwegian.
+  data.users=defaultI18n.t(userCount.label);
+ }
  if(data.organizationNumber&&!/^\d{9}$/.test(data.organizationNumber.replace(/\s/g,'')))return null;
  return data as Enquiry;
 }
@@ -38,7 +43,7 @@ export async function publicEnquiry(request:Request,env:PublicEnv):Promise<Respo
  const reader=request.body.getReader(),chunks:Uint8Array[]=[];let size=0;
  try{while(true){const r=await reader.read();if(r.done)break;size+=r.value.byteLength;if(size>16000){await reader.cancel();return fail('Henvendelsen er for stor.',413);}chunks.push(r.value);}}catch{return fail('Skjemaet kunne ikke leses.');}
  let input:Enquiry|null;try{input=validateEnquiry(JSON.parse(await new Blob(chunks as BlobPart[]).text()));}catch{return fail('Kontroller feltene og prøv igjen.');}
- if(!input)return fail('Kontroller navn, bedrift, e-post, antall brukere og eventuelt organisasjonsnummer.');
+ if(!input)return fail('Kontroller feltene og prøv igjen.');
  if(input.website)return fail('Skjemaet kunne ikke sendes.');
  if(!env.RESEND_API_KEY)return fail('Skjemaet er midlertidig utilgjengelig. Kontakt jfn@noracre.no.',503);
  const now=Date.now(),payload={...input,website:undefined,requestId:undefined},fingerprint=await hash(JSON.stringify(payload));
@@ -57,9 +62,10 @@ export async function publicEnquiry(request:Request,env:PublicEnv):Promise<Respo
   await env.DB.prepare('INSERT OR IGNORE INTO website_enquiries(request_id,fingerprint,status,created_at,updated_at) VALUES(?,?,\'pending\',?,?)').bind(input.requestId,fingerprint,now,now).run();
   const claimed=await env.DB.prepare("UPDATE website_enquiries SET status='sending',updated_at=? WHERE request_id=? AND fingerprint=? AND (status IN ('pending','failed') OR (status='sending' AND updated_at<?)) RETURNING request_id").bind(now,input.requestId,fingerprint,now-60000).first();
   if(!claimed)return fail('Henvendelsen behandles allerede. Vent litt før du prøver igjen.',409);
-  const text=[input.type==='demo'?'Ny forespørsel om demo fra Noracre.no':'Ny kundehenvendelse fra Noracre.no','','Bedrift: '+input.company,'Organisasjonsnummer: '+(input.organizationNumber||'Ikke oppgitt'),'Navn: '+input.name,'E-post: '+input.email,'Telefon: '+(input.phone||'Ikke oppgitt'),'Antall brukere: '+input.users,'','Melding:',input.message||'Ingen melding lagt ved.','','Kunden er lovet kontakt innen én virkedag.','Referanse: '+input.requestId].join('\n');
+  const isPartner=input.type==='partner';
+  const text=[isPartner?'Ny partnerforespørsel fra Noracre.no':input.type==='demo'?'Ny forespørsel om demo fra Noracre.no':'Ny kundehenvendelse fra Noracre.no','','Bedrift: '+input.company,...(isPartner?['Modell: '+(input.partnerModel==='sales'?'Aktivt salg':'Anbefaling')]:['Organisasjonsnummer: '+(input.organizationNumber||'Ikke oppgitt')]),'Navn: '+input.name,'E-post: '+input.email,'Telefon: '+(input.phone||'Ikke oppgitt'),...(isPartner?[]:['Antall brukere: '+input.users]),'','Melding:',input.message||'Ingen melding lagt ved.','','Referanse: '+input.requestId].join('\n');
   let delivered=false;
-  try{const result=await fetch('https://api.resend.com/emails',{method:'POST',redirect:'manual',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'website-'+input.requestId},body:JSON.stringify({from:'Noracre <varsler@mail.noracre.no>',to:[recipient],reply_to:input.email,subject:`${input.type==='demo'?'Demo':'Ny kundehenvendelse'}: ${input.company.replace(/[\r\n]/g,' ')}`,text}),signal:AbortSignal.timeout(20000)});delivered=result.ok;}catch{/* Retry uses the same provider idempotency key. */}
+  try{const result=await fetch('https://api.resend.com/emails',{method:'POST',redirect:'manual',headers:{Authorization:`Bearer ${env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':'website-'+input.requestId},body:JSON.stringify({from:'Noracre <varsler@mail.noracre.no>',to:[recipient],reply_to:input.email,subject:`${isPartner?'Partnerforespørsel':input.type==='demo'?'Demo':'Ny kundehenvendelse'}: ${input.company.replace(/[\r\n]/g,' ')}`,text}),signal:AbortSignal.timeout(20000)});delivered=result.ok;}catch{/* Retry uses the same provider idempotency key. */}
   await env.DB.prepare('UPDATE website_enquiries SET status=?,updated_at=? WHERE request_id=?').bind(delivered?'sent':'failed',Date.now(),input.requestId).run();
   return delivered?okay():fail('Kunne ikke bekrefte sendingen. Prøv igjen, eller send e-post til jfn@noracre.no.',503);
  }catch{return fail('Henvendelsen kunne ikke bekreftes. Prøv igjen, eller kontakt jfn@noracre.no.',503);}
