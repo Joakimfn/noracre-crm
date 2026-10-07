@@ -859,5 +859,9 @@
   "Kanalen har ikke gjort alle tall tilgjengelige. Nye innlegg kan bruke tid på å få statistikk.": "The channel has not made all figures available. New posts may take time to receive statistics.",
   "Kunne ikke hente alle tall fra kanalen. Prøv å oppdatere statistikken senere.": "Could not load all figures from the channel. Try refreshing statistics later.",
   "Kolonne": "Column",
-  "Rad": "Row"
+  "Rad": "Row",
+  "Hele Norge": "All of Norway",
+  "Byer og kommuner": "Cities and municipalities",
+  "Vanlige organisasjonsformer": "Common legal forms",
+  "Andre organisasjonsformer": "Other legal forms"
 }

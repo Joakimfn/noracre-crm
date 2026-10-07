@@ -1,5 +1,4 @@
 import type { CrmRequest } from './crm-api';
-import { examplePartnerReport } from './demo-partner-report';
 import { norwegianToday } from './partner-payments';
 // This module has no network client, credentials, browser storage or database imports.
 // Every demo mount owns a separate in-memory store. Unknown operations fail closed.
@@ -8,7 +7,7 @@ export function createDemoRuntime(now = new Date()) {
     const today = norwegianToday(now), stamp = now.toISOString();
     let serial = 10000;
     const at = (days: number, hour = 10) => { const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10) + 'T' + String(hour).padStart(2, '0') + ':00:00'; };
-    const members: Row[] = ['Ingrid Berg', 'Martin Dahl', 'Sara Lund', 'Emil Strand', 'Nora Vik', 'Andreas Solheim'].map((name, i) => ({ id: i + 1, name, email: 'medarbeider' + (i + 1) + '@example.com', phone: '00 00 00 00', role: i === 0 ? 'Partner' : 'Bruker', active: true, createdAt: at(-90) }));
+    const members: Row[] = ['Ingrid Berg', 'Martin Dahl', 'Sara Lund', 'Emil Strand', 'Nora Vik', 'Andreas Solheim'].map((name, i) => ({ id: i + 1, name, email: 'medarbeider' + (i + 1) + '@example.com', phone: '00 00 00 00', role: i === 0 ? 'Administrator' : 'Bruker', active: true, createdAt: at(-90) }));
     const names = ['Fjellheim Elektro AS', 'Kystlinje Regnskap AS', 'Solenga Bygg AS', 'Nordvik Transport AS', 'Eikeblad Interiør AS', 'Havbris Eiendom AS', 'Bergtun Renhold AS', 'Lunden Arkitekter AS', 'Solsiden Catering AS', 'Fjordglimt Bilservice AS', 'Nordstjerne IT AS', 'Strandvik Blomster AS', 'Varde Ventilasjon AS', 'Tind Mekaniske AS', 'Granli Trykkeri AS', 'Lysaker Design AS', 'Brekka Maskin AS', 'Knausen Hotell AS', 'Vesttun Hage AS', 'Åsheim Rørservice AS', 'Skoglia Møbler AS', 'Kystbyen Kontor AS', 'Fossheim Mat AS', 'Storvik Logistikk AS', 'Bjørk Media AS', 'Havnås Konsulent AS', 'Dalheim Verksted AS', 'Elvebredd Bakeri AS', 'Utsikten Prosjekt AS', 'Vikenga Sikkerhet AS', 'Nordenga Energi AS', 'Lien Service AS', 'Solstad Reiseliv AS', 'Fjellro Tekstil AS', 'Havtun Teknikk AS', 'Berglia Handel AS'];
     const cities = ['Tromsø', 'Bergen', 'Trondheim', 'Bodø', 'Kristiansand', 'Stavanger', 'Oslo', 'Ålesund'];
     const industries = ['Elektro og installasjon', 'Regnskap og rådgivning', 'Bygg og håndverk', 'Transport og logistikk', 'Interiør og handel', 'Eiendom', 'Renhold og service', 'Arkitektur', 'Catering', 'Bilservice', 'IT og teknologi', 'Blomsterhandel', 'Ventilasjon', 'Mekanisk industri', 'Trykkeri', 'Design', 'Maskiner', 'Hotell', 'Hage og landskap', 'Rørlegger', 'Møbelhandel', 'Kontorutstyr', 'Matproduksjon', 'Logistikk', 'Media', 'Rådgivning', 'Verksted', 'Bakeri', 'Prosjektledelse', 'Sikkerhet', 'Energi', 'Service', 'Reiseliv', 'Tekstil', 'Tekniske tjenester', 'Varehandel'];
@@ -21,7 +20,7 @@ export function createDemoRuntime(now = new Date()) {
     ]);
     let calls: Row[] = companies.slice(0, 24).map((c, i) => ({ ...c, id: i + 1, status: i < 18 ? 'Ny' : i % 2 ? 'Ikke svar' : 'Møte booket', handledBy: i < 18 ? '' : members[i % 6].name, contactName: c.contactName, contactEmail: c.email, contactPhone: c.phone, website: '', meetingAt: i < 18 ? '' : at(i % 6 + 1), customerId: i < 18 ? null : c.id }));
     let posts: Row[] = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, organizationId: -1, content: ['God oppfølging starter med en god samtale. Denne uken besøker vi kunder for å planlegge høstens leveranser.', 'Møt teamet vårt! Vi hjelper lokale bedrifter med smidig drift og tett oppfølging.', 'Et vellykket prosjekt er levert. Takk til kunden for godt samarbeid fra planlegging til ferdig leveranse.', 'Tre tips til en enklere arbeidshverdag: planlegg neste steg, samle informasjon og følg opp det du lover.'][i % 4], platforms: JSON.stringify(i % 2 ? ['Instagram'] : ['Facebook']), scheduledAt: at(i < 5 ? i + 1 : -i), publishedAt: i >= 8 ? at(-i) : '', status: i >= 8 ? 'Publisert' : i < 5 ? 'Planlagt' : 'Kladd', createdAt: at(-14), updatedAt: stamp, createdBy: members[i % 6].name, images: [], deliveries: [], files: [], kind: 'post', canManage: true }));
-    let templates: Row[] = [{ id: 1, name: 'Serviceavtale', subject: 'Tilbud til {{bedrift}}', body: 'Hei {{kontaktperson}},\n\nTakk for en hyggelig samtale. Her er vårt forslag til service og oppfølging.\nOmfang: [beskriv leveransen]\nPris: [avtalt beløp]\nOppstart: [dato]\n\nVennlig hilsen\nIngrid Berg' }, { id: 2, name: 'Prosjektleveranse', subject: 'Forslag til samarbeid – {{bedrift}}', body: 'Hei,\n\nVi tilbyr planlegging, gjennomføring og oppfølging av prosjektet.\n\nLeveranse: [avtalt omfang]\nFremdrift: [milepæler]\nPris: [beløp]\n\nVennlig hilsen\nFjord Partner' }];
+    let templates: Row[] = [{ id: 1, name: 'Serviceavtale', subject: 'Tilbud til {{bedrift}}', body: 'Hei {{kontaktperson}},\n\nTakk for en hyggelig samtale. Her er vårt forslag til service og oppfølging.\nOmfang: [beskriv leveransen]\nPris: [avtalt beløp]\nOppstart: [dato]\n\nVennlig hilsen\nIngrid Berg' }, { id: 2, name: 'Prosjektleveranse', subject: 'Forslag til samarbeid – {{bedrift}}', body: 'Hei,\n\nVi tilbyr planlegging, gjennomføring og oppfølging av prosjektet.\n\nLeveranse: [avtalt omfang]\nFremdrift: [milepæler]\nPris: [beløp]\n\nVennlig hilsen\nFjord Service' }];
     let profile: Row = { displayName: members[0].name, contactEmail: members[0].email, theme: 'light', avatarKey: '', avatarX: 50, avatarY: 50, avatarZoom: 100, browserNotifications: false };
     const licenses: Record<string, number[]> = { ringelister: [1, 2, 3], markedsforing: [1, 3, 5] };
     const json = (data: unknown, status = 200) => Response.json(data, { status });
@@ -48,7 +47,7 @@ export function createDemoRuntime(now = new Date()) {
         }
         const id = Number(data.id ?? url.searchParams.get('id')), companyId = Number(data.companyId ?? url.searchParams.get('companyId'));
         if (path === '/api/session' && ['GET', 'POST'].includes(method))
-            return json({ user: { id: 'demo', displayName: profile.displayName, email: profile.contactEmail }, currentOrganizationId: -1, role: 'Partner', organizations: [{ id: -1, name: 'Fjord Partner AS · demo', isPartner: true }], acceptedTermsAt: stamp, acceptedTermsVersion: '2026-09-09', completedOnboardingAt: stamp });
+            return json({ user: { id: 'demo', displayName: profile.displayName, email: profile.contactEmail }, currentOrganizationId: -1, role: 'Administrator', organizations: [{ id: -1, name: 'Fjord Service AS · demo', isPartner: false }], acceptedTermsAt: stamp, acceptedTermsVersion: '2026-09-09', completedOnboardingAt: stamp });
         if (path === '/api/profile' && ['GET', 'POST'].includes(method)) {
             if (method === 'POST') {
                 if (data.avatar)
@@ -58,7 +57,7 @@ export function createDemoRuntime(now = new Date()) {
             return json({ profile });
         }
         if (path === '/api/partners' && method === 'GET')
-            return json(examplePartnerReport(now));
+            return blocked();
         if (path === '/api/companies') {
             if (method === 'GET')
                 return json({ companies: companyRows() });
@@ -148,7 +147,7 @@ export function createDemoRuntime(now = new Date()) {
         }
         if (path === '/api/admin') {
             if (method === 'GET')
-                return json({ role: 'Partner', membershipId: 1, members, pricing: { crmPrice: 499, ringPrice: 49, marketingPrice: 49 }, memberModuleCosts: Object.fromEntries(members.map(m => [m.id, Object.values(licenses).filter(ids => ids.includes(m.id)).length * 49])), modules: Object.fromEntries(Object.entries(licenses).map(([k, ids]) => [k, { active: ids.length > 0, currentUserActive: ids.includes(1), pricePerUser: 49, licensedMemberIds: ids }])), audit: [], supportRequests: [], activeSupport: false });
+                return json({ role: 'Administrator', membershipId: 1, members, pricing: { crmPrice: 499, ringPrice: 49, marketingPrice: 49 }, memberModuleCosts: Object.fromEntries(members.map(m => [m.id, Object.values(licenses).filter(ids => ids.includes(m.id)).length * 49])), modules: Object.fromEntries(Object.entries(licenses).map(([k, ids]) => [k, { active: ids.length > 0, currentUserActive: ids.includes(1), pricePerUser: 49, licensedMemberIds: ids }])), audit: [], supportRequests: [], activeSupport: false });
             if (method !== 'POST')
                 return blocked();
             if (data.type === 'member') {
@@ -225,7 +224,7 @@ export function createDemoRuntime(now = new Date()) {
             return json({ posts: view ? all.slice((page - 1) * 5, page * 5) : all, pagination: { page, pages, pageSize: 5, total: all.length }, counts: { upcoming: posts.filter(p => p.status !== 'Publisert').length, history: posts.filter(p => p.status === 'Publisert').length }, stats: { published: 4 }, connections: [] });
         }
         if (path === '/api/social/connections' && method === 'GET')
-            return json({ ready: true, providers: { meta: false, linkedin: false }, connections: [{ id: 1, platform: 'Facebook', accountId: 'demo-facebook', accountName: 'Fjord Partner · demo', expired: false }, { id: 2, platform: 'Instagram', accountId: 'demo-instagram', accountName: 'fjordpartner_demo', expired: false }] });
+            return json({ ready: true, providers: { meta: false, linkedin: false }, connections: [{ id: 1, platform: 'Facebook', accountId: 'demo-facebook', accountName: 'Fjord Service · demo', expired: false }, { id: 2, platform: 'Instagram', accountId: 'demo-instagram', accountName: 'fjordservice_demo', expired: false }] });
         if (path === '/api/social/insights' && method === 'GET')
             return json({ entries: posts.filter(p => p.status === 'Publisert').map((p, i) => ({ id: p.id, platform: JSON.parse(p.platforms)[0], views: { value: 860 + i * 315, reason: null }, engagement: { value: 42 + i * 13, reason: null } })), nextCursor: null, until: stamp });
         if (path === '/api/email' && method === 'GET')

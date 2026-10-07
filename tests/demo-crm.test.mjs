@@ -13,18 +13,16 @@ const runtime=()=>createDemoRuntime(new Date('2026-09-21T10:00:00Z')).request;
 const body=(method,data)=>({method,body:JSON.stringify(data)});
 const read=async(request,path)=>await(await request(path)).json();
 
-test('demo has consistent linked customers, history, follow-ups, employees and partner commission',async()=>{
+test('demo has consistent linked customers, history, follow-ups, employees without the partner model',async()=>{
  const request=runtime(),{companies}=await read(request,'/api/companies'),{activities}=await read(request,'/api/activities');
  assert.equal(companies.length,36);assert.equal(companies.reduce((n,c)=>n+c.searchContacts.length,0),72);
  assert.equal(activities.length,132);assert.equal(activities.filter(a=>!a.completedAt).length,24);
  assert.ok(activities.every(a=>companies.some(c=>c.id===a.companyId)));
  assert.ok(activities.some(a=>a.completedAt.startsWith('2026-09-21')));
- assert.equal((await read(request,'/api/session')).role,'Partner');
- assert.equal((await read(request,'/api/admin')).members.length,6);
- const report=await read(request,'/api/partners');assert.equal(report.commissionBps,4000);
- assert.equal(report.rows.filter(r=>r.active).length,12);assert.equal(report.rows.filter(r=>!r.active).length,2);
- assert.ok(report.rows.filter(r=>r.active).every(r=>r.userCount>=1&&r.userCount<=10));
- assert.equal(report.rows.reduce((n,r)=>n+r.previousOre,0),report.commission.months.find(m=>m.month==='2026-08').commissionOre);
+ const session=await read(request,'/api/session');
+ assert.equal(session.role,'Administrator');assert.ok(session.organizations.every(o=>!o.isPartner));
+ const admin=await read(request,'/api/admin');assert.equal(admin.role,'Administrator');assert.equal(admin.members.length,6);assert.ok(admin.members.every(m=>m.role!=='Partner'));
+ assert.equal((await request('/api/partners')).status,403);
  assert.equal((await read(request,'/api/call-lists')).entries.length,18);
  assert.equal((await read(request,'/api/marketing')).posts.length,12);
 });

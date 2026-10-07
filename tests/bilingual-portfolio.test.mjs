@@ -44,6 +44,7 @@ test('translated notification labels retain the same submitted minute values',()
 test('copy escapes variables once and leaves unknown strings and special property names intact',()=>{
  function Sample(){return React.createElement(app.UiText,{text:'Kunder'});}
  assert.equal(render('en',Sample),'Customers');
+ assert.equal(app.translateUi('Hele Norge','en'),'All of Norway');assert.equal(app.translateUi('Hele Norge','nb'),'Hele Norge');
  assert.equal(app.translateUi('Ingen innlegg eller e-poster inneholder «{0}». Prøv et annet søk eller bytt fane.','en',{'0':'<img>{0}'}),'No posts or emails contain “<img>{0}”. Try a different search or switch tabs.');
  assert.equal(app.translateUi('Acme & Co','en'),'Acme & Co');assert.equal(app.translateUi('__proto__','en'),'__proto__');assert.equal(app.translateUi(undefined,'en'),'');
 });
