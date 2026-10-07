@@ -1,97 +1,65 @@
-# vinext-starter
+# Noracre CRM
 
-A clean full-stack starter running on [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and Drizzle support.
+**A personal CRM project built around the practical work of B2B sales: finding prospects, managing conversations and following through.**
 
-## Prerequisites
+I'm Joakim Ferdinand Nygård, a sales leader with experience building and managing full-cycle sales teams. I started Noracre as a side project to explore how software could support the work I know from sales and team leadership.
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+I developed it with AI-assisted tools, using my sales experience to guide the product requirements, workflows and iterations. It is a practical learning project and an example of my interest in building useful technology.
 
-## Sites Lifecycle
+## The sales problem
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+A prospecting list is only useful if a seller can act on it. A customer record is only useful if the team can understand the conversation and agree on the next step.
 
-This starter does not use `wrangler.jsonc`.
+Noracre brings prospecting, contacts, activity history and follow-up into one workspace. The aim is to make everyday sales work easier to organise and easier for a manager to understand.
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+## What the project includes
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+| Workflow | What it supports |
+| --- | --- |
+| Prospecting and call lists | Finding Norwegian companies using business-register search filters, organising calling activity and recording outcomes. |
+| AI-assisted search | Translating a natural-language prospecting request into structured filters, with validation and clarification for unsupported criteria. |
+| Account and contact management | Company records, multiple contacts, ownership, sales stages and notes. |
+| Sales follow-up | Calls, meetings, emails, scheduled tasks and a visible next action. |
+| Team administration | Organisation memberships, roles and user access to modules. |
+| Data handling | Import and export workflows for working with existing sales data. |
+| Additional modules | Email workflows, offer templates, marketing content and partner reporting. |
 
-## Included Shape
+These describe features represented in the repository. External integrations depend on their configuration, credentials and provider permissions.
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## A workflow to explore
 
-## Workspace Auth Headers
+1. Define the companies you want to approach.
+2. Organise prospects into a call list.
+3. Record the conversation and its outcome.
+4. Create or update the account and relevant contacts.
+5. Set the next action so follow-up remains visible to the team.
 
-OpenAI workspace sites can read the current user's email from `oai-authenticated-user-email`.
+The repository also contains an in-memory demo runtime with illustrative company, contact and activity data. That runtime blocks external sending, publishing and account connections, and does not use the production database.
 
-SIWC-authenticated workspace sites may also receive `oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty `name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Why I built it
 
-Treat the full name as optional and fall back to email when it is absent:
+Leading full-cycle Account Executives means taking responsibility for prospecting as well as closed business. Building Noracre has given me another way to think through those workflows: what information a rep needs, how the next action should be recorded and where software can reduce administration.
 
-```tsx
-import { headers } from "next/headers";
+The project reflects my commercial background and practical curiosity about technology. It is an ongoing side project, with room to improve the code and product as I learn.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+## Technical overview
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
+- **Language and UI:** TypeScript, React and Tailwind CSS.
+- **Application:** Next.js-style routes running on Vinext and Vite.
+- **Data:** Drizzle ORM and Cloudflare D1.
+- **AI-assisted prospecting:** Cloudflare Workers AI, structured filter output and Zod validation.
+- **Verification:** Test files cover areas including access control, demo behaviour, prospecting filters and email workflows. This is a description of the test suite, not a claim that every test currently passes.
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Useful entry points:
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs optional or required ChatGPT sign-in:
+- [CRM interface](app/crm-client.tsx)
+- [Data model](db/schema.ts)
+- [AI-assisted prospecting](lib/call-list-ai.ts)
+- [Demo runtime](lib/demo-crm.ts)
+- [Tests](tests)
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because they depend on per-request identity headers.
+## Development documentation
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the OAuth cookies, and identity header injection. Do not implement app routes for those reserved paths. Routes that do not import and call the helper remain anonymous-compatible.
+The existing setup and hosting instructions are preserved in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Additional documentation covers [internationalisation](I18N.md), [email setup](EMAIL-SETUP.md) and [social integrations](SOCIAL-INTEGRATIONS.md).
 
-SIWC establishes identity only; it does not prove workspace membership. Use the Sites hosting platform's access policy controls for workspace-wide restrictions, or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Diagnostic Commands
-
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build and verify the rendered development-preview metadata
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
-
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
-
-## Internationalization
-
-See [I18N.md](I18N.md) for the shared translation and formatting foundation and the checklist for publishing additional languages.
+This repository is currently private. A recruiter needs repository access to view this page or the source code.
