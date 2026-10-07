@@ -36,6 +36,10 @@ These describe features represented in the repository. External integrations dep
 
 The repository also contains an in-memory demo runtime with illustrative company, contact and activity data. That runtime blocks external sending, publishing and account connections, and does not use the production database.
 
+The `/portfolio` route presents the project for recruiters and opens that isolated demo without sign-in. It starts in English and offers Norwegian too. This presentation can be shared while keeping the application repository private.
+
+The CRM has a Norwegian/English language choice in personal settings, remembered in the current browser. The public website has the same language choices in its header. Language changes presentation; Norwegian business identifiers and NOK prices stay the same. See [I18N.md](I18N.md) for implementation boundaries and verification.
+
 ## Why I built it
 
 Leading full-cycle Account Executives means taking responsibility for prospecting as well as closed business. Building Noracre has given me another way to think through those workflows: what information a rep needs, how the next action should be recorded and where software can reduce administration.

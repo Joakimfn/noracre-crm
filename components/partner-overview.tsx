@@ -1,4 +1,6 @@
 "use client";
+import {useUiTranslation} from '@/lib/i18n/ui';
+
 import {useCrmApi} from "@/lib/crm-api";
 import {PartnerCommission,type CommissionReport} from "./partner-commission";
 import {useEffect,useState} from 'react';
@@ -8,11 +10,12 @@ import {Input} from '@/components/ui/input';
 type Row={userCount?:number;id:number;name:string;active:boolean;assignedAt:string;currentOre:number;previousOre:number;ytdOre:number;historical:boolean};
 export type PartnerReport={commissionBps:number|null;commission:CommissionReport;rows:Row[];year:number;previousMonth:string;throughDate:string};
 export function PartnerOverview({organizationId}:{organizationId:number}){
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
  const {t}=useI18n();
  const [report,setReport]=useState<PartnerReport|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0);
- useEffect(()=>{let cancelled=false;setReport(null);setError('');apiFetch('/api/partners',{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||t('partner.error'));if(!cancelled)setReport(data);}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[organizationId,reload,t]);
+ useEffect(()=>{let cancelled=false;setReport(null);setError(ui(''));apiFetch('/api/partners',{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||t('partner.error'));if(!cancelled)setReport(data);}).catch(e=>{if(!cancelled)setError(ui(e.message));});return()=>{cancelled=true;};},[organizationId,reload,t]);
  if(error)return <div className="page-pad"><p role="alert">{error}</p><Button onClick={()=>setReload(n=>n+1)}>{t('partner.retry')}</Button></div>;
  if(!report)return <div className="page-pad" role="status">{t('partner.loading')}</div>;
  return <PartnerReportView report={report}/>;
@@ -38,3 +41,4 @@ export function PartnerReportView({report}:{report:PartnerReport}){
  </article>)}</div>}
  </div>;
 }
+

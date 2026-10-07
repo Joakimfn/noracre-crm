@@ -4,7 +4,7 @@ export const DEFAULT_LOCALE:Locale='nb';
 export const DEFAULT_TIME_ZONE='Europe/Oslo';
 export const DEFAULT_CURRENCY='NOK';
 // Only complete, reviewed languages belong here. Do not infer language from the browser yet.
-export const publishedLocales:readonly Locale[]=['nb'];
+export const publishedLocales:readonly Locale[]=['nb','en'];
 export function resolveLocale(value:unknown):Locale{
  if(typeof value!=='string')return DEFAULT_LOCALE;
  const language=value.trim().toLowerCase().split('-')[0];

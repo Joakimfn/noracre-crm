@@ -1,4 +1,6 @@
 "use client";
+import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {PartnerOverview} from "@/components/partner-overview";
@@ -482,11 +484,9 @@ class CallListBoundary extends Component<
         <div className="page-pad">
           <section className="surface module-error">
             <Phone />
-            <h2>Ringelister kunne ikke åpnes</h2>
-            <p>Last inn fanen på nytt. Ingen ringelistedata er slettet.</p>
-            <Button onClick={() => window.location.reload()}>
-              Last inn på nytt
-            </Button>
+            <h2><UiText text="Ringelister kunne ikke åpnes" /></h2>
+            <p><UiText text="Last inn fanen på nytt. Ingen ringelistedata er slettet." /></p>
+            <Button onClick={() => window.location.reload()}><UiText text="Last inn på nytt" /></Button>
           </section>
         </div>
       );
@@ -509,20 +509,21 @@ const stageClass: Record<string, string> = {
   Vunnet: "stage stage-green",
   Tapt: "stage stage-gray",
 };
-function date(v:string,time=false){
- if(!v)return defaultI18n.t('common.noDate');
- const value=new Date(v);if(!Number.isFinite(value.getTime()))return defaultI18n.t('common.noDate');
- return defaultI18n.date(value,time?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});
+function date(v:string,time=false,i18n=defaultI18n){
+ if(!v)return i18n.t('common.noDate');
+ const value=new Date(v);if(!Number.isFinite(value.getTime()))return i18n.t('common.noDate');
+ return i18n.date(value,time?{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});
 }
-function followUpLabel(v?:string){
- if(!v)return defaultI18n.t('followup.none');
- return defaultI18n.t('followup.planned',{date:defaultI18n.date(new Date(v),{day:'numeric',month:'short',year:'numeric'})});
+function followUpLabel(v?:string,i18n=defaultI18n){
+ if(!v)return i18n.t('followup.none');
+ return i18n.t('followup.planned',{date:i18n.date(new Date(v),{day:'numeric',month:'short',year:'numeric'})});
 }
-function daysSince(v?:string){
- if(!v)return defaultI18n.t('contact.never');
+function daysSince(v?:string,i18n=defaultI18n){
+ if(!v)return i18n.t('contact.never');
  const days=Math.max(0,Math.floor((Date.now()-new Date(v).getTime())/86400000));
- return days===0?defaultI18n.t('common.today'):defaultI18n.t('common.days',{count:days});
+ return days===0?i18n.t('common.today'):i18n.t('common.days',{count:days});
 }
+function useCrmFormatting(){const i18n=useI18n();return {date:(v:string,time=false)=>date(v,time,i18n),followUpLabel:(v?:string)=>followUpLabel(v,i18n),daysSince:(v?:string)=>daysSince(v,i18n),number:i18n.number};}
 function fileSize(bytes: number) {
   return bytes < 1024
     ? `${bytes} B`
@@ -555,9 +556,10 @@ function icon(kind: string) {
 }
 
 export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?:boolean;onDemoClose?:()=>void;onDemoReset?:()=>void}={}) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
-  const {t}=useI18n();
+ const {t,locale,setLocale}=useI18n();
   const [partnerPreview,setPartnerPreview]=useState(false),[partnerPreviewKey,setPartnerPreviewKey]=useState("");
   const [view, setView] = useState<View>("overview"),
     [companies, setCompanies] = useState<Company[]>([]),
@@ -643,7 +645,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     const data=await r.json();if(!r.ok)throw Error(data.error||'Kunne ikke deaktivere');
     if(deactivation.kind==='member')setMembers(rows=>rows.map(m=>m.id===data.member.id?{...m,...data.member}:m));
     else setOperations(await api('/api/superadmin').then(r=>r.json()));
-    setDeactivation(null);toast.success(effectiveAt?'Deaktivering er planlagt':'Deaktivert');
+    setDeactivation(null);toast.success(ui(effectiveAt?'Deaktivering er planlagt':'Deaktivert'));
   }
   const avatarIdentity = JSON.stringify([user.email, activeOrgId, profile.avatarKey, avatarVersion]);
   const [savedAvatar, setSavedAvatar] = useState({ identity: "", url: "" });
@@ -785,7 +787,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         setSessionReady(true);
         loadOrganization(id).catch((e) =>
           toast.error(
-            e instanceof Error ? e.message : "Kunne ikke hente CRM-data",
+            ui(e instanceof Error ? e.message : "Kunne ikke hente CRM-data"),
           ),
         );
       })
@@ -841,7 +843,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         ]);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Kunne ikke lagre innstillingene");
+      toast.error(ui(error instanceof Error ? error.message : "Kunne ikke lagre innstillingene"));
       throw error;
     }
   }
@@ -872,7 +874,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         const key = `noracre-reminder:${user.id}:${activeOrgId}:${activity.id}:${activity.dueAt}:${offset}`;
         if (localStorage.getItem(key)) continue;
         const notification = new Notification("Kommende oppfølging", {
-          body: `${activity.companyName}: ${activity.note || "Følg opp"} – kl. ${new Date(due).toLocaleString("nb-NO", {day:"2-digit",month:"2-digit",hour: "2-digit", minute: "2-digit"})}`,
+          body: `${activity.companyName}: ${activity.note || ui("Følg opp")} – ${locale==='en'?'at':'kl.'} ${new Date(due).toLocaleString(locale==='en'?'en-GB':'nb-NO', {day:"2-digit",month:"2-digit",hour: "2-digit", minute: "2-digit"})}`,
           tag: key,
         });
         notification.onclick = () => { window.focus(); setView("followup"); notification.close(); };
@@ -981,10 +983,10 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         d = await r.json();
       setLookupResults(d.companies ?? []);
       if (!r.ok)
-        toast.error(d.error ?? "Kunne ikke søke i Brønnøysundregistrene");
+        toast.error(ui(d.error ?? "Kunne ikke søke i Brønnøysundregistrene"));
     } catch {
       setLookupResults([]);
-      toast.error("Kunne ikke søke i Brønnøysundregistrene");
+      toast.error(ui("Kunne ikke søke i Brønnøysundregistrene"));
     } finally {
       setLookupBusy(false);
     }
@@ -1025,7 +1027,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     setLookupResults([]);
     setLookupQuery("");
     setAddOpen(false);
-    toast.success("Kunden er lagt til");
+    toast.success(ui("Kunden er lagt til"));
   }
   async function uploadAttachment(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1038,16 +1040,16 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     try {
       const r = await api("/api/attachments", { method: "POST", body: form }),
         d = await r.json();
-      if (!r.ok) return toast.error(d.error ?? "Kunne ikke laste opp filen");
+      if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke laste opp filen"));
       setAttachments((x) => [d.attachment, ...x]);
-      toast.success("Vedlegget er lastet opp");
+      toast.success(ui("Vedlegget er lastet opp"));
     } finally {
       setUploading(false);
     }
   }
   async function downloadAttachment(file: Attachment) {
     const r = await api(`/api/attachments?id=${file.id}`);
-    if (!r.ok) return toast.error("Kunne ikke laste ned filen");
+    if (!r.ok) return toast.error(ui("Kunne ikke laste ned filen"));
     const url = URL.createObjectURL(await r.blob()),
       link = document.createElement("a");
     link.href = url;
@@ -1057,9 +1059,9 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
   }
   async function deleteAttachment(file: Attachment) {
     const r = await api(`/api/attachments?id=${file.id}`, { method: "DELETE" });
-    if (!r.ok) return toast.error("Kunne ikke slette vedlegget");
+    if (!r.ok) return toast.error(ui("Kunne ikke slette vedlegget"));
     setAttachments((x) => x.filter((a) => a.id !== file.id));
-    toast.success("Vedlegget er slettet");
+    toast.success(ui("Vedlegget er slettet"));
   }
   async function register() {
     const before = selected,
@@ -1113,7 +1115,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     setContactOpen(false);
     setContactNote("");
     setNextAt("");
-    toast.success(`${kind} er registrert`);
+    toast.success(ui(`${kind} er registrert`));
     try {
       const r = await api("/api/activities", {
         method: "POST",
@@ -1144,7 +1146,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         x.filter((item) => item.id !== tempId && item.id !== tempId - 1),
       );
       setCompanies((x) => x.map((c) => (c.id === before.id ? before : c)));
-      toast.error("Aktiviteten kunne ikke lagres. Prøv igjen.");
+      toast.error(ui("Aktiviteten kunne ikke lagres. Prøv igjen."));
     }
   }
   async function complete(a: Activity) {
@@ -1156,22 +1158,22 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       const response = await api("/api/activities", {method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({id:a.id,completedAt:done})});
       if (!response.ok) throw new Error();
       await refreshCrmData();
-    } catch { await reloadActivities(); toast.error("Kunne ikke fullføre oppfølgingen"); return; }
-    toast.success("Markert som utført");
+    } catch { await reloadActivities(); toast.error(ui("Kunne ikke fullføre oppfølgingen")); return; }
+    toast.success(ui("Markert som utført"));
   }
   async function deleteHistory(a: Activity) {
     const r = await api(`/api/activities?id=${a.id}`, { method: "DELETE" });
-    if (!r.ok) return toast.error("Kunne ikke slette hendelsen");
+    if (!r.ok) return toast.error(ui("Kunne ikke slette hendelsen"));
     setActivities((x) => x.filter((item) => item.id !== a.id));
-    toast.success("Hendelsen er slettet");
+    toast.success(ui("Hendelsen er slettet"));
   }
   async function refresh(c: Company) {
-    if (!c.orgNumber) return toast.error("Organisasjonsnummer mangler");
+    if (!c.orgNumber) return toast.error(ui("Organisasjonsnummer mangler"));
     const d = await (
         await apiFetch(`/api/company-lookup?q=${encodeURIComponent(c.orgNumber)}`)
       ).json(),
       f = d.companies?.[0];
-    if (!f) return toast.error("Fant ikke bedriften");
+    if (!f) return toast.error(ui("Fant ikke bedriften"));
     const u = {
       ...c,
       ...f,
@@ -1183,12 +1185,12 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     };
     setCompanies((x) => x.map((y) => (y.id === c.id ? u : y)));
     await persist(u);
-    toast.success("Bedriftsdata er oppdatert");
+    toast.success(ui("Bedriftsdata er oppdatert"));
   }
   function calendar() {}
   async function addMember(confirmed = false) {
     if (memberBusy || !newMember.name || !newMember.email) return;
-    if (pricing.crmPrice == null) return toast.error("Pris er ikke avtalt. Oppgi pris under Drift først.");
+    if (pricing.crmPrice == null) return toast.error(ui("Pris er ikke avtalt. Oppgi pris under Drift først."));
     if (!confirmed)
       return setConfirmation({
         title: "Aktiver ny bruker?",
@@ -1207,15 +1209,15 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         body: JSON.stringify({ type: "member", ...newMember, acceptedPrice: pricing.crmPrice }),
       });
       const d = await r.json();
-      if (!r.ok) return toast.error(d.error ?? "Kunne ikke invitere brukeren");
+      if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke invitere brukeren"));
       m.id = d.member.id;
       if(!demoMode)await navigator.clipboard?.writeText(window.location.origin)
         .catch(() => undefined);
       setMembers((x) => [...x, m]);
       setNewMember({ name: "", email: "", role: "Bruker" });
-      toast.success(demoMode ? "Demobrukeren er opprettet" : d.invitationSent ? "Brukeren er opprettet og invitasjonen er sendt" : "Brukeren er opprettet. Invitasjonen kunne ikke sendes; del innloggingslenken manuelt.");
+      toast.success(ui(demoMode ? "Demobrukeren er opprettet" : d.invitationSent ? "Brukeren er opprettet og invitasjonen er sendt" : "Brukeren er opprettet. Invitasjonen kunne ikke sendes; del innloggingslenken manuelt."));
     } catch {
-      toast.error("Kunne ikke invitere brukeren");
+      toast.error(ui("Kunne ikke invitere brukeren"));
     } finally { setMemberBusy(false); }
   }
   async function setMemberStatus(
@@ -1223,7 +1225,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     active: boolean,
     confirmed = false,
   ) {
-    if(active && !member.active && pricing.crmPrice == null) return toast.error("Pris er ikke avtalt. Oppgi pris under Drift først.");
+    if(active && !member.active && pricing.crmPrice == null) return toast.error(ui("Pris er ikke avtalt. Oppgi pris under Drift først."));
     if(!active&&!confirmed)return setDeactivation({id:member.id,name:member.name,kind:'member'});
     if (!confirmed)
       return setConfirmation({
@@ -1242,14 +1244,14 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       body: JSON.stringify({ type: "memberStatus", id: member.id, active, acceptedPrice: pricing.crmPrice == null ? null : pricing.crmPrice + (memberModuleCosts[member.id] ?? 0) }),
     });
     const d = await r.json();
-    if (!r.ok) return toast.error(d.error ?? "Kunne ikke endre brukeren");
+    if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke endre brukeren"));
     setMembers((rows) =>
       rows.map((row) => (row.id === member.id ? { ...row, ...d.member } : row)),
     );
-    toast.success(active ? "Brukeren er aktivert" : "Brukeren er deaktivert");
+    toast.success(ui(active ? "Brukeren er aktivert" : "Brukeren er deaktivert"));
   }
   async function support(v: boolean) {
-    try{const r=await api('/api/admin',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'support',enabled:v})});const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke endre tilgangen');setSupportAccess(v);setSupportExpiresAt(d.session?.expiresAt??'');toast.success(v?'Support har tilgang i 24 timer':'Supporttilgangen er stengt');}catch(e){toast.error(e instanceof Error?e.message:'Kunne ikke endre tilgangen');}
+    try{const r=await api('/api/admin',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type:'support',enabled:v})});const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke endre tilgangen');setSupportAccess(v);setSupportExpiresAt(d.session?.expiresAt??'');toast.success(ui(v?'Support har tilgang i 24 timer':'Supporttilgangen er stengt'));}catch(e){toast.error(ui(e instanceof Error?e.message:'Kunne ikke endre tilgangen'));}
   }
 
   async function addContact() {
@@ -1267,17 +1269,17 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         body: JSON.stringify(c),
       });
       const data=await r.json();if(!r.ok)throw Error(data.error||"Kunne ikke lagre kontaktpersonen");c.id=data.contact.id;
-    } catch(e) {toast.error(e instanceof Error?e.message:"Kunne ikke lagre kontaktpersonen");return;}
+    } catch(e) {toast.error(ui(e instanceof Error?e.message:"Kunne ikke lagre kontaktpersonen"));return;}
     setContacts((x) => [...x, c]);
     setSelectedContactId(c.id);
     setNewContact({ name: "", title: "", phone: "", email: "" });
     setPersonOpen(false);
     await refreshCrmData();
-    toast.success("Kontaktpersonen er lagt til");
+    toast.success(ui("Kontaktpersonen er lagt til"));
   }
   async function addOrganization() {
     if (!newOrg.name || !newOrg.adminEmail) return;
-    if (newOrg.crmPrice === "") return toast.error("Oppgi avtalt pris per CRM-bruker.");
+    if (newOrg.crmPrice === "") return toast.error(ui("Oppgi avtalt pris per CRM-bruker."));
     const r = await api("/api/admin", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1285,22 +1287,22 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     });
     if (!r.ok)
       return toast.error(
-        (await r.json()).error ?? "Kunne ikke opprette organisasjonen",
+        ui((await r.json()).error ?? "Kunne ikke opprette organisasjonen"),
       );
     const data = await r.json();
     const org = data.organization;
     setOrganizations((x) => [...x, org]);
     setNewOrg(emptyNewOrganization);
-    toast.success(data.invitationSent ? "Bedriften er opprettet og invitasjonen er sendt" : "Bedriften er opprettet, men invitasjonen kunne ikke sendes. Del https://crm.noracre.no med kontaktpersonen.");
+    toast.success(ui(data.invitationSent ? "Bedriften er opprettet og invitasjonen er sendt" : "Bedriften er opprettet, men invitasjonen kunne ikke sendes. Del https://crm.noracre.no med kontaktpersonen."));
   }
   async function switchOrganization(id: number) {
     try {
       await loadOrganization(id);
       setActiveOrgId(id);
       setView("overview");
-      toast.success("Organisasjonen er byttet");
+      toast.success(ui("Organisasjonen er byttet"));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Du har ikke tilgang");
+      toast.error(ui(e instanceof Error ? e.message : "Du har ikke tilgang"));
     }
   }
   async function requestSupportAccess(id: number) {
@@ -1310,7 +1312,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       body: JSON.stringify({ type: "requestAccess", organizationId: id }),
     });
     const result=await r.json();
-    if (!r.ok) return toast.error(result.error??"Kunne ikke sende forespørselen");
+    if (!r.ok) return toast.error(ui(result.error??"Kunne ikke sende forespørselen"));
     setOperations((d) =>
       d
         ? {
@@ -1321,8 +1323,8 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
           }
         : d,
     );
-    if(result.notificationSent)toast.success("Forespørselen er sendt til bedriftens administrator på e-post");
-    else toast.error("Forespørselen er lagret, men e-posten kunne ikke sendes. Trykk Be om tilgang for å prøve igjen.");
+    if(result.notificationSent)toast.success(ui("Forespørselen er sendt til bedriftens administrator på e-post"));
+    else toast.error(ui("Forespørselen er lagret, men e-posten kunne ikke sendes. Trykk Be om tilgang for å prøve igjen."));
   }
   async function setOrganizationStatus(
     id: number,
@@ -1339,7 +1341,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         status,
       }),
     });
-    if (!r.ok) return toast.error("Kunne ikke endre status");
+    if (!r.ok) return toast.error(ui("Kunne ikke endre status"));
     const d = await api("/api/superadmin").then((x) => x.json());
     setOperations(d);
   }
@@ -1368,13 +1370,13 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       }),
       d = await r.json();
     if (!r.ok) {
-      toast.error(d.error ?? "Kunne ikke lagre bedriftsinformasjonen");
+      toast.error(ui(d.error ?? "Kunne ikke lagre bedriftsinformasjonen"));
       return false;
     }
     const refreshed = await api("/api/superadmin").then(r=>r.json());
     if (!refreshed.error) setOperations(refreshed);
     await loadOrganization(activeOrgId);
-    toast.success("Bedriftsinformasjonen er lagret");
+    toast.success(ui("Bedriftsinformasjonen er lagret"));
     return true;
   }
   async function approveSupport(requestId: number,duration:"24h"|"untilRevoked"="24h") {
@@ -1383,18 +1385,18 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "supportApproval", requestId,duration }),
     });
-    if (!r.ok) return toast.error("Kunne ikke godkjenne tilgangen");
+    if (!r.ok) return toast.error(ui("Kunne ikke godkjenne tilgangen"));
     const result=await r.json();
     setSupportAccess(true);
     setSupportExpiresAt(result.expiresAt??"");
     setSupportRequests((x) => x.filter((item) => item.id !== requestId));
-    toast.success(duration==="untilRevoked"?"Support har tilgang til du slår den av":"Support har tilgang i 24 timer");
+    toast.success(ui(duration==="untilRevoked"?"Support har tilgang til du slår den av":"Support har tilgang i 24 timer"));
   }
   async function finishOnboarding() {
     if (!accepted) return;
     if(!demoMode)localStorage.setItem("noracre-tutorial-2026-09-09-v2", "seen");
     setOnboardingOpen(false);
-    toast.success("Du er klar til å bruke Noracre CRM");
+    toast.success(ui("Du er klar til å bruke Noracre CRM"));
     const r = await apiFetch("/api/session", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -1402,12 +1404,12 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     });
     if (!r.ok) {
       setOnboardingOpen(true);
-      return toast.error("Kunne ikke lagre godkjenningen");
+      return toast.error(ui("Kunne ikke lagre godkjenningen"));
     }
   }
   async function exportBackup() {
     const r = await api("/api/export");
-    if (!r.ok) return toast.error("Kunne ikke lage sikkerhetskopi");
+    if (!r.ok) return toast.error(ui("Kunne ikke lage sikkerhetskopi"));
     const d = await r.json(),
       book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(
@@ -1426,13 +1428,13 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       "Historikk",
     );
     XLSX.writeFile(book, `noracre-crm-sikkerhetskopi-${today}.xlsx`);
-    toast.success("Sikkerhetskopien er lastet ned");
+    toast.success(ui("Sikkerhetskopien er lastet ned"));
   }
   if (!sessionReady)
     return (
-      <main className="session-loading" role="status" aria-live="polite" aria-label="Åpner Noracre CRM">
+      <main className="session-loading" role="status" aria-live="polite" aria-label={ui("Åpner Noracre CRM")}>
         <img src="/noracre-logo-primary.svg" alt="Noracre" />
-        <span>Gjør klart arbeidsområdet ditt …</span>
+        <span><UiText text="Gjør klart arbeidsområdet ditt …" /></span>
       </main>
     );
   if (accessError.message)
@@ -1444,7 +1446,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     setPartnerPreview(false);
   }}/>;
   return (
-    <main className="app-shell signature-shell" onClickCapture={demoMode?e=>{const target=e.target as HTMLElement;const link=target.closest("a");if(link){e.preventDefault();e.stopPropagation();toast.info("Eksterne lenker er deaktivert i demoen.");}}:undefined}>
+    <main className="app-shell signature-shell" onClickCapture={demoMode?e=>{const target=e.target as HTMLElement;const link=target.closest("a");if(link){e.preventDefault();e.stopPropagation();toast.info(ui("Eksterne lenker er deaktivert i demoen."));}}:undefined}>
       <Toaster position="top-right" />
       <aside className="sidebar">
         <div className="brand">
@@ -1567,9 +1569,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
             <DropdownMenuLabel className="break-all">{user.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => setProfileOpen(true)}>
-              <Settings />
-              Innstillinger
-            </DropdownMenuItem>
+              <Settings /><UiText text="Innstillinger" /></DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 if(demoMode){onDemoClose?.();return;}
@@ -1580,24 +1580,20 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                 );
               }}
             >
-              <LogOut />
-              Logg ut
-            </DropdownMenuItem>
+              <LogOut /><UiText text="Logg ut" /></DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         </div>
       </aside>
-      {!profileOpen && profileAutosave.state === "error" && <div role="alert" className="form-hint">Innstillingene kunne ikke lagres. <Button variant="outline" onClick={() => setProfileOpen(true)}>Åpne innstillinger</Button></div>}
+      {!profileOpen && profileAutosave.state === "error" && <div role="alert" className="form-hint"><UiText text="Innstillingene kunne ikke lagres. " /><Button variant="outline" onClick={() => setProfileOpen(true)}><UiText text="Åpne innstillinger" /></Button></div>}
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Mine innstillinger</DialogTitle>
-            <DialogDescription>
-              Profilen og utseendet gjelder bare brukeren din. Endringer lagres automatisk.
-            </DialogDescription>
+            <DialogTitle><UiText text="Mine innstillinger" /></DialogTitle>
+            <DialogDescription><UiText text="Profilen og utseendet gjelder bare brukeren din. Endringer lagres automatisk." /></DialogDescription>
           </DialogHeader>
           <div className="profile-settings">
-            <Label>Profilbilde</Label>
+            <Label><UiText text="Profilbilde" /></Label>
             <div className="profile-photo-row">
               <div className="avatar large">
                 {hasAvatar && (
@@ -1622,9 +1618,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                     .toUpperCase()}
                 </span>}
               </div>
-              <label className="photo-upload-button">
-                Velg bilde
-                <input
+              <label className="photo-upload-button"><UiText text="Velg bilde" /><input
                   type="file"
                   accept="image/*"
                   onChange={(e) => {
@@ -1649,19 +1643,17 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                   type="button"
                   variant="outline"
                   onClick={() => setCropOpen(true)}
-                >
-                  Rediger bilde
-                </Button>
+                ><UiText text="Rediger bilde" /></Button>
               )}
             </div>
-            <Label>Navn</Label>
+            <Label><UiText text="Navn" /></Label>
             <Input
               value={profile.displayName}
               onChange={(e) =>
                 setProfile({ ...profile, displayName: e.target.value })
               }
             />
-            <Label>E-post</Label>
+            <Label><UiText text="E-post" /></Label>
             <Input
               type="email"
               value={profile.contactEmail}
@@ -1669,7 +1661,13 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                 setProfile({ ...profile, contactEmail: e.target.value })
               }
             />
-            <Label>Tema</Label>
+            <Label htmlFor="profile-language">{locale==='nb'?'Språk':'Language'}</Label>
+            <Select value={locale} onValueChange={value=>setLocale(value==='en'?'en':'nb')}>
+              <SelectTrigger id="profile-language"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="nb">🇳🇴 Norsk</SelectItem><SelectItem value="en">🇬🇧 English</SelectItem></SelectContent>
+            </Select>
+            <p className="form-hint">{locale==='nb'?'Språkvalget huskes i denne nettleseren.':'Your language preference is remembered in this browser.'}</p>
+            <Label><UiText text="Tema" /></Label>
             <Select
               value={profile.theme}
               onValueChange={(theme) => setProfile({ ...profile, theme })}
@@ -1678,17 +1676,15 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="system">Følg systemet</SelectItem>
-                <SelectItem value="light">Lys modus</SelectItem>
-                <SelectItem value="dark">Mørk modus</SelectItem>
+                <SelectItem value="system"><UiText text="Følg systemet" /></SelectItem>
+                <SelectItem value="light"><UiText text="Lys modus" /></SelectItem>
+                <SelectItem value="dark"><UiText text="Mørk modus" /></SelectItem>
               </SelectContent>
             </Select>
-            <p className="form-hint">
-              Kontaktadressen endrer ikke kontoen du bruker til innlogging.
-            </p>
+            <p className="form-hint"><UiText text="Kontaktadressen endrer ikke kontoen du bruker til innlogging." /></p>
             <div role="status" aria-live="polite" className="form-hint">
-              {!profileReady ? "Henter innstillingene …" : profileAutosave.state === "error" ? "Endringene er ikke lagret." : profileAutosave.state === "saved" ? "Alle endringer er lagret" : "Lagrer endringer …"}
-              {profileAutosave.state === "error" && <Button variant="outline" onClick={profileAutosave.retry}>Prøv igjen</Button>}
+              {!profileReady ? ui("Henter innstillingene …") : profileAutosave.state === "error" ? ui("Endringene er ikke lagret.") : profileAutosave.state === "saved" ? ui("Alle endringer er lagret") : ui("Lagrer endringer …")}
+              {profileAutosave.state === "error" && <Button variant="outline" onClick={profileAutosave.retry}><UiText text="Prøv igjen" /></Button>}
             </div>
           </div>
           <MailAccount organizationId={activeOrgId}/>
@@ -1718,10 +1714,8 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Avbryt</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmation?.confirm()}>
-              Bekreft
-            </AlertDialogAction>
+            <AlertDialogCancel><UiText text="Avbryt" /></AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmation?.confirm()}><UiText text="Bekreft" /></AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1732,15 +1726,15 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
             <h1>{t(titleKeys[view])}</h1>
           </div>
           <div className="top-actions">
-            {demoMode&&<><Button variant="outline" onClick={onDemoReset}>Nullstill demo</Button><Button variant="outline" onClick={onDemoClose}>Tilbake til min konto</Button></>}
+            {demoMode&&<><Button variant="outline" onClick={onDemoReset}><UiText text="Nullstill demo" /></Button><Button variant="outline" onClick={onDemoClose}><UiText text="Tilbake til min konto" /></Button></>}
             {rolePreview === "Superadmin" && (view === "operations" || view === "superadmin") && <Button variant="outline" onClick={()=>setPartnerPreview(true)}>{t("partner.previewOpen")}</Button>}
             {view === "customers" && (
               <span className={`save-state ${saveState}`}>
                 {saveState === "saving"
-                  ? "Lagrer …"
+                  ? ui("Lagrer …")
                   : saveState === "error"
-                    ? "Kunne ikke lagre"
-                    : "Alle endringer lagret"}
+                    ? ui("Kunne ikke lagre")
+                    : ui("Alle endringer lagret")}
               </span>
             )}
             {view === "customers" && (
@@ -1926,24 +1920,23 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
       <Dialog open={contactOpen} onOpenChange={setContactOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Registrer {contactKind.toLowerCase()}</DialogTitle>
+            <DialogTitle><UiText text="Registrer " />{contactKind.toLowerCase()}</DialogTitle>
             <DialogDescription>
-              {selected?.name} · det tar bare noen sekunder.
-            </DialogDescription>
+              {selected?.name}<UiText text=" · det tar bare noen sekunder." /></DialogDescription>
           </DialogHeader>
           <div className="contact-kind-row">
             {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
               <button
-                key={k}
+                key={ui(k)}
                 className={contactKind === k ? "active" : ""}
                 onClick={() => setContactKind(k)}
               >
                 {icon(k)}
-                {k}
+                {ui(k)}
               </button>
             ))}
           </div>
-          <Label>Hvem snakket du med?</Label>
+          <Label><UiText text="Hvem snakket du med?" /></Label>
           <Select
             value={selectedContactId ? String(selectedContactId) : "none"}
             onValueChange={(v) =>
@@ -1954,7 +1947,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">Ingen valgt kontakt</SelectItem>
+              <SelectItem value="none"><UiText text="Ingen valgt kontakt" /></SelectItem>
               {contacts.map((c) => (
                 <SelectItem key={c.id} value={String(c.id)}>
                   {c.name}
@@ -1963,100 +1956,88 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
               ))}
             </SelectContent>
           </Select>
-          <Label>Hva skjedde?</Label>
+          <Label><UiText text="Hva skjedde?" /></Label>
           <Textarea
             value={contactNote}
             onChange={(e) => setContactNote(e.target.value)}
-            placeholder="Kort notat …"
+            placeholder={ui("Kort notat …")}
           />
-          <Label>Når skal kunden følges opp igjen?</Label>
-          <DateTimePicker label="Neste oppfølging" value={nextAt} onChange={setNextAt}/>
+          <Label><UiText text="Når skal kunden følges opp igjen?" /></Label>
+          <DateTimePicker label={ui("Neste oppfølging")} value={nextAt} onChange={setNextAt}/>
           {nextAt&&<ReminderFields value={nextReminders} onChange={setNextReminders}/>}
-          <Button onClick={register}>Lagre kontakten</Button>
+          <Button onClick={register}><UiText text="Lagre kontakten" /></Button>
         </DialogContent>
       </Dialog>
       <Dialog open={personOpen} onOpenChange={setPersonOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Legg til kontaktperson</DialogTitle>
+            <DialogTitle><UiText text="Legg til kontaktperson" /></DialogTitle>
             <DialogDescription>{selected?.name}</DialogDescription>
           </DialogHeader>
-          <Label>Navn</Label>
+          <Label><UiText text="Navn" /></Label>
           <Input
             value={newContact.name}
             onChange={(e) =>
               setNewContact({ ...newContact, name: e.target.value })
             }
           />
-          <Label>Stilling</Label>
+          <Label><UiText text="Stilling" /></Label>
           <Input
             value={newContact.title}
             onChange={(e) =>
               setNewContact({ ...newContact, title: e.target.value })
             }
           />
-          <Label>Telefon</Label>
+          <Label><UiText text="Telefon" /></Label>
           <Input
             value={newContact.phone}
             onChange={(e) =>
               setNewContact({ ...newContact, phone: e.target.value })
             }
           />
-          <Label>E-post</Label>
+          <Label><UiText text="E-post" /></Label>
           <Input
             value={newContact.email}
             onChange={(e) =>
               setNewContact({ ...newContact, email: e.target.value })
             }
           />
-          <Button onClick={addContact}>Legg til kontaktpersonen</Button>
+          <Button onClick={addContact}><UiText text="Legg til kontaktpersonen" /></Button>
         </DialogContent>
       </Dialog>
       <Dialog open={onboardingOpen} onOpenChange={() => undefined}>
         <DialogContent className="sm:max-w-lg" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Velkommen til Noracre CRM</DialogTitle>
-            <DialogDescription>
-              Her er arbeidsflyten du trenger for å komme raskt i gang.
-            </DialogDescription>
+            <DialogTitle><UiText text="Velkommen til Noracre CRM" /></DialogTitle>
+            <DialogDescription><UiText text="Her er arbeidsflyten du trenger for å komme raskt i gang." /></DialogDescription>
           </DialogHeader>
           <div className="onboarding-grid">
             <div>
               <UsersRound />
               <div>
-                <strong>Kunder og kontaktpersoner</strong>
-                <span>
-                  Søk i Brønnøysundregistrene, registrer aktiviteter og lagre
-                  vedlegg.
-                </span>
+                <strong><UiText text="Kunder og kontaktpersoner" /></strong>
+                <span><UiText text="Søk i Brønnøysundregistrene, registrer aktiviteter og lagre vedlegg." /></span>
               </div>
             </div>
             <div>
               <CalendarCheck2 />
               <div>
-                <strong>Oppfølging</strong>
-                <span>
-                  Planlegg neste steg og få varsler om det som må gjøres.
-                </span>
+                <strong><UiText text="Oppfølging" /></strong>
+                <span><UiText text="Planlegg neste steg og få varsler om det som må gjøres." /></span>
               </div>
             </div>
             <div>
               <Phone />
               <div>
-                <strong>Ringelister</strong>
-                <span>
-                  Lag målrettede lister, registrer resultatet og flytt
-                  prospekter til kundekort.
-                </span>
+                <strong><UiText text="Ringelister" /></strong>
+                <span><UiText text="Lag målrettede lister, registrer resultatet og flytt prospekter til kundekort." /></span>
               </div>
             </div>
             <div>
               <BarChart3 />
               <div>
-                <strong>Tilbud og rapporter</strong>
-                <span>
-                  Send tilbud fra kundekortet og følg dine egne salgsresultater.
-                </span>
+                <strong><UiText text="Tilbud og rapporter" /></strong>
+                <span><UiText text="Send tilbud fra kundekortet og følg dine egne salgsresultater." /></span>
               </div>
             </div>
           </div>
@@ -2066,26 +2047,12 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
               checked={accepted}
               onChange={(e) => setAccepted(e.target.checked)}
             />
-            <span>
-              Jeg godtar{" "}
-              <a href="/vilkar" target="_blank">
-                vilkårene
-              </a>{" "}
-              og har lest{" "}
-              <a href="/personvern" target="_blank">
-                personvernerklæringen
-              </a>{" "}
-              og{" "}
-              <a href="/databehandleravtale" target="_blank">
-                databehandleravtalen
-              </a>
-              . Dersom jeg handler på vegne av en bedrift, bekrefter jeg at jeg
-              har fullmakt til dette.
-            </span>
+            <span><UiText text="Jeg godtar" />{" "}
+              <a href="/vilkar" target="_blank"><UiText text="vilkårene" /></a>{" "}<UiText text="og har lest" />{" "}
+              <a href="/personvern" target="_blank"><UiText text="personvernerklæringen" /></a>{" "}<UiText text="og" />{" "}
+              <a href="/databehandleravtale" target="_blank"><UiText text="databehandleravtalen" /></a><UiText text=". Dersom jeg handler på vegne av en bedrift, bekrefter jeg at jeg har fullmakt til dette." /></span>
           </label>
-          <Button disabled={!accepted} onClick={finishOnboarding}>
-            Start Noracre CRM
-          </Button>
+          <Button disabled={!accepted} onClick={finishOnboarding}><UiText text="Start Noracre CRM" /></Button>
         </DialogContent>
       </Dialog>
     </main>
@@ -2093,6 +2060,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
 }
 
 function AccessDenied({ message, code }: { message: string; code: string }) {
+ const {ui}=useUiTranslation();
   const disabled = code === "USER_DISABLED" || code === "ORGANIZATION_DISABLED";
   return (
     <main className="access-page">
@@ -2100,21 +2068,16 @@ function AccessDenied({ message, code }: { message: string; code: string }) {
         <img className="brand-icon" src="/noracre-app-icon.svg" alt="" />
         <h1>
           {code === "USER_DISABLED"
-            ? "Bruker deaktivert"
+            ? ui("Bruker deaktivert")
             : code === "ORGANIZATION_DISABLED"
-              ? "Bedrift deaktivert"
-              : "Du har ikke tilgang ennå"}
+              ? ui("Bedrift deaktivert")
+              : ui("Du har ikke tilgang ennå")}
         </h1>
         <p>{message}</p>
         {!disabled && (
-          <p>
-            Be administratoren i bedriften invitere e-postadressen du logget inn
-            med.
-          </p>
+          <p><UiText text="Be administratoren i bedriften invitere e-postadressen du logget inn med." /></p>
         )}
-        <p className="disabled-support">
-          Kontakt support dersom dette ikke skulle ha skjedd.
-        </p>
+        <p className="disabled-support"><UiText text="Kontakt support dersom dette ikke skulle ha skjedd." /></p>
       </section>
     </main>
   );
@@ -2125,15 +2088,10 @@ function EmptyCustomers({ add }: { add: () => void }) {
     <div className="page-pad">
       <section className="surface empty-customers">
         <Building2 />
-        <h2>Ingen kunder ennå</h2>
-        <p>
-          Legg til den første bedriften manuelt eller hent offentlige
-          bedriftsdata fra Brønnøysundregistrene.
-        </p>
+        <h2><UiText text="Ingen kunder ennå" /></h2>
+        <p><UiText text="Legg til den første bedriften manuelt eller hent offentlige bedriftsdata fra Brønnøysundregistrene." /></p>
         <Button onClick={add}>
-          <CirclePlus />
-          Legg til første kunde
-        </Button>
+          <CirclePlus /><UiText text="Legg til første kunde" /></Button>
       </section>
     </div>
   );
@@ -2167,6 +2125,7 @@ function Add(p: {
   setDraft: (v: Partial<Company>) => void;
   save: () => void;
 }) {
+ const {ui}=useUiTranslation();
   const [searched, setSearched] = useState(false),
     [manual, setManual] = useState(false),
     person = p.draft.customerType === "Person",
@@ -2210,33 +2169,25 @@ function Add(p: {
     <>
       {p.showTrigger !== false && (
         <Button className="primary-button" onClick={() => p.setOpen(true)}>
-          <CirclePlus />
-          Ny kunde
-        </Button>
+          <CirclePlus /><UiText text="Ny kunde" /></Button>
       )}
       <Dialog open={p.open} onOpenChange={close}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Ny kunde</DialogTitle>
-            <DialogDescription>
-              Søk etter en bedrift, eller legg inn en privatperson separat.
-            </DialogDescription>
+            <DialogTitle><UiText text="Ny kunde" /></DialogTitle>
+            <DialogDescription><UiText text="Søk etter en bedrift, eller legg inn en privatperson separat." /></DialogDescription>
           </DialogHeader>
           <div className="customer-type">
             <button
               className={!person ? "active" : ""}
               onClick={() => setType("Bedrift")}
             >
-              <Building2 />
-              Bedrift
-            </button>
+              <Building2 /><UiText text="Bedrift" /></button>
             <button
               className={person ? "active" : ""}
               onClick={() => setType("Person")}
             >
-              <UserPlus />
-              Privatperson
-            </button>
+              <UserPlus /><UiText text="Privatperson" /></button>
           </div>
           {!person && (
             <>
@@ -2250,16 +2201,13 @@ function Add(p: {
                     p.setDraft({ stage: "Ny kunde", customerType: "Bedrift" });
                   }}
                   onKeyDown={(e) => e.key === "Enter" && search()}
-                  placeholder="Firmanavn eller organisasjonsnummer"
+                  placeholder={ui("Firmanavn eller organisasjonsnummer")}
                 />
                 <Button onClick={search} disabled={p.busy}>
-                  {p.busy ? "Søker …" : "Søk"}
+                  {p.busy ? ui("Søker …") : ui("Søk")}
                 </Button>
               </div>
-              <p className="form-hint">
-                Søket viser bedrifter fra Brønnøysundregistrene.
-                Enkeltpersonforetak med personnavn vises ikke.
-              </p>
+              <p className="form-hint"><UiText text="Søket viser bedrifter fra Brønnøysundregistrene. Enkeltpersonforetak med personnavn vises ikke." /></p>
               {p.results.length > 0 && !manual && (
                 <div className="lookup-results">
                   {p.results.map((r) => (
@@ -2267,8 +2215,7 @@ function Add(p: {
                       <Building2 />
                       <span>
                         <strong>{r.name}</strong>
-                        <small>
-                          Org: {r.orgNumber} · {r.city}
+                        <small><UiText text="Org: " />{r.orgNumber} · {r.city}
                         </small>
                       </span>
                       <ChevronRight />
@@ -2277,8 +2224,8 @@ function Add(p: {
                   <button className="manual-result" onClick={startManual}>
                     <CirclePlus />
                     <span>
-                      <strong>Finner du ikke riktig bedrift?</strong>
-                      <small>Legg inn bedriften manuelt</small>
+                      <strong><UiText text="Finner du ikke riktig bedrift?" /></strong>
+                      <small><UiText text="Legg inn bedriften manuelt" /></small>
                     </span>
                     <ChevronRight />
                   </button>
@@ -2286,11 +2233,9 @@ function Add(p: {
               )}
               {searched && !p.busy && !p.results.length && !manual && (
                 <div className="manual-entry">
-                  <p>Fant ingen bedrift som matcher søket.</p>
+                  <p><UiText text="Fant ingen bedrift som matcher søket." /></p>
                   <Button variant="outline" onClick={startManual}>
-                    <CirclePlus />
-                    Legg inn manuelt
-                  </Button>
+                    <CirclePlus /><UiText text="Legg inn manuelt" /></Button>
                 </div>
               )}
             </>
@@ -2299,7 +2244,7 @@ function Add(p: {
             <>
               <div className="form-grid">
                 <div className="full">
-                  <Label>{person ? "Navn *" : "Bedriftsnavn *"}</Label>
+                  <Label>{person ? ui("Navn *") : ui("Bedriftsnavn *")}</Label>
                   <Input
                     required
                     aria-required="true"
@@ -2311,8 +2256,7 @@ function Add(p: {
                 </div>
                 {!person && (
                   <div className="full">
-                    <Label>
-                      Organisasjonsnummer <span>(valgfritt)</span>
+                    <Label><UiText text="Organisasjonsnummer " /><span><UiText text="(valgfritt)" /></span>
                     </Label>
                     <Input
                       inputMode="numeric"
@@ -2326,8 +2270,7 @@ function Add(p: {
                   </div>
                 )}
                 <div>
-                  <Label>
-                    Telefon <span>(valgfritt)</span>
+                  <Label><UiText text="Telefon" /><span><UiText text="(valgfritt)" /></span>
                   </Label>
                   <Input
                     type="tel"
@@ -2338,8 +2281,7 @@ function Add(p: {
                   />
                 </div>
                 <div>
-                  <Label>
-                    E-post <span>(valgfritt)</span>
+                  <Label><UiText text="E-post" /><span><UiText text="(valgfritt)" /></span>
                   </Label>
                   <Input
                     type="email"
@@ -2350,9 +2292,7 @@ function Add(p: {
                   />
                 </div>
               </div>
-              <Button disabled={!p.draft.name?.trim()} onClick={p.save}>
-                Legg til kunden
-              </Button>
+              <Button disabled={!p.draft.name?.trim()} onClick={p.save}><UiText text="Legg til kunden" /></Button>
             </>
           )}
         </DialogContent>
@@ -2370,39 +2310,40 @@ function Overview(p: {
   complete: (a: Activity) => void;
   select: (id: number) => void;
 }) {
+ const {ui}=useUiTranslation();
   const tasks = [...p.overdue, ...p.today];
   const recent = [...p.companies].sort((a,b) => (b.lastContactAt || "").localeCompare(a.lastContactAt || "")).slice(0, 6);
   return (
     <div className="page-pad overview-page">
       <section className="welcome">
         <div>
-          <p className="eyebrow">DIN ARBEIDSDAG</p>
-          <h2>God dag, {p.displayName}.</h2>
-          <p>{tasks.length ? `Du har ${tasks.length} ${tasks.length === 1 ? "oppfølging som trenger" : "oppfølginger som trenger"} deg.` : "Alt er fulgt opp. Her er kundene og avtalene dine."}</p>
+          <p className="eyebrow"><UiText text="DIN ARBEIDSDAG" /></p>
+          <h2><UiText text="God dag, " />{p.displayName}.</h2>
+          <p>{tasks.length ? `Du har ${tasks.length} ${tasks.length === 1 ? ui("oppfølging som trenger") : ui("oppfølginger som trenger")} deg.` : ui("Alt er fulgt opp. Her er kundene og avtalene dine.")}</p>
         </div>
-        <Button variant="outline" onClick={() => p.go("followup")}>Se all oppfølging <ChevronRight /></Button>
+        <Button variant="outline" onClick={() => p.go("followup")}><UiText text="Se all oppfølging " /><ChevronRight /></Button>
       </section>
       <div className="metric-grid overview-metrics">
-        <Metric label="Kunder" value={p.companies.length} />
-        <Metric label="Forfalt" value={p.overdue.length} tone="red" />
-        <Metric label="I dag" value={p.today.length} tone="green" />
-        <Metric label="Kommende" value={p.upcoming.length} />
+        <Metric label={ui("Kunder")} value={p.companies.length} />
+        <Metric label={ui("Forfalt")} value={p.overdue.length} tone="red" />
+        <Metric label={ui("I dag")} value={p.today.length} tone="green" />
+        <Metric label={ui("Kommende")} value={p.upcoming.length} />
       </div>
       <div className="overview-columns">
         <section className="customer-ledger">
-          <div className="surface-head"><h3>Kundene dine</h3><Button variant="ghost" onClick={() => p.go("customers")}>Se alle <ChevronRight /></Button></div>
-          <p className="form-hint">Sist kontaktet</p>
+          <div className="surface-head"><h3><UiText text="Kundene dine" /></h3><Button variant="ghost" onClick={() => p.go("customers")}><UiText text="Se alle " /><ChevronRight /></Button></div>
+          <p className="form-hint"><UiText text="Sist kontaktet" /></p>
           {recent.length ? <div className="ledger-list">{recent.map(company => <button key={company.id} className="ledger-row" onClick={() => p.select(company.id)}>
             <span className="company-icon">{company.name.slice(0,1)}</span>
-            <span className="ledger-company"><strong>{company.name}</strong><small>{company.city || company.industry || (company.customerType === "Person" ? "Privatperson" : "Bedrift")}</small></span>
-            <span className={stageClass[company.stage]}>{company.stage}</span><ChevronRight size={17}/>
-          </button>)}</div> : <div className="ledger-empty"><Building2/><p>Kundeboken din er klar.</p><Button variant="outline" onClick={() => p.go("customers")}>Legg til den første kunden</Button></div>}
+            <span className="ledger-company"><strong>{company.name}</strong><small>{company.city || company.industry || (company.customerType === "Person" ? <UiText text="Privatperson" /> : <UiText text="Bedrift" />)}</small></span>
+            <span className={stageClass[company.stage]}>{ui(company.stage)}</span><ChevronRight size={17}/>
+          </button>)}</div> : <div className="ledger-empty"><Building2/><p><UiText text="Kundeboken din er klar." /></p><Button variant="outline" onClick={() => p.go("customers")}><UiText text="Legg til den første kunden" /></Button></div>}
         </section>
-        <aside className="overview-agenda" aria-label="Oppfølginger">
-          <h3>Dagens agenda</h3>
-          <Group title="Forfalt" items={[...p.overdue].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="danger" complete={p.complete} select={p.select}/>
-          <Group title="I dag" items={[...p.today].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="today" complete={p.complete} select={p.select}/>
-          {!tasks.length && p.upcoming.length > 0 && <Group title="Neste avtaler" items={[...p.upcoming].sort((a,b)=>a.dueAt.localeCompare(b.dueAt)).slice(0,3)} complete={p.complete} select={p.select}/>}
+        <aside className="overview-agenda" aria-label={ui("Oppfølginger")}>
+          <h3><UiText text="Dagens agenda" /></h3>
+          <Group title={ui("Forfalt")} items={[...p.overdue].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="danger" complete={p.complete} select={p.select}/>
+          <Group title={ui("I dag")} items={[...p.today].sort((a,b)=>a.dueAt.localeCompare(b.dueAt))} tone="today" complete={p.complete} select={p.select}/>
+          {!tasks.length && p.upcoming.length > 0 && <Group title={ui("Neste avtaler")} items={[...p.upcoming].sort((a,b)=>a.dueAt.localeCompare(b.dueAt)).slice(0,3)} complete={p.complete} select={p.select}/>}
         </aside>
       </div>
     </div>
@@ -2424,6 +2365,7 @@ function OfferComposer({
   upload: (e: ChangeEvent<HTMLInputElement>) => void;
   uploading: boolean;
 }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [templates, setTemplates] = useState<OfferTemplate[]>([]),
@@ -2484,21 +2426,19 @@ function OfferComposer({
     <details className="compact-section offer-section">
       <summary>
         <span>
-          <Mail size={18} />
-          Tilbud
-        </span>
-        <strong>Lag tilbud fra mal</strong>
+          <Mail size={18} /><UiText text="Tilbud" /></span>
+        <strong><UiText text="Lag tilbud fra mal" /></strong>
       </summary>
       <div className="compact-body offer-composer">
         <div className="offer-grid">
           <div>
-            <Label>Tilbudsmal</Label>
+            <Label><UiText text="Tilbudsmal" /></Label>
             <Select value={templateId} onValueChange={selectTemplate}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {!templates.length&&<SelectItem value="new">Standardtekst</SelectItem>}
+                {!templates.length&&<SelectItem value="new"><UiText text="Standardtekst" /></SelectItem>}
                 {templates.map((item) => (
                   <SelectItem key={item.id} value={String(item.id)}>
                     {item.name}
@@ -2508,7 +2448,7 @@ function OfferComposer({
             </Select>
           </div>
           <div>
-            <Label>Kontaktperson</Label>
+            <Label><UiText text="Kontaktperson" /></Label>
             <Select
               value={effectiveContactId}
               onValueChange={(id) => {
@@ -2536,7 +2476,7 @@ function OfferComposer({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Bedriftens e-post</SelectItem>
+                <SelectItem value="none"><UiText text="Bedriftens e-post" /></SelectItem>
                 {contacts.map((item) => (
                   <SelectItem key={item.id} value={String(item.id)}>
                     {item.name}
@@ -2546,16 +2486,16 @@ function OfferComposer({
             </Select>
           </div>
         </div>
-        <Label>Emne</Label>
+        <Label><UiText text="Emne" /></Label>
         <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-        <Label>E-posttekst</Label>
+        <Label><UiText text="E-posttekst" /></Label>
         <Textarea
           rows={7}
           value={body}
           onChange={(e) => setBody(e.target.value)}
         />
         <div className="offer-attachments">
-          <Label>Vedlegg</Label>
+          <Label><UiText text="Vedlegg" /></Label>
           {attachments.map(
             (file) =>
               selectedAttachmentIds.includes(file.id) && (
@@ -2571,15 +2511,13 @@ function OfferComposer({
                       )
                     }
                   >
-                    <Trash2 />
-                    Fjern
-                  </Button>
+                    <Trash2 /><UiText text="Fjern" /></Button>
                 </div>
               ),
           )}
           <label className="attachment-upload">
             <Paperclip />
-            <span>{uploading ? "Laster opp …" : "Last opp nytt vedlegg"}</span>
+            <span>{uploading ? ui("Laster opp …") : ui("Last opp nytt vedlegg")}</span>
             <input type="file" disabled={uploading} onChange={upload} />
           </label>
         </div>
@@ -2589,9 +2527,10 @@ function OfferComposer({
   );
 }
 function Metric(p: { label: string; value: number; tone?: string }) {
+ const {ui}=useUiTranslation();
   return (
     <div className={`metric ${p.tone ?? ""}`}>
-      <span>{p.label}</span>
+      <span>{ui(p.label)}</span>
       <strong>{p.value}</strong>
     </div>
   );
@@ -2622,6 +2561,8 @@ function Customers(p: {
   onFollowupsChanged: () => Promise<void>;
   activityRevision: Activity[];
 }) {
+ const {date,followUpLabel,daysSince,number}=useCrmFormatting();
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [openHistory, setOpenHistory] = useState<Activity | null>(null);
@@ -2645,9 +2586,9 @@ function Customers(p: {
     try {
       const response = await apiFetch("/api/activities", {method:"PATCH", headers:{"Content-Type":"application/json","x-organization-id":String(p.organizationId)}, body:JSON.stringify({id:openHistory.id,note:historyDraft})});
       const data=await response.json(); if(!response.ok)throw new Error(data.error||"Notatet kunne ikke lagres.");
-      setOpenHistory(data.activity);setHistoryDraft(data.activity.note);toast.success("Notatet er lagret");
+      setOpenHistory(data.activity);setHistoryDraft(data.activity.note);toast.success(ui("Notatet er lagret"));
       await p.onFollowupsChanged();
-    } catch(error) { toast.error(error instanceof Error?error.message:"Notatet kunne ikke lagres."); }
+    } catch(error) { toast.error(ui(error instanceof Error?error.message:"Notatet kunne ikke lagres.")); }
     finally { setSavingHistory(false); }
   }
   const c = p.selected,
@@ -2659,36 +2600,34 @@ function Customers(p: {
       ? p.contacts.find((x) => x.id === openHistory.contactId)
       : null;
   return (
-    <section className="content-grid customer-book" aria-label="Kundebok">
+    <section className="content-grid customer-book" aria-label={ui("Kundebok")}>
       <div className="customer-panel">
-        <div className="book-heading"><span className="eyebrow">KUNDEBOK</span><h2>Bedrifter og kontakter</h2></div>
+        <div className="book-heading"><span className="eyebrow"><UiText text="KUNDEBOK" /></span><h2><UiText text="Bedrifter og kontakter" /></h2></div>
         <div className="customer-search-row">
           <div className="search-box">
             <Search size={19} />
             <input
-              aria-label="Søk etter kunde, kontakt eller telefon"
-              placeholder="Søk etter kunde, kontakt eller telefon …"
+              aria-label={ui("Søk etter kunde, kontakt eller telefon")}
+              placeholder={ui("Søk etter kunde, kontakt eller telefon …")}
               value={p.query}
               onChange={(e) => p.setQuery(e.target.value)}
             />
             {p.query && (
-              <button aria-label="Tøm søk" onClick={() => p.setQuery("")}>
+              <button aria-label={ui("Tøm søk")} onClick={() => p.setQuery("")}>
                 <X size={17} />
               </button>
             )}
           </div>
           <Button onClick={p.add}>
-            <CirclePlus />
-            Ny kunde
-          </Button>
+            <CirclePlus /><UiText text="Ny kunde" /></Button>
         </div>
         <div className="list-heading">
           <span>
             {p.list.length} {p.list.length === 1 ? "kunde" : "kunder"}
           </span>
         </div>
-        <div className="customer-list" aria-label="Kunder">
-          {!p.list.length && <p className="empty-list">Ingen kunder passer søket ditt.</p>}
+        <div className="customer-list" aria-label={ui("Kunder")}>
+          {!p.list.length && <p className="empty-list"><UiText text="Ingen kunder passer søket ditt." /></p>}
           {p.list.map((x) => (
             <button
               key={x.id}
@@ -2702,8 +2641,8 @@ function Customers(p: {
               <div className="company-icon">{x.name[0]}</div>
               <div className="company-main">
                 <strong>{x.name}</strong>
-                {x.customerType === "Person" && <span>Privatperson</span>}
-                <em className={stageClass[x.stage]}>{x.stage}</em>
+                {x.customerType === "Person" && <span><UiText text="Privatperson" /></span>}
+                <em className={stageClass[x.stage]}>{ui(x.stage)}</em>
               </div>
               <div className="next-date">
                 <Clock3 size={15} />
@@ -2717,28 +2656,26 @@ function Customers(p: {
         <div className="detail-head">
           <div className="large-company-icon">{c.name[0]}</div>
           <div>
-            <span className={stageClass[c.stage]}>{c.stage}</span>
+            <span className={stageClass[c.stage]}>{ui(c.stage)}</span>
             <h2>{c.name}</h2>
             <p>
               {isPerson
-                ? "Privatperson"
+                ? <UiText text="Privatperson" />
                 : c.orgNumber
                   ? `Org: ${c.orgNumber}`
-                  : "Organisasjonsnummer mangler"}
+                  : ui("Organisasjonsnummer mangler")}
             </p>
           </div>
           {!isPerson && (
             <div className="contact-picker">
-              <Label>Kontaktperson</Label>
+              <Label><UiText text="Kontaktperson" /></Label>
               <div>
                 <select
-                  aria-label="Velg ansatt"
+                  aria-label={ui("Velg ansatt")}
                   value={person?.id ?? ""}
                   onChange={(e) => p.selectContact(Number(e.target.value))}
                 >
-                  <option value="">
-                    Velg ansatt
-                  </option>
+                  <option value=""><UiText text="Velg ansatt" /></option>
                   {currentContacts.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.name}
@@ -2746,21 +2683,19 @@ function Customers(p: {
                     </option>
                   ))}
                 </select>
-                <div className="contact-picker-actions">{person?<ContactEditor key={person.id} contact={person} organizationId={p.organizationId} onChanged={p.onContactsChanged}/>:<Button variant="outline" disabled>Endre kontaktperson</Button>}
+                <div className="contact-picker-actions">{person?<ContactEditor key={person.id} contact={person} organizationId={p.organizationId} onChanged={p.onContactsChanged}/>:<Button variant="outline" disabled><UiText text="Endre kontaktperson" /></Button>}
                 <Button variant="outline" onClick={p.addContact}>
-                  <UserPlus />
-                  Ny ansatt
-                </Button></div>
+                  <UserPlus /><UiText text="Ny ansatt" /></Button></div>
               </div>
             </div>
           )}
         </div>
-        <p className="activity-label">Registrer aktivitet</p>
-        <div className="contact-actions" role="group" aria-label="Registrer aktivitet">
+        <p className="activity-label"><UiText text="Registrer aktivitet" /></p>
+        <div className="contact-actions" role="group" aria-label={ui("Registrer aktivitet")}>
           {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
-            <button key={k} aria-label={`Registrer aktivitet: ${k}`} onClick={() => p.contact(k)}>
+            <button key={ui(k)} aria-label={`Registrer aktivitet: ${ui(k)}`} onClick={() => p.contact(k)}>
               {icon(k)}
-              <span>{k}</span>
+              <span>{ui(k)}</span>
             </button>
           ))}
         </div>
@@ -2773,7 +2708,7 @@ function Customers(p: {
             <SelectContent>
               {stages.map((s) => (
                 <SelectItem key={s} value={s}>
-                  {s}
+                  {ui(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -2781,16 +2716,16 @@ function Customers(p: {
         </div>
         <div className="facts">
           <div>
-            <span>{isPerson ? "Kunde" : "Valgt kontakt"}</span>
+            <span>{isPerson ? ui("Kunde") : ui("Valgt kontakt")}</span>
             <strong>{person?.name || c.contactName || c.name}</strong>
           </div>
           <div>
-            <span>Telefon</span>
+            <span><UiText text="Telefon" /></span>
             <strong><PhoneLink phone={person?.phone || c.phone || ""}/></strong>
           </div>
           <div>
-            <span>E-post</span>
-            <strong>{person?.email || c.email ? <a href={`mailto:${person?.email || c.email}`}>{person?.email || c.email}</a> : "Ikke oppgitt"}</strong>
+            <span><UiText text="E-post" /></span>
+            <strong>{person?.email || c.email ? <a href={`mailto:${person?.email || c.email}`}>{person?.email || c.email}</a> : ui("Ikke oppgitt")}</strong>
           </div>
         </div>
         <CustomerFollowups company={c} contacts={currentContacts} organizationId={p.organizationId} onChanged={p.onFollowupsChanged} revision={p.activityRevision}/>
@@ -2798,30 +2733,28 @@ function Customers(p: {
           <details className="compact-section">
             <summary>
               <span>
-                <Building2 size={18} />
-                Bedriftsdata
-              </span>
+                <Building2 size={18} /><UiText text="Bedriftsdata" /></span>
               <strong>
                 {[c.city, c.employees != null ? `${c.employees} ansatte` : ""]
                   .filter(Boolean)
-                  .join(" · ") || "Vis detaljer"}
+                  .join(" · ") || ui("Vis detaljer")}
               </strong>
             </summary>
             <div className="business-grid">
               <div>
-                <span>Bransje</span>
-                <strong>{c.industry || "Ikke oppgitt"}</strong>
+                <span><UiText text="Bransje" /></span>
+                <strong>{c.industry || ui("Ikke oppgitt")}</strong>
               </div>
               <div>
-                <span>Sted</span>
-                <strong>{c.city || "Ikke oppgitt"}</strong>
+                <span><UiText text="Sted" /></span>
+                <strong>{c.city || ui("Ikke oppgitt")}</strong>
               </div>
               <div>
-                <span>Ansatte</span>
+                <span><UiText text="Ansatte" /></span>
                 <strong>{c.employees ?? "–"}</strong>
               </div>
               <div>
-                <span>Dager siden sist kontakt</span>
+                <span><UiText text="Dager siden sist kontakt" /></span>
                 <strong>{daysSince(c.lastContactAt)}</strong>
               </div>
             </div>
@@ -2836,25 +2769,23 @@ function Customers(p: {
           uploading={p.uploading}
         />
         <details className="compact-section">
-          <summary><span>Notater</span></summary>
-          <div className="compact-body"><Textarea aria-label="Notater" value={c.note} onChange={(e) => p.update({ note: e.target.value })} rows={3}/></div>
+          <summary><span><UiText text="Notater" /></span></summary>
+          <div className="compact-body"><Textarea aria-label={ui("Notater")} value={c.note} onChange={(e) => p.update({ note: e.target.value })} rows={3}/></div>
         </details>
         <details className="compact-section">
           <summary>
             <span>
-              <Paperclip size={18} />
-              Vedlegg
-            </span>
+              <Paperclip size={18} /><UiText text="Vedlegg" /></span>
             <strong>
               {p.attachments.length
                 ? `${p.attachments.length} filer`
-                : "Ingen vedlegg"}
+                : ui("Ingen vedlegg")}
             </strong>
           </summary>
           <div className="compact-body">
             <label className="attachment-upload">
               <Paperclip />
-              <span>{p.uploading ? "Laster opp …" : "Legg til vedlegg"}</span>
+              <span>{p.uploading ? ui("Laster opp …") : ui("Legg til vedlegg")}</span>
               <input
                 type="file"
                 disabled={p.uploading || c.id < 0}
@@ -2862,9 +2793,7 @@ function Customers(p: {
               />
             </label>
             {c.id < 0 && (
-              <p className="form-hint">
-                Lagre en ekte kunde før du legger til vedlegg.
-              </p>
+              <p className="form-hint"><UiText text="Lagre en ekte kunde før du legger til vedlegg." /></p>
             )}
             <div className="attachment-list">
               {p.attachments.map((a) => (
@@ -2883,7 +2812,7 @@ function Customers(p: {
                   </button>
                   <button
                     className="attachment-delete"
-                    title="Slett vedlegg"
+                    title={ui("Slett vedlegg")}
                     onClick={() => p.removeAttachment(a)}
                   >
                     <Trash2 size={17} />
@@ -2895,8 +2824,8 @@ function Customers(p: {
         </details>
         <details className="compact-section customer-history" key={historyScope}>
           <summary>
-            <span><Clock3 size={18} />Historikk</span>
-            <strong>{p.history.length} {p.history.length === 1 ? "hendelse" : "hendelser"}</strong>
+            <span><Clock3 size={18} /><UiText text="Historikk" /></span>
+            <strong>{p.history.length} {p.history.length === 1 ? "hendelse" : <UiText text="hendelser" />}</strong>
           </summary>
           {p.history.length ? (
             <div className="history-list">
@@ -2911,13 +2840,12 @@ function Customers(p: {
                     <div className="task-kind">{icon(a.kind)}</div>
                     <div>
                       <strong>
-                        {a.kind}
+                        {ui(a.kind)}
                         {contact ? ` · ${contact.name}` : ""}
                       </strong>
-                      <p>{a.note || "Ingen notat"}</p>
+                      <p>{a.note || ui("Ingen notat")}</p>
                       <span>
-                        {date(a.completedAt || a.createdAt, true)} · registrert
-                        av {a.createdBy}
+                        {date(a.completedAt || a.createdAt, true)}<UiText text=" · registrert av " />{a.createdBy}
                       </span>
                     </div>
                     <ChevronRight />
@@ -2926,12 +2854,12 @@ function Customers(p: {
               })}
             </div>
           ) : (
-            <p className="empty-line">Ingen hendelser er registrert ennå.</p>
+            <p className="empty-line"><UiText text="Ingen hendelser er registrert ennå." /></p>
           )}
-          {historyPages > 1 && <nav className="customer-history-pages" aria-label="Sider i kundehistorikken">
-            <Button variant="outline" size="sm" disabled={historyPage === 0} onClick={() => changeHistoryPage(historyPage - 1)} aria-label="Forrige side i historikken">Forrige</Button>
-            <span aria-live="polite">Side {historyPage + 1} av {historyPages}</span>
-            <Button variant="outline" size="sm" disabled={historyPage === historyPages - 1} onClick={() => changeHistoryPage(historyPage + 1)} aria-label="Neste side i historikken">Neste</Button>
+          {historyPages > 1 && <nav className="customer-history-pages" aria-label={ui("Sider i kundehistorikken")}>
+            <Button variant="outline" size="sm" disabled={historyPage === 0} onClick={() => changeHistoryPage(historyPage - 1)} aria-label={ui("Forrige side i historikken")}><UiText text="Forrige" /></Button>
+            <span aria-live="polite"><UiText text="Side " />{historyPage + 1}<UiText text=" av " />{historyPages}</span>
+            <Button variant="outline" size="sm" disabled={historyPage === historyPages - 1} onClick={() => changeHistoryPage(historyPage + 1)} aria-label={ui("Neste side i historikken")}><UiText text="Neste" /></Button>
           </nav>}
         </details>
         <Sheet
@@ -2940,52 +2868,46 @@ function Customers(p: {
         >
           <SheetContent className="history-sheet sm:max-w-[42vw]">
             <SheetHeader>
-              <SheetTitle>{openHistory?.kind}</SheetTitle>
+              <SheetTitle>{ui(openHistory?.kind)}</SheetTitle>
               <SheetDescription>
                 {openHistory
-                  ? `${date(openHistory.completedAt || openHistory.createdAt, true)} · registrert av ${openHistory.createdBy}`
+                  ? ui("{0} · registrert av {1}",{"0":date(openHistory.completedAt || openHistory.createdAt, true),"1":openHistory.createdBy})
                   : ""}
               </SheetDescription>
             </SheetHeader>
             <div className="history-sheet-body">
               <div>
-                <span>Kontaktperson</span>
+                <span><UiText text="Kontaktperson" /></span>
                 <strong>
-                  {historyContact?.name || "Ingen kontaktperson valgt"}
+                  {historyContact?.name || ui("Ingen kontaktperson valgt")}
                 </strong>
               </div>
               <div>
-                <span>Notat</span>
-                <Textarea aria-label="Rediger notat" rows={8} value={historyDraft} disabled={savingHistory} onChange={event=>setHistoryDraft(event.target.value)} />
-                <div className="history-note-actions"><Button disabled={savingHistory || historyDraft === (openHistory?.note || "")} onClick={saveHistoryNote}>{savingHistory?"Lagrer …":"Lagre notat"}</Button><Button variant="outline" disabled={savingHistory} onClick={()=>{setHistoryDraft(openHistory?.note||"");setOpenHistory(null);}}>Avbryt</Button></div>
+                <span><UiText text="Notat" /></span>
+                <Textarea aria-label={ui("Rediger notat")} rows={8} value={historyDraft} disabled={savingHistory} onChange={event=>setHistoryDraft(event.target.value)} />
+                <div className="history-note-actions"><Button disabled={savingHistory || historyDraft === (openHistory?.note || "")} onClick={saveHistoryNote}>{savingHistory?ui("Lagrer …"):ui("Lagre notat")}</Button><Button variant="outline" disabled={savingHistory} onClick={()=>{setHistoryDraft(openHistory?.note||"");setOpenHistory(null);}}><UiText text="Avbryt" /></Button></div>
               </div>
             </div>
             {openHistory && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" className="history-delete">
-                    <Trash2 />
-                    Slett hendelsen
-                  </Button>
+                    <Trash2 /><UiText text="Slett hendelsen" /></Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Slette denne hendelsen?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Dette kan ikke angres.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle><UiText text="Slette denne hendelsen?" /></AlertDialogTitle>
+                    <AlertDialogDescription><UiText text="Dette kan ikke angres." /></AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                    <AlertDialogCancel><UiText text="Avbryt" /></AlertDialogCancel>
                     <AlertDialogAction
                       variant="destructive"
                       onClick={() => {
                         p.removeHistory(openHistory);
                         setOpenHistory(null);
                       }}
-                    >
-                      Slett
-                    </AlertDialogAction>
+                    ><UiText text="Slett" /></AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -3005,31 +2927,32 @@ function Follow(p: {
   select: (id: number) => void;
   calendar: () => void;
 }) {
+ const {ui}=useUiTranslation();
   return (
     <div className="page-pad">
       <Group
-        title="Forfalt"
+        title={ui("Forfalt")}
         items={p.overdue}
         tone="danger"
         complete={p.complete}
         select={p.select}
       />
       <Group
-        title="I dag"
+        title={ui("I dag")}
         items={p.today}
         tone="today"
         complete={p.complete}
         select={p.select}
       />
       <Group
-        title="Kommende"
+        title={ui("Kommende")}
         items={p.upcoming}
         complete={p.complete}
         select={p.select}
       />
       <section className="surface compact">
         <div className="surface-head">
-          <h3>Ingen oppfølging avtalt</h3>
+          <h3><UiText text="Ingen oppfølging avtalt" /></h3>
           <span>{p.none.length}</span>
         </div>
         {p.none.map((c) => (
@@ -3040,7 +2963,7 @@ function Follow(p: {
           >
             <div className="company-icon">{c.name[0]}</div>
             <strong>{c.name}</strong>
-            <span>Avtal oppfølging</span>
+            <span><UiText text="Avtal oppfølging" /></span>
             <ChevronRight />
           </button>
         ))}
@@ -3073,7 +2996,7 @@ function Group(p: {
           ))}
         </div>
       ) : (
-        <p className="empty-line">Ingen oppfølginger her.</p>
+        <p className="empty-line"><UiText text="Ingen oppfølginger her." /></p>
       )}
     </section>
   );
@@ -3083,6 +3006,8 @@ function Task(p: {
   complete: (a: Activity) => void;
   select: (id: number) => void;
 }) {
+ const {date,followUpLabel,daysSince,number}=useCrmFormatting();
+ const {ui}=useUiTranslation();
   return (
     <div className="task-row">
       <div className="task-kind">{icon(p.a.kind)}</div>
@@ -3101,12 +3026,10 @@ function Task(p: {
         <Button
           variant="outline"
           className="complete-button"
-          title="Marker oppfølgingen som utført"
+          title={ui("Marker oppfølgingen som utført")}
           onClick={() => p.complete(p.a)}
         >
-          <Check />
-          Marker som utført
-        </Button>
+          <Check /><UiText text="Marker som utført" /></Button>
       </div>
     </div>
   );
@@ -3118,6 +3041,7 @@ function Reports(p: {
   role: string;
   currentUser: string;
 }) {
+ const {ui}=useUiTranslation();
   const [period, setPeriod] = useState("week"),
     [employee, setEmployee] = useState(
       p.role === "Bruker" ? p.currentUser : "all",
@@ -3188,7 +3112,7 @@ function Reports(p: {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle ansatte</SelectItem>
+              <SelectItem value="all"><UiText text="Alle ansatte" /></SelectItem>
               {p.members
                 .filter((member) => member.active)
                 .map((member) => (
@@ -3204,11 +3128,11 @@ function Reports(p: {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="today">I dag</SelectItem>
-            <SelectItem value="week">Denne uken</SelectItem>
-            <SelectItem value="previous">Forrige uke</SelectItem>
-            <SelectItem value="year">I år</SelectItem>
-            <SelectItem value="custom">Valgfri datointervall</SelectItem>
+            <SelectItem value="today"><UiText text="I dag" /></SelectItem>
+            <SelectItem value="week"><UiText text="Denne uken" /></SelectItem>
+            <SelectItem value="previous"><UiText text="Forrige uke" /></SelectItem>
+            <SelectItem value="year"><UiText text="I år" /></SelectItem>
+            <SelectItem value="custom"><UiText text="Valgfri datointervall" /></SelectItem>
           </SelectContent>
         </Select>
         {period === "custom" && (
@@ -3218,7 +3142,7 @@ function Reports(p: {
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
             />
-            <span>til</span>
+            <span><UiText text="til" /></span>
             <Input
               type="date"
               value={customTo}
@@ -3230,8 +3154,8 @@ function Reports(p: {
       <section className="surface report">
         <div className="surface-head">
           <div>
-            <p className="eyebrow">VALGT PERIODE</p>
-            <h3>Aktivitet og resultater</h3>
+            <p className="eyebrow"><UiText text="VALGT PERIODE" /></p>
+            <h3><UiText text="Aktivitet og resultater" /></h3>
           </div>
         </div>
         <div className="report-rows">
@@ -3258,14 +3182,14 @@ function Reports(p: {
           tone="red"
         />
         <Metric
-          label="Tilbud sendt"
+          label={ui("Tilbud sendt")}
           value={
             p.companies.filter(
               (c) => c.stage === "Tilbud sendt" && own(c.assignedTo),
             ).length
           }
         />
-        <Metric label="Kunder tapt" value={vals[6]} tone="red" />
+        <Metric label={ui("Kunder tapt")} value={vals[6]} tone="red" />
         <Metric
           label="Aktiviteter registrert"
           value={activities.filter((a) => a.completedAt).length}
@@ -3274,7 +3198,7 @@ function Reports(p: {
       </div>
       <section className="surface">
         <div className="surface-head">
-          <h3>Aktivitet per medarbeider</h3>
+          <h3><UiText text="Aktivitet per medarbeider" /></h3>
         </div>
         {people.length ? (
           people.map((n) => (
@@ -3282,12 +3206,11 @@ function Reports(p: {
               <div className="avatar">{n.slice(0, 2).toUpperCase()}</div>
               <strong>{n}</strong>
               <span>
-                {activities.filter((a) => a.createdBy === n).length} aktiviteter
-              </span>
+                {activities.filter((a) => a.createdBy === n).length}<UiText text=" aktiviteter" /></span>
             </div>
           ))
         ) : (
-          <p className="empty-line">Ingen aktiviteter i perioden.</p>
+          <p className="empty-line"><UiText text="Ingen aktiviteter i perioden." /></p>
         )}
       </section>
     </div>
@@ -3314,6 +3237,8 @@ function Admin(p: {
   switchOrg: (id: number) => void;
   exportBackup: () => void;
 }) {
+ const {date,followUpLabel,daysSince,number}=useCrmFormatting();
+ const {ui}=useUiTranslation();
   return (
     <div className="page-pad admin-grid">
 
@@ -3322,23 +3247,21 @@ function Admin(p: {
       )}
       <AdminCard
         eye="KUNDEIMPORT"
-        title="Importer data"
+        title={ui("Importer data")}
         ico={<FileSpreadsheet />}
       >
         <DataImporter key={p.activeOrgId} organizationId={p.activeOrgId} onImported={p.onImported} />
       </AdminCard>
       <AdminCard
         eye="SIKKERHETSKOPI"
-        title="Eksporter alle data"
+        title={ui("Eksporter alle data")}
         ico={<Download />}
       >
-        <p>Last ned kunder, kontaktpersoner og historikk som en Excel-fil.</p>
+        <p><UiText text="Last ned kunder, kontaktpersoner og historikk som en Excel-fil." /></p>
         <Button variant="outline" onClick={p.exportBackup}>
-          <Download />
-          Last ned sikkerhetskopi
-        </Button>
+          <Download /><UiText text="Last ned sikkerhetskopi" /></Button>
       </AdminCard>
-      <AdminCard eye="TILGANG" title="Brukere og roller" ico={<UserPlus />}>
+      <AdminCard eye="TILGANG" title={ui("Brukere og roller")} ico={<UserPlus />}>
         <div className="member-list">
           {p.members.map((m) => (
             <div key={m.id}>
@@ -3347,27 +3270,27 @@ function Admin(p: {
                 <strong>{m.name}</strong>
                 <small>{m.email}</small>
               </span>
-              {m.scheduledDisableAt && <small>Deaktiveres {date(m.scheduledDisableAt,true)}</small>}
+              {m.scheduledDisableAt && <small><UiText text="Deaktiveres " />{date(m.scheduledDisableAt,true)}</small>}
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => p.setMemberStatus(m, m.scheduledDisableAt ? true : !m.active)}
               >
-                {m.scheduledDisableAt ? "Avbryt deaktivering" : m.active ? "Deaktiver" : "Aktiver"}
+                {m.scheduledDisableAt ? <UiText text="Avbryt deaktivering" /> : m.active ? <UiText text="Deaktiver" /> : <UiText text="Aktiver" />}
               </Button>
             </div>
           ))}
         </div>
         <div className="member-form">
           <Input
-            placeholder="Navn"
+            placeholder={ui("Navn")}
             value={p.newMember.name}
             onChange={(e) =>
               p.setNewMember({ ...p.newMember, name: e.target.value })
             }
           />
           <Input
-            placeholder="E-post"
+            placeholder={ui("E-post")}
             value={p.newMember.email}
             onChange={(e) =>
               p.setNewMember({ ...p.newMember, email: e.target.value })
@@ -3381,40 +3304,35 @@ function Admin(p: {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Bruker">Bruker</SelectItem>
+              <SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem>
               <SelectItem value="Administrator">Administrator</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={p.addMember}>Aktiver</Button>
+          <Button onClick={p.addMember}><UiText text="Aktiver" /></Button>
         </div>
       </AdminCard>
       <AdminCard
         eye="SUPPORT"
-        title="Trygg supporttilgang"
+        title={ui("Trygg supporttilgang")}
         open={p.supportRequests.length>0||p.supportAccess}
         ico={<Headphones />}
       >
-        <p>
-          Velg tilgang i 24 timer eller til dere slår den av. Tilgangen kan avsluttes når som helst. Alle endringer loggføres.
-        </p>
+        <p><UiText text="Velg tilgang i 24 timer eller til dere slår den av. Tilgangen kan avsluttes når som helst. Alle endringer loggføres." /></p>
         {p.supportRequests.map((r) => (
           <div className="support-request" key={r.id}>
             <div>
-              <strong>Support ber om midlertidig tilgang</strong>
-              <span>
-                Sendt av {r.requestedBy} · {date(r.createdAt, true)}
+              <strong><UiText text="Support ber om midlertidig tilgang" /></strong>
+              <span><UiText text="Sendt av " />{r.requestedBy} · {date(r.createdAt, true)}
               </span>
             </div>
-            <div className="support-approval-actions"><Button onClick={() => p.approveSupport(r.id,"24h")}>
-              Godkjenn i 24 timer
-            </Button><Button variant="outline" onClick={()=>p.approveSupport(r.id,"untilRevoked")}>Godkjenn til vi slår av</Button></div>
+            <div className="support-approval-actions"><Button onClick={() => p.approveSupport(r.id,"24h")}><UiText text="Godkjenn i 24 timer" /></Button><Button variant="outline" onClick={()=>p.approveSupport(r.id,"untilRevoked")}><UiText text="Godkjenn til vi slår av" /></Button></div>
           </div>
         ))}
         <div className="setting-row">
           <div>
-            <strong>Gi support tilgang</strong>
+            <strong><UiText text="Gi support tilgang" /></strong>
             <span>
-              {p.supportAccess ? (p.supportExpiresAt.startsWith("9999") ? "Aktiv til dere slår den av" : p.supportExpiresAt ? "Tilgang til "+date(p.supportExpiresAt,true) : "Tilgang i 24 timer") : "Ingen har tilgang"}
+              {p.supportAccess ? (p.supportExpiresAt.startsWith("9999") ? ui("Aktiv til dere slår den av") : p.supportExpiresAt ? ui("Tilgang til ")+date(p.supportExpiresAt,true) : ui("Tilgang i 24 timer")) : ui("Ingen har tilgang")}
             </span>
           </div>
           <Switch checked={p.supportAccess} onCheckedChange={p.support} />
@@ -3424,6 +3342,7 @@ function Admin(p: {
   );
 }
 function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]; organizationId: number; onSent:()=>void }) {
+ const {ui}=useUiTranslation();
   const [emailAt,setEmailAt]=useState("");
   const [sendLater,setSendLater]=useState(false);
   const [files,setFiles]=useState<File[]>([]);
@@ -3445,46 +3364,46 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
   return (
       <div className="bulk-email">
         <div>
-          <Label>Kundegruppe</Label>
+          <Label><UiText text="Kundegruppe" /></Label>
           <Select value={segment} onValueChange={setSegment}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Alle kunder</SelectItem>
-              <SelectItem value="Ny kunde">Nye kunder</SelectItem>
-              <SelectItem value="active">Kunder under oppfølging</SelectItem>
-              <SelectItem value="Vunnet">Vunnede kunder</SelectItem>
-              <SelectItem value="Tapt">Tapte kunder</SelectItem>
+              <SelectItem value="all"><UiText text="Alle kunder" /></SelectItem>
+              <SelectItem value="Ny kunde"><UiText text="Nye kunder" /></SelectItem>
+              <SelectItem value="active"><UiText text="Kunder under oppfølging" /></SelectItem>
+              <SelectItem value="Vunnet"><UiText text="Vunnede kunder" /></SelectItem>
+              <SelectItem value="Tapt"><UiText text="Tapte kunder" /></SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label>Emne</Label>
+          <Label><UiText text="Emne" /></Label>
           <Input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Skriv emne"
+            placeholder={ui("Skriv emne")}
           />
         </div>
         <div className="full">
-          <Label>Melding</Label>
+          <Label><UiText text="Melding" /></Label>
           <Textarea
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => setMessage(ui(e.target.value))}
             rows={4}
-            placeholder="Skriv meldingen …"
+            placeholder={ui("Skriv meldingen …")}
           />
         </div>
         <div className="full email-attachments">
-          <Label htmlFor="bulk-email-files">Vedlegg</Label>
-          <Input id="bulk-email-files" type="file" multiple onChange={event=>{const next=[...files,...Array.from(event.target.files??[])];event.target.value="";if(next.length>10||next.reduce((sum,f)=>sum+f.size,0)>10*1024*1024)return toast.error("Maks 10 vedlegg og 10 MB samlet.");setFiles(next);}} />
-          {files.map((file,index)=><div className="offer-file" key={`${file.name}-${index}`}><span>{file.name} · {fileSize(file.size)}</span><Button size="sm" variant="ghost" onClick={()=>setFiles(current=>current.filter((_,i)=>i!==index))}><X/>Fjern</Button></div>)}
-          <p className="form-hint">Maks 10 vedlegg, 10 MB samlet og 49 mottakere per utsending.</p>
+          <Label htmlFor="bulk-email-files"><UiText text="Vedlegg" /></Label>
+          <Input id="bulk-email-files" type="file" multiple onChange={event=>{const next=[...files,...Array.from(event.target.files??[])];event.target.value="";if(next.length>10||next.reduce((sum,f)=>sum+f.size,0)>10*1024*1024)return toast.error(ui("Maks 10 vedlegg og 10 MB samlet."));setFiles(next);}} />
+          {files.map((file,index)=><div className="offer-file" key={`${file.name}-${index}`}><span>{file.name} · {fileSize(file.size)}</span><Button size="sm" variant="ghost" onClick={()=>setFiles(current=>current.filter((_,i)=>i!==index))}><X/><UiText text="Fjern" /></Button></div>)}
+          <p className="form-hint"><UiText text="Maks 10 vedlegg, 10 MB samlet og 49 mottakere per utsending." /></p>
         </div>
-        <div className="full email-timing"><Label>Sendetidspunkt</Label><Select value={sendLater?"later":"now"} onValueChange={v=>{setSendLater(v==="later");setEmailAt("");}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="now">Send nå</SelectItem><SelectItem value="later">Planlegg til senere</SelectItem></SelectContent></Select>{sendLater&&<><DateTimePicker label="Send e-post" value={emailAt} onChange={setEmailAt}/><p className="form-hint">Velg dato og tid. E-posten sendes automatisk selv om CRM-et er lukket. Tidssone: {Intl.DateTimeFormat().resolvedOptions().timeZone}.</p></>}</div>
+        <div className="full email-timing"><Label><UiText text="Sendetidspunkt" /></Label><Select value={sendLater?"later":"now"} onValueChange={v=>{setSendLater(v==="later");setEmailAt("");}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="now"><UiText text="Send nå" /></SelectItem><SelectItem value="later"><UiText text="Planlegg til senere" /></SelectItem></SelectContent></Select>{sendLater&&<><DateTimePicker label={ui("Send e-post")} value={emailAt} onChange={setEmailAt}/><p className="form-hint"><UiText text="Velg dato og tid. E-posten sendes automatisk selv om CRM-et er lukket. Tidssone: " />{Intl.DateTimeFormat().resolvedOptions().timeZone}.</p></>}</div>
         <div className="bulk-email-foot">
-          <span>{emails.length} mottakere med e-postadresse</span>
+          <span>{emails.length}<UiText text=" mottakere med e-postadresse" /></span>
           <EmailSend organizationId={organizationId} companyIds={sendLater&&!emailAt?[]:targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk scheduledAt={sendLater?emailAt:undefined} onSent={onSent} recipientLabel={`${emails.length} mottakere · ${segment === "all"?"Alle kunder":segment}`} />
         </div>
       </div>
@@ -3492,6 +3411,7 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
   );
 }
 function OfferTemplateManager({ organizationId }: { organizationId: number }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const blank = {
@@ -3511,7 +3431,7 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
       .catch(() => undefined);
   }, [organizationId]);
   async function save() {
-    if (!draft.name.trim()) return toast.error("Gi malen et navn");
+    if (!draft.name.trim()) return toast.error(ui("Gi malen et navn"));
     const r = await apiFetch("/api/offers", {
         method: draft.id ? "PATCH" : "POST",
         headers: {
@@ -3521,28 +3441,28 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
         body: JSON.stringify(draft),
       }),
       d = await r.json();
-    if (!r.ok) return toast.error(d.error ?? "Kunne ikke lagre malen");
+    if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lagre malen"));
     setTemplates((rows) =>
       draft.id
         ? rows.map((row) => (row.id === draft.id ? d.template : row))
         : [d.template, ...rows],
     );
     setDraft(blank);
-    toast.success("Tilbudsmalen er lagret");
+    toast.success(ui("Tilbudsmalen er lagret"));
   }
   async function remove(id: number) {
     const r = await apiFetch(`/api/offers?id=${id}`, {
       method: "DELETE",
       headers: { "x-organization-id": String(organizationId) },
     });
-    if (!r.ok) return toast.error("Kunne ikke slette malen");
+    if (!r.ok) return toast.error(ui("Kunne ikke slette malen"));
     setTemplates((rows) => rows.filter((row) => row.id !== id));
     if (draft.id === id) setDraft(blank);
-    toast.success("Tilbudsmalen er slettet");
+    toast.success(ui("Tilbudsmalen er slettet"));
   }
   return (
-    <AdminCard eye="KUN FOR ADMINISTRATOR" title="Tilbudsmaler" ico={<Mail />}>
-      <p>Lag og vedlikehold malene som brukes på kundekortet.</p>
+    <AdminCard eye="KUN FOR ADMINISTRATOR" title={ui("Tilbudsmaler")} ico={<Mail />}>
+      <p><UiText text="Lag og vedlikehold malene som brukes på kundekortet." /></p>
       <div className="template-list">
         {templates.map((template) => (
           <div key={template.id}>
@@ -3555,41 +3475,34 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
               variant="outline"
               onClick={() => remove(template.id)}
             >
-              <Trash2 />
-              Slett
-            </Button>
+              <Trash2 /><UiText text="Slett" /></Button>
           </div>
         ))}
       </div>
       <div className="template-editor">
-        <Label>Navn på mal</Label>
+        <Label><UiText text="Navn på mal" /></Label>
         <Input
           value={draft.name}
           onChange={(e) => setDraft({ ...draft, name: e.target.value })}
         />
-        <Label>Emne</Label>
+        <Label><UiText text="Emne" /></Label>
         <Input
           value={draft.subject}
           onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
         />
-        <Label>E-posttekst</Label>
+        <Label><UiText text="E-posttekst" /></Label>
         <Textarea
           rows={7}
           value={draft.body}
           onChange={(e) => setDraft({ ...draft, body: e.target.value })}
         />
-        <p className="form-hint">
-          Bruk {"{{bedrift}}"} og {"{{kontaktperson}}"}. Verdiene fylles inn før
-          sending.
-        </p>
+        <p className="form-hint"><UiText text="Bruk " />{"{{bedrift}}"}<UiText text=" og " />{"{{kontaktperson}}"}<UiText text=". Verdiene fylles inn før sending." /></p>
         <div>
           <Button onClick={save}>
-            {draft.id ? "Lagre endringer" : "Opprett mal"}
+            {draft.id ? ui("Lagre endringer") : ui("Opprett mal")}
           </Button>
           {draft.id ? (
-            <Button variant="outline" onClick={() => setDraft(blank)}>
-              Avbryt
-            </Button>
+            <Button variant="outline" onClick={() => setDraft(blank)}><UiText text="Avbryt" /></Button>
           ) : null}
         </div>
       </div>
@@ -3625,6 +3538,7 @@ function CallLists({
   onDataChanged: () => Promise<void>;
   onGoToCustomer: (company: Company) => void;
 }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
@@ -3684,9 +3598,9 @@ function CallLists({
         .catch((error) => {
           if (!cancelled)
             toast.error(
-              error instanceof Error
+              ui(error instanceof Error
                 ? error.message
-                : "Kunne ikke hente ringelisten",
+                : "Kunne ikke hente ringelisten"),
             );
         })
         .finally(() => setLoadingEntries(false));
@@ -3717,8 +3631,8 @@ function CallLists({
   }, [purchaseOpen, role, organizationId]);
   async function activate() {
     if (purchaseBusy || !canManageModules(role)) return;
-    if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
-    if (!licensedMemberIds.length) return toast.error("Velg minst én bruker");
+    if (unitPrice == null) return toast.error(ui("Pris er ikke avtalt. Kontakt Noracre."));
+    if (!licensedMemberIds.length) return toast.error(ui("Velg minst én bruker"));
     setPurchaseBusy(true);
     try {
       const r = await apiFetch("/api/admin", {method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"moduleStatus",moduleKey:"ringelister",membershipIds:licensedMemberIds,acceptedPrice:unitPrice})});
@@ -3726,8 +3640,8 @@ function CallLists({
       if (!r.ok) throw new Error(d.error ?? "Kunne ikke aktivere modulen");
       onActivated(Boolean(d.currentUserActive));
       setPurchaseOpen(false);
-      toast.success("Modullisensene er oppdatert");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Kunne ikke aktivere modulen"); }
+      toast.success(ui("Modullisensene er oppdatert"));
+    } catch (error) { toast.error(ui(error instanceof Error ? error.message : "Kunne ikke aktivere modulen")); }
     finally { setPurchaseBusy(false); }
   }
 
@@ -3746,16 +3660,16 @@ function CallLists({
           }),
         }),
         d = await r.json();
-      if (!r.ok) return toast.error(d.error ?? "Kunne ikke lage ringelisten");
+      if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lage ringelisten"));
       setEntries(d.entries ?? []);
       callListCache.set(organizationId, {
         entries: d.entries ?? [],
         options,
         loadedAt: Date.now(),
       });
-      toast.success(`Ny ringeliste med ${d.added ?? 0} bedrifter er klar`);
-      if(d.added<filters.count)toast.info(`Fant ${d.added} av ${filters.count} ønskede bedrifter. Du kan utvide filtrene for flere treff.`);
-    } catch(error) { toast.error(error instanceof Error?error.message:"Kunne ikke hente bedriftene."); } finally {
+      toast.success(ui(`Ny ringeliste med ${d.added ?? 0} bedrifter er klar`));
+      if(d.added<filters.count)toast.info(ui(`Fant ${d.added} av ${filters.count} ønskede bedrifter. Du kan utvide filtrene for flere treff.`));
+    } catch(error) { toast.error(ui(error instanceof Error?error.message:"Kunne ikke hente bedriftene.")); } finally {
       setBusy(false);
     }
   }
@@ -3763,7 +3677,7 @@ function CallLists({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return toast.error("Importfilen kan være maks 5 MB.");
+    if (file.size > 5 * 1024 * 1024) return toast.error(ui("Importfilen kan være maks 5 MB."));
     const book = XLSX.read(await file.arrayBuffer(), { sheetRows: 501, sheets: 0 }),
       raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
         book.Sheets[book.SheetNames[0]],
@@ -3798,9 +3712,9 @@ function CallLists({
       }),
       d = await r.json();
     if (!r.ok)
-      return toast.error(d.error ?? "Kunne ikke importere ringelisten");
+      return toast.error(ui(d.error ?? "Kunne ikke importere ringelisten"));
     setEntries((current) => [...(d.entries ?? []), ...current]);
-    toast.success(`${d.added} bedrifter ble importert`);
+    toast.success(ui(`${d.added} bedrifter ble importert`));
   }
   useEffect(()=>{
     let cancelled=false;
@@ -3809,7 +3723,7 @@ function CallLists({
       try {const d=await loadCallListInitial(organizationId,true,apiFetch);if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
         const r=await apiFetch("/api/call-lists?view=history",{headers:{"x-organization-id":String(organizationId)}});
         if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
-      }catch{if(!cancelled)toast.error("Kunne ikke oppdatere navnene i ringelisten.");}
+      }catch{if(!cancelled)toast.error(ui("Kunne ikke oppdatere navnene i ringelisten."));}
     };
     window.addEventListener("crm-profile-updated",refresh);
     return ()=>{cancelled=true;window.removeEventListener("crm-profile-updated",refresh);};
@@ -3837,7 +3751,7 @@ function CallLists({
       }),
       d = await r.json();
     if (!r.ok) {
-      toast.error(d.error ?? "Kunne ikke oppdatere bedriften");
+      toast.error(ui(d.error ?? "Kunne ikke oppdatere bedriften"));
       return null;
     }
     setEntries((rows) => rows.filter((item) => item.id !== row.id));
@@ -3852,7 +3766,7 @@ function CallLists({
     )
       void onDataChanged();
     if (status === "Møte booket")
-      toast.success("Møtet er lagt til under kunder og oppfølging");
+      toast.success(ui("Møtet er lagt til under kunder og oppfølging"));
     return d;
   }
   function update(row: CallListEntry, status: string) {
@@ -3906,7 +3820,7 @@ function CallLists({
     if (!r.ok) {
       setEntries((rows) => [row, ...rows]);
       setCustomerChoice(null);
-      return toast.error(d.error ?? "Kunne ikke legge til kunden");
+      return toast.error(ui(d.error ?? "Kunne ikke legge til kunden"));
     }
     setHistory((rows) => [d.entry, ...rows]);
     setCustomerChoice((choice) => {
@@ -3927,14 +3841,12 @@ function CallLists({
         <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Aktiver Ringelister</DialogTitle>
-              <DialogDescription>
-                Velg hvilke ansatte som skal ha modulen. Avtalt pris er {unitPrice} kr per bruker per måned eks. mva.
-              </DialogDescription>
+              <DialogTitle><UiText text="Aktiver Ringelister" /></DialogTitle>
+              <DialogDescription><UiText text="Velg hvilke ansatte som skal ha modulen. Avtalt pris er " />{unitPrice}<UiText text=" kr per bruker per måned eks. mva." /></DialogDescription>
             </DialogHeader>
             <div className="module-member-list">
               <div className="module-member-all">
-                <strong>Aktive brukere</strong>
+                <strong><UiText text="Aktive brukere" /></strong>
                 <Button
                   variant="outline"
                   size="sm"
@@ -3946,9 +3858,7 @@ function CallLists({
                       licensedMemberIds.length === all.length ? [] : all,
                     );
                   }}
-                >
-                  Alle
-                </Button>
+                ><UiText text="Alle" /></Button>
               </div>
               {members
                 .filter((member) => member.active)
@@ -3975,13 +3885,11 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : "brukere"}
+                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
               </span>
-              <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
+              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
-            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}>
-              Bekreft kjøp og aktiver
-            </Button>
+            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Bekreft kjøp og aktiver" /></Button>
           </DialogContent>
         </Dialog>
       </div>
@@ -3991,17 +3899,15 @@ function CallLists({
       <section className="surface">
         <div className="operations-head">
           <div>
-            <p className="eyebrow">RINGELISTER</p>
-            <h3>Lag en målrettet liste</h3>
+            <p className="eyebrow"><UiText text="RINGELISTER" /></p>
+            <h3><UiText text="Lag en målrettet liste" /></h3>
           </div>
           <div className="offer-actions call-list-actions">
             {canManageModules(role) && (
               <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
-                <UsersRound />
-                Administrer brukere
-              </Button>
+                <UsersRound /><UiText text="Administrer brukere" /></Button>
             )}
-            <Button variant="outline" onClick={()=>callListImportRef.current?.click()}><Upload size={18}/>Importer egen liste</Button>
+            <Button variant="outline" onClick={()=>callListImportRef.current?.click()}><Upload size={18}/><UiText text="Importer egen liste" /></Button>
             <input ref={callListImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importFile}/>
 
           </div>
@@ -4009,14 +3915,12 @@ function CallLists({
         <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Ringelister for ansatte</DialogTitle>
-              <DialogDescription>
-                Velg hvem som skal ha modulen. Prisen oppdateres når du lagrer.
-              </DialogDescription>
+              <DialogTitle><UiText text="Ringelister for ansatte" /></DialogTitle>
+              <DialogDescription><UiText text="Velg hvem som skal ha modulen. Prisen oppdateres når du lagrer." /></DialogDescription>
             </DialogHeader>
             <div className="module-member-list">
               <div className="module-member-all">
-                <strong>Aktive brukere</strong>
+                <strong><UiText text="Aktive brukere" /></strong>
                 <Button
                   variant="outline"
                   size="sm"
@@ -4028,9 +3932,7 @@ function CallLists({
                       licensedMemberIds.length === all.length ? [] : all,
                     );
                   }}
-                >
-                  Alle
-                </Button>
+                ><UiText text="Alle" /></Button>
               </div>
               {members
                 .filter((member) => member.active)
@@ -4057,18 +3959,16 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : "brukere"}
+                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
               </span>
-              <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
+              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
-            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}>
-              Lagre og bekreft pris
-            </Button>
+            <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Lagre og bekreft pris" /></Button>
           </DialogContent>
         </Dialog>
-        <fieldset className="call-filter-fields" disabled={busy}><legend className="sr-only">Søkefiltre</legend><div className="call-filter-grid">
+        <fieldset className="call-filter-fields" disabled={busy}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
           <div>
-            <Label>Min. ansatte</Label>
+            <Label><UiText text="Min. ansatte" /></Label>
             <Input
               type="number"
               min="0"
@@ -4080,11 +3980,11 @@ function CallLists({
             />
           </div>
           <div>
-            <Label>Maks ansatte</Label>
+            <Label><UiText text="Maks ansatte" /></Label>
             <Input
               type="number"
               min="0"
-              placeholder="Ingen grense"
+              placeholder={ui("Ingen grense")}
               value={filters.maxEmployees===1000000?"":filters.maxEmployees}
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) =>
@@ -4093,12 +3993,12 @@ function CallLists({
             />
           </div>
           <div>
-            <Label>Sted</Label>
-            <CallListMultiPicker values={filters.locationCodes} onChange={locationCodes=>setFilters({...filters,locationCodes})} groups={[{heading:'Fylker',options:options.counties.map(x=>({...x,value:'county:'+x.value}))},{heading:'Byer og kommuner',options:options.municipalities}]} placeholder="Søk etter sted" allLabel="Hele Norge" noun="steder"/>
+            <Label><UiText text="Sted" /></Label>
+            <CallListMultiPicker values={filters.locationCodes} onChange={locationCodes=>setFilters({...filters,locationCodes})} groups={[{heading:'Fylker',options:options.counties.map(x=>({...x,value:'county:'+x.value}))},{heading:'Byer og kommuner',options:options.municipalities}]} placeholder={ui("Søk etter sted")} allLabel="Hele Norge" noun={ui("steder")}/>
           </div>
-          <div><Label>Bransje</Label><CallListMultiPicker values={filters.industryCodes} onChange={industryCodes=>setFilters({...filters,industryCodes})} groups={[{heading:'Bransjer',options:options.industries}]} placeholder="Søk etter bransje" allLabel="Alle bransjer" noun="bransjer"/></div>
+          <div><Label><UiText text="Bransje" /></Label><CallListMultiPicker values={filters.industryCodes} onChange={industryCodes=>setFilters({...filters,industryCodes})} groups={[{heading:'Bransjer',options:options.industries}]} placeholder={ui("Søk etter bransje")} allLabel={ui("Alle bransjer")} noun={ui("bransjer")}/></div>
           <div>
-            <Label>Antall</Label>
+            <Label><UiText text="Antall" /></Label>
             <Input
               type="number"
               min="1"
@@ -4111,11 +4011,11 @@ function CallLists({
             />
           </div>
           <div>
-            <Label>Organisasjonsform</Label>
-            <CallListMultiPicker values={filters.organizationForms} onChange={organizationForms=>setFilters({...filters,organizationForms})} groups={[{heading:'Vanlige organisasjonsformer',options:options.organizationForms.filter(x=>['AS','ENK'].includes(x.value))},{heading:'Andre organisasjonsformer',options:options.organizationForms.filter(x=>!['AS','ENK'].includes(x.value))}]} placeholder="Søk etter organisasjonsform" allLabel="Alle organisasjonsformer" noun="organisasjonsformer" allMeansEmpty={false}/>
+            <Label><UiText text="Organisasjonsform" /></Label>
+            <CallListMultiPicker values={filters.organizationForms} onChange={organizationForms=>setFilters({...filters,organizationForms})} groups={[{heading:'Vanlige organisasjonsformer',options:options.organizationForms.filter(x=>['AS','ENK'].includes(x.value))},{heading:'Andre organisasjonsformer',options:options.organizationForms.filter(x=>!['AS','ENK'].includes(x.value))}]} placeholder={ui("Søk etter organisasjonsform")} allLabel={ui("Alle organisasjonsformer")} noun={ui("organisasjonsformer")} allMeansEmpty={false}/>
           </div>
-          <div><Label htmlFor="call-established-from">Etablert fra</Label><NorwegianDateInput id="call-established-from" label="Etablert fra" value={filters.establishedFrom} onChange={establishedFrom=>setFilters({...filters,establishedFrom})}/></div>
-          <div><Label htmlFor="call-established-to">Etablert til</Label><NorwegianDateInput id="call-established-to" label="Etablert til" value={filters.establishedTo} onChange={establishedTo=>setFilters({...filters,establishedTo})}/></div>
+          <div><Label htmlFor="call-established-from"><UiText text="Etablert fra" /></Label><NorwegianDateInput id="call-established-from" label={ui("Etablert fra")} value={filters.establishedFrom} onChange={establishedFrom=>setFilters({...filters,establishedFrom})}/></div>
+          <div><Label htmlFor="call-established-to"><UiText text="Etablert til" /></Label><NorwegianDateInput id="call-established-to" label={ui("Etablert til")} value={filters.establishedTo} onChange={establishedTo=>setFilters({...filters,establishedTo})}/></div>
         </div>
         <div className="contact-requirements">
           <label>
@@ -4125,9 +4025,7 @@ function CallLists({
               onChange={(e) =>
                 setFilters({ ...filters, requirePhone: e.target.checked })
               }
-            />
-            Må ha telefonnummer
-          </label>
+            /><UiText text="Må ha telefonnummer" /></label>
           <label>
             <input
               type="checkbox"
@@ -4135,12 +4033,10 @@ function CallLists({
               onChange={(e) =>
                 setFilters({ ...filters, requireEmail: e.target.checked })
               }
-            />
-            Må ha e-postadresse
-          </label>
+            /><UiText text="Må ha e-postadresse" /></label>
           <Button onClick={generate} disabled={busy}>
             <Search />
-            {busy ? "Lager liste …" : "Hent bedrifter"}
+            {busy ? ui("Lager liste …") : ui("Hent bedrifter")}
           </Button>
         </div>
         </fieldset>
@@ -4153,10 +4049,9 @@ function CallLists({
           }}
         >
           <TabsList>
-            <TabsTrigger value="queue">
-              Ringeliste ({entries.length})
+            <TabsTrigger value="queue"><UiText text="Ringeliste (" />{entries.length})
             </TabsTrigger>
-            <TabsTrigger value="history">Historikk</TabsTrigger>
+            <TabsTrigger value="history"><UiText text="Historikk" /></TabsTrigger>
           </TabsList>
           <TabsContent value="queue">
             {loadingEntries ? (
@@ -4168,7 +4063,7 @@ function CallLists({
             ) : entries.length ? (
               <ProspectRows rows={entries} update={update} />
             ) : (
-              <p className="empty-line">Ingen bedrifter i listen ennå.</p>
+              <p className="empty-line"><UiText text="Ingen bedrifter i listen ennå." /></p>
             )}
           </TabsContent>
           <TabsContent value="history">
@@ -4177,7 +4072,7 @@ function CallLists({
               <Input
                 value={historyQuery}
                 onChange={(e) => setHistoryQuery(e.target.value)}
-                placeholder="Søk i bedrift, status eller medarbeider"
+                placeholder={ui("Søk i bedrift, status eller medarbeider")}
               />
             </div>
             {historyLoaded ? (
@@ -4201,7 +4096,7 @@ function CallLists({
                 ) : null;
               })
             ) : (
-              <p className="empty-line">Henter historikk …</p>
+              <p className="empty-line"><UiText text="Henter historikk …" /></p>
             )}
           </TabsContent>
         </Tabs>
@@ -4214,39 +4109,37 @@ function CallLists({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Book møte</DialogTitle>
-            <DialogDescription>
-              Bedriften legges samtidig til under Kunder.
-            </DialogDescription>
+            <DialogTitle><UiText text="Book møte" /></DialogTitle>
+            <DialogDescription><UiText text="Bedriften legges samtidig til under Kunder." /></DialogDescription>
           </DialogHeader>
           <div className="meeting-form">
-            <Label>Dato og tidspunkt</Label>
-            <DateTimePicker label="Møtetidspunkt" value={meeting.meetingAt} onChange={value => setMeeting({ ...meeting, meetingAt: value })}/>
+            <Label><UiText text="Dato og tidspunkt" /></Label>
+            <DateTimePicker label={ui("Møtetidspunkt")} value={meeting.meetingAt} onChange={value => setMeeting({ ...meeting, meetingAt: value })}/>
             <ReminderFields value={meeting.reminderMinutes} onChange={reminderMinutes=>setMeeting({...meeting,reminderMinutes})}/>
-            <Label>Kontaktperson</Label>
+            <Label><UiText text="Kontaktperson" /></Label>
             <Input
               value={meeting.contactName}
               onChange={(e) =>
                 setMeeting({ ...meeting, contactName: e.target.value })
               }
-              placeholder="Navn"
+              placeholder={ui("Navn")}
             />
-            <Label>E-post</Label>
+            <Label><UiText text="E-post" /></Label>
             <Input
               value={meeting.contactEmail}
               onChange={(e) =>
                 setMeeting({ ...meeting, contactEmail: e.target.value })
               }
             />
-            <Label>Telefon</Label>
+            <Label><UiText text="Telefon" /></Label>
             <Input
               value={meeting.contactPhone}
               onChange={(e) =>
                 setMeeting({ ...meeting, contactPhone: e.target.value })
               }
             />
-            <Label htmlFor="call-meeting-note">Hva skal møtet handle om?</Label>
-            <Textarea id="call-meeting-note" value={meeting.meetingNote} maxLength={5000} rows={3} placeholder="Tema, behov og det dere skal snakke om …" onChange={e=>setMeeting({...meeting,meetingNote:e.target.value})}/>
+            <Label htmlFor="call-meeting-note"><UiText text="Hva skal møtet handle om?" /></Label>
+            <Textarea id="call-meeting-note" value={meeting.meetingNote} maxLength={5000} rows={3} placeholder={ui("Tema, behov og det dere skal snakke om …")} onChange={e=>setMeeting({...meeting,meetingNote:e.target.value})}/>
             <Button disabled={meetingSaving || !meeting.meetingAt}
               onClick={async () => {
                 if (!meetingEntry || meetingSaving) return;
@@ -4256,17 +4149,17 @@ function CallLists({
                   if(!result?.company)return;
                   setMeetingEntry(null);
                   setBookedCustomer(result.company);
-                } catch { toast.error("Møtet kunne ikke lagres. Prøv igjen."); }
+                } catch { toast.error(ui("Møtet kunne ikke lagres. Prøv igjen.")); }
                 finally { setMeetingSaving(false); }
               }}
-            >{meetingSaving?"Lagrer møte …":"Lagre møte"}</Button>
+            >{meetingSaving?ui("Lagrer møte …"):ui("Lagre møte")}</Button>
           </div>
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(bookedCustomer)} onOpenChange={open=>{if(!open)setBookedCustomer(null);}}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Møtet er opprettet</DialogTitle><DialogDescription>Møtet med {bookedCustomer?.name} er lagret. Hva vil du gjøre videre?</DialogDescription></DialogHeader>
-          <div className="offer-actions"><Button variant="outline" onClick={()=>setBookedCustomer(null)}>Fortsett her</Button><Button onClick={()=>{if(bookedCustomer)onGoToCustomer(bookedCustomer);setBookedCustomer(null);}}>Gå til kundekortet</Button></div>
+          <DialogHeader><DialogTitle><UiText text="Møtet er opprettet" /></DialogTitle><DialogDescription><UiText text="Møtet med " />{bookedCustomer?.name}<UiText text=" er lagret. Hva vil du gjøre videre?" /></DialogDescription></DialogHeader>
+          <div className="offer-actions"><Button variant="outline" onClick={()=>setBookedCustomer(null)}><UiText text="Fortsett her" /></Button><Button onClick={()=>{if(bookedCustomer)onGoToCustomer(bookedCustomer);setBookedCustomer(null);}}><UiText text="Gå til kundekortet" /></Button></div>
         </DialogContent>
       </Dialog>
       <Dialog
@@ -4277,28 +4170,26 @@ function CallLists({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Registrer sendt tilbud</DialogTitle>
-            <DialogDescription>
-              Kundekortet opprettes med kontaktinformasjonen du legger inn.
-            </DialogDescription>
+            <DialogTitle><UiText text="Registrer sendt tilbud" /></DialogTitle>
+            <DialogDescription><UiText text="Kundekortet opprettes med kontaktinformasjonen du legger inn." /></DialogDescription>
           </DialogHeader>
           <div className="meeting-form">
-            <Label>Kontaktperson</Label>
+            <Label><UiText text="Kontaktperson" /></Label>
             <Input
               value={meeting.contactName}
               onChange={(e) =>
                 setMeeting({ ...meeting, contactName: e.target.value })
               }
-              placeholder="Navn"
+              placeholder={ui("Navn")}
             />
-            <Label>E-post</Label>
+            <Label><UiText text="E-post" /></Label>
             <Input
               value={meeting.contactEmail}
               onChange={(e) =>
                 setMeeting({ ...meeting, contactEmail: e.target.value })
               }
             />
-            <Label>Telefon</Label>
+            <Label><UiText text="Telefon" /></Label>
             <Input
               value={meeting.contactPhone}
               onChange={(e) =>
@@ -4313,9 +4204,7 @@ function CallLists({
                 setOfferEntry(null);
                 setCreatedCustomer(d.company);
               }}
-            >
-              Registrer tilbudet
-            </Button>
+            ><UiText text="Registrer tilbudet" /></Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -4327,23 +4216,18 @@ function CallLists({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Kundekortet er opprettet</DialogTitle>
+            <DialogTitle><UiText text="Kundekortet er opprettet" /></DialogTitle>
             <DialogDescription>
-              {createdCustomer?.name} er registrert med status «Tilbud sendt».
-            </DialogDescription>
+              {createdCustomer?.name}<UiText text=" er registrert med status «Tilbud sendt»." /></DialogDescription>
           </DialogHeader>
           <div className="offer-actions">
-            <Button variant="outline" onClick={() => setCreatedCustomer(null)}>
-              Fortsett i ringelisten
-            </Button>
+            <Button variant="outline" onClick={() => setCreatedCustomer(null)}><UiText text="Fortsett i ringelisten" /></Button>
             <Button
               onClick={() => {
                 if (createdCustomer) onGoToCustomer(createdCustomer);
                 setCreatedCustomer(null);
               }}
-            >
-              Gå til kundekort
-            </Button>
+            ><UiText text="Gå til kundekort" /></Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -4355,15 +4239,11 @@ function CallLists({
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Legg til {customerChoice?.name}?</DialogTitle>
-            <DialogDescription>
-              Kundekortet opprettes med bedriftsinformasjonen fra ringelisten.
-            </DialogDescription>
+            <DialogTitle><UiText text="Legg til " />{customerChoice?.name}?</DialogTitle>
+            <DialogDescription><UiText text="Kundekortet opprettes med bedriftsinformasjonen fra ringelisten." /></DialogDescription>
           </DialogHeader>
           <div className="offer-actions">
-            <Button variant="outline" onClick={() => setCustomerChoice(null)}>
-              Fortsett i ringelisten
-            </Button>
+            <Button variant="outline" onClick={() => setCustomerChoice(null)}><UiText text="Fortsett i ringelisten" /></Button>
             <Button
               onClick={() => {
                 if (customerChoice?.company) {
@@ -4376,8 +4256,8 @@ function CallLists({
               }}
             >
               {customerChoice?.goWhenReady && customerChoice.saving
-                ? "Oppretter kundekort …"
-                : "Gå til kundekort"}
+                ? ui("Oppretter kundekort …")
+                : <UiText text="Gå til kundekort" />}
             </Button>
           </div>
         </DialogContent>
@@ -4392,36 +4272,36 @@ function ProspectRows({
   rows: CallListEntry[] | Prospect[];
   update: (row: CallListEntry, status: string) => void;
 }) {
+ const {ui}=useUiTranslation();
   return (
     <div className="prospect-list">
       {rows.map((row) => (
         <div className="prospect-row" key={row.id}>
           <div>
             <strong>{row.name}</strong>
-            <small>
-              Org: {row.orgNumber} · {row.city || "Ukjent sted"}
+            <small><UiText text="Org: " />{row.orgNumber} · {row.city || ui("Ukjent sted")}
             </small>
           </div>
           <div>
-            <span>{row.industry || "Ukjent bransje"}</span>
-            <small>{row.employees == null ? "Ansatte: ikke oppgitt" : `${row.employees} ansatte`}</small>
+            <span>{row.industry || ui("Ukjent bransje")}</span>
+            <small>{row.employees == null ? ui("Ansatte: ikke oppgitt") : `${row.employees} ansatte`}</small>
           </div>
           <div className="prospect-contact">
             {row.phone ? (
               <PhoneLink phone={row.phone}/>
             ) : (
-              <span>Telefon mangler</span>
+              <span><UiText text="Telefon mangler" /></span>
             )}
             {row.email ? (
               <a href={`mailto:${row.email}`}>{row.email}</a>
             ) : (
-              <span>E-post mangler</span>
+              <span><UiText text="E-post mangler" /></span>
             )}
             {row.status !== "Ny" && (
               <small>
                 {(row as CallListEntry).handledBy
                   ? `Behandlet av ${(row as CallListEntry).handledBy}`
-                  : "Medarbeider ikke registrert på eldre aktivitet"}
+                  : ui("Medarbeider ikke registrert på eldre aktivitet")}
               </small>
             )}
           </div>
@@ -4434,17 +4314,13 @@ function ProspectRows({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Ny">Ny</SelectItem>
-                <SelectItem value="Ringte – ikke svar">
-                  Ringte – ikke svar
-                </SelectItem>
-                <SelectItem value="Kontaktet">Kontaktet</SelectItem>
-                <SelectItem value="Møte booket">Møte booket</SelectItem>
-                <SelectItem value="Tilbud sendt">Tilbud sendt</SelectItem>
-                <SelectItem value="Lagt til som kunde">
-                  Legg til som kunde
-                </SelectItem>
-                <SelectItem value="Ikke aktuell">Ikke aktuell</SelectItem>
+                <SelectItem value="Ny"><UiText text="Ny" /></SelectItem>
+                <SelectItem value="Ringte – ikke svar"><UiText text="Ringte – ikke svar" /></SelectItem>
+                <SelectItem value="Kontaktet"><UiText text="Kontaktet" /></SelectItem>
+                <SelectItem value="Møte booket"><UiText text="Møte booket" /></SelectItem>
+                <SelectItem value="Tilbud sendt"><UiText text="Tilbud sendt" /></SelectItem>
+                <SelectItem value="Lagt til som kunde"><UiText text="Legg til som kunde" /></SelectItem>
+                <SelectItem value="Ikke aktuell"><UiText text="Ikke aktuell" /></SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -4454,6 +4330,7 @@ function ProspectRows({
   );
 }
 function Prospects() {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [rows, setRows] = useState<Prospect[]>([]),
@@ -4480,12 +4357,12 @@ function Prospects() {
           }),
         }),
         d = await r.json();
-      if (!r.ok) return toast.error(d.error ?? "Kunne ikke hente prospekter");
+      if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke hente prospekter"));
       setRows(d.prospects ?? []);
       toast.success(
-        d.added
+        ui(d.added
           ? `${d.added} nye prospekter er hentet`
-          : "Dagens liste er klar",
+          : "Dagens liste er klar"),
       );
     } finally {
       setBusy(false);
@@ -4500,25 +4377,23 @@ function Prospects() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: "status", id: row.id, status }),
     });
-    if (!r.ok) toast.error("Kunne ikke oppdatere prospektet");
+    if (!r.ok) toast.error(ui("Kunne ikke oppdatere prospektet"));
   }
   return (
     <section className="surface prospects">
       <div className="operations-head">
         <div>
-          <p className="eyebrow">INTERNT SALG</p>
-          <h3>Dagens prospekter</h3>
-          <p>
-            Aktive norske AS med 1–30 ansatte, hentet fra Brønnøysundregistrene.
-          </p>
+          <p className="eyebrow"><UiText text="INTERNT SALG" /></p>
+          <h3><UiText text="Dagens prospekter" /></h3>
+          <p><UiText text="Aktive norske AS med 1–30 ansatte, hentet fra Brønnøysundregistrene." /></p>
         </div>
         <Button onClick={generate} disabled={busy}>
           <RefreshCw />
           {busy
-            ? "Henter …"
+            ? ui("Henter …")
             : rows.length
-              ? "Oppdater dagens 50"
-              : "Hent dagens 50"}
+              ? ui("Oppdater dagens 50")
+              : ui("Hent dagens 50")}
         </Button>
       </div>
       <div className="contact-requirements internal-filters">
@@ -4527,27 +4402,23 @@ function Prospects() {
             type="checkbox"
             checked={requirePhone}
             onChange={(e) => setRequirePhone(e.target.checked)}
-          />
-          Må ha telefonnummer
-        </label>
+          /><UiText text="Må ha telefonnummer" /></label>
         <label>
           <input
             type="checkbox"
             checked={requireEmail}
             onChange={(e) => setRequireEmail(e.target.checked)}
-          />
-          Må ha e-postadresse
-        </label>
+          /><UiText text="Må ha e-postadresse" /></label>
       </div>
       {loading ? (
-        <p className="empty-line">Henter prospektlisten …</p>
+        <p className="empty-line"><UiText text="Henter prospektlisten …" /></p>
       ) : rows.length ? (
         <ProspectRows rows={rows} update={update} />
       ) : (
         <div className="empty-state">
           <Building2 />
-          <h3>Ingen prospekter hentet</h3>
-          <p>Trykk «Hent dagens 50» for å lage den første listen.</p>
+          <h3><UiText text="Ingen prospekter hentet" /></h3>
+          <p><UiText text="Trykk «Hent dagens 50» for å lage den første listen." /></p>
         </div>
       )}
     </section>
@@ -4562,6 +4433,7 @@ function MarketingPostImage({
   filename: string;
   organizationId: number;
 }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [src, setSrc] = useState("");
@@ -4589,7 +4461,7 @@ function MarketingPostImage({
   return src ? (
     <img src={src} alt={filename} loading="lazy" />
   ) : (
-    <div className="marketing-image-loading" aria-label="Laster bilde" />
+    <div className="marketing-image-loading" aria-label={ui("Laster bilde")} />
   );
 }
 
@@ -4612,6 +4484,8 @@ function Marketing({
   onActivated: (active: boolean) => void;
   companies: Company[];
 }) {
+ const {date,followUpLabel,daysSince,number}=useCrmFormatting();
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
@@ -4684,7 +4558,7 @@ function Marketing({
         let ratio:number|undefined;
         for(const image of post.images){
           const response=await apiFetch(`/api/marketing-images?id=${image.id}`,{headers:{'x-organization-id':String(organizationId)}});
-          if(!response.ok)throw Error(`Kunne ikke hente «${image.filename}». Prøv igjen.`);
+          if(!response.ok)throw Error(ui("Kunne ikke hente «{0}». Prøv igjen.",{"0":image.filename}));
           const result=await prepareInstagramImage(await response.blob(),ratio);ratio??=result.ratio;
           prepared.push({id:image.id,blob:result.blob,upscaled:result.upscaled});
         }
@@ -4699,8 +4573,8 @@ function Marketing({
     try{
       const r=await apiFetch(deleteId<0?'/api/content-plan':'/api/marketing',{method:'DELETE',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({id:deleteId,confirm:true})});
       const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke fjerne innlegget.');
-      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setDeleteId(null);toast.success(deleteId<0?'E-posten er avbrutt eller fjernet fra historikken.':'Innlegget er fjernet fra innholdsplanen.');
-    }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke fjerne innlegget.');}
+      setPosts(rows=>rows.filter(p=>p.id!==deleteId));setDetailId(null);setPlanLoading(true);setPlanRevision(n=>n+1);setDeleteId(null);toast.success(ui(deleteId<0?'E-posten er avbrutt eller fjernet fra historikken.':'Innlegget er fjernet fra innholdsplanen.'));
+    }catch(error){toast.error(ui(error instanceof Error?error.message:'Kunne ikke fjerne innlegget.'));}
     finally{setDeleting(false);}
   }
   const publishPost = posts.find(post=>post.id===publishId);
@@ -4714,13 +4588,13 @@ function Marketing({
     try{
       const r=await apiFetch('/api/social/publish',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify({postId:post.id,action:'cancel',confirm:true})});
       const d=await r.json();if(!r.ok)throw Error(d.error??'Kunne ikke avbryte.');
-      setPosts(rows=>rows.map(p=>p.id===post.id?{...p,status:'Kladd',error:''}:p));toast.success('Publiseringen er avbrutt. Innlegget er beholdt som kladd.');
-    }catch(error){toast.error(error instanceof Error?error.message:'Kunne ikke avbryte.');}
+      setPosts(rows=>rows.map(p=>p.id===post.id?{...p,status:'Kladd',error:''}:p));toast.success(ui('Publiseringen er avbrutt. Innlegget er beholdt som kladd.'));
+    }catch(error){toast.error(ui(error instanceof Error?error.message:'Kunne ikke avbryte.'));}
     finally{setCancellingId(null);setPlanRevision(n=>n+1);}
   }
   async function publishNow() {
     if(!publishPost||publishing||preparing||prepareError)return;
-    if(publishMode==='schedule'&&(!publishAt||!Number.isFinite(Date.parse(publishAt))||Date.parse(publishAt)<Date.now()+60000))return toast.error('Velg et tidspunkt minst ett minutt frem.');
+    if(publishMode==='schedule'&&(!publishAt||!Number.isFinite(Date.parse(publishAt))||Date.parse(publishAt)<Date.now()+60000))return toast.error(ui('Velg et tidspunkt minst ett minutt frem.'));
     setPublishing(true);
     try {
       const form=new FormData();form.append('payload',JSON.stringify({postId:publishPost.id,confirm:true,targets:confirmedTargets,action:publishMode,scheduledAt:publishMode==='schedule'?new Date(publishAt).toISOString():undefined}));
@@ -4730,11 +4604,11 @@ function Marketing({
       if(!response.ok)throw Error(result.error??"Kunne ikke publisere.");
       setPosts(rows=>rows.map(p=>p.id===publishPost.id?{...p,status:result.status,scheduledAt:result.scheduledAt??p.scheduledAt,deliveries:result.results}:p));
       setPublishId(null);
-      if(result.status==='Planlagt')toast.success('Innlegget er planlagt og publiseres automatisk.');
-      else if(result.status==="Publisert")toast.success("Innlegget er publisert.");
-      else toast.error("Kontroller resultatet for hver kanal i innholdsplanen.");
+      if(result.status==='Planlagt')toast.success(ui('Innlegget er planlagt og publiseres automatisk.'));
+      else if(result.status==="Publisert")toast.success(ui("Innlegget er publisert."));
+      else toast.error(ui("Kontroller resultatet for hver kanal i innholdsplanen."));
     } catch(error) {
-      toast.error(error instanceof Error?error.message:"Svaret mangler. Kontroller status før du forsøker igjen.");
+      toast.error(ui(error instanceof Error?error.message:"Svaret mangler. Kontroller status før du forsøker igjen."));
       const r=await apiFetch("/api/marketing",{headers:{"x-organization-id":String(organizationId)}}).catch(()=>null);
       if(r?.ok){const d=await r.json();setPosts(d.posts??[]);}
       setPublishId(null);
@@ -4781,8 +4655,8 @@ function Marketing({
   }, [organizationId, purchaseOpen, role]);
   async function activate() {
     if (purchaseBusy || !canManageModules(role)) return;
-    if (unitPrice == null) return toast.error("Pris er ikke avtalt. Kontakt Noracre.");
-    if (!licensed.length) return toast.error("Velg minst én bruker");
+    if (unitPrice == null) return toast.error(ui("Pris er ikke avtalt. Kontakt Noracre."));
+    if (!licensed.length) return toast.error(ui("Velg minst én bruker"));
     setPurchaseBusy(true);
     try {
       const r = await apiFetch("/api/admin", {method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"moduleStatus",moduleKey:"markedsforing",membershipIds:licensed,acceptedPrice:unitPrice})});
@@ -4790,8 +4664,8 @@ function Marketing({
       if (!r.ok) throw new Error(d.error ?? "Kunne ikke aktivere modulen");
       onActivated(Boolean(d.currentUserActive));
       setPurchaseOpen(false);
-      toast.success("Modullisensene er oppdatert");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Kunne ikke aktivere modulen"); }
+      toast.success(ui("Modullisensene er oppdatert"));
+    } catch (error) { toast.error(ui(error instanceof Error ? error.message : "Kunne ikke aktivere modulen")); }
     finally { setPurchaseBusy(false); }
   }
 
@@ -4812,16 +4686,16 @@ function Marketing({
         body: form,
       });
       const d = await r.json();
-      if (!r.ok) return toast.error(d.error ?? "Kunne ikke lagre innlegget");
+      if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lagre innlegget"));
       setPlanRevision(n=>n+1);
       setContent("");
       setScheduledAt("");
       setImages([]);
       toast.success(
-        "Kladden er lagret",
+        ui("Kladden er lagret"),
       );
     } catch {
-      toast.error("Kunne ikke lagre innlegget. Prøv igjen.");
+      toast.error(ui("Kunne ikke lagre innlegget. Prøv igjen."));
     } finally {
       setSavingPost(false);
     }
@@ -4831,27 +4705,25 @@ function Marketing({
     event.target.value = "";
     if (!selected.length) return;
     if (images.length + selected.length > 6)
-      return toast.error("Du kan legge til opptil seks bilder per innlegg");
+      return toast.error(ui("Du kan legge til opptil seks bilder per innlegg"));
     if (selected.some((file) => !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type)))
-      return toast.error("Bruk PNG, JPEG, GIF eller WebP.");
+      return toast.error(ui("Bruk PNG, JPEG, GIF eller WebP."));
     if (selected.some((file) => file.size > 10 * 1024 * 1024))
-      return toast.error("Hvert bilde kan være maks 10 MB");
+      return toast.error(ui("Hvert bilde kan være maks 10 MB"));
     if ([...images, ...selected].reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024)
-      return toast.error("Bildene kan være maks 20 MB samlet.");
+      return toast.error(ui("Bildene kan være maks 20 MB samlet."));
     setImages((current) => [...current, ...selected]);
   }
   const chooser = (
     <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Markedsføring for ansatte</DialogTitle>
-          <DialogDescription>
-            Avtalt pris: {unitPrice} kr per valgt bruker per måned eks. mva.
-          </DialogDescription>
+          <DialogTitle><UiText text="Markedsføring for ansatte" /></DialogTitle>
+          <DialogDescription><UiText text="Avtalt pris: " />{unitPrice}<UiText text=" kr per valgt bruker per måned eks. mva." /></DialogDescription>
         </DialogHeader>
         <div className="module-member-list">
           <div className="module-member-all">
-            <strong>Aktive brukere</strong>
+            <strong><UiText text="Aktive brukere" /></strong>
             <Button
               size="sm"
               variant="outline"
@@ -4859,9 +4731,7 @@ function Marketing({
                 const all = members.filter((m) => m.active).map((m) => m.id);
                 setLicensed(licensed.length === all.length ? [] : all);
               }}
-            >
-              Alle
-            </Button>
+            ><UiText text="Alle" /></Button>
           </div>
           {members
             .filter((m) => m.active)
@@ -4886,10 +4756,10 @@ function Marketing({
             ))}
         </div>
         <div className="module-purchase-total">
-          <span>{licensed.length} brukere</span>
-          <strong>{unitPrice == null ? "Pris ikke avtalt" : `${licensed.length * unitPrice} kr/mnd.`}</strong>
+          <span>{licensed.length}<UiText text=" brukere" /></span>
+          <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensed.length * unitPrice} kr/mnd.`}</strong>
         </div>
-        <Button disabled={purchaseBusy || unitPrice == null || !licensed.length} onClick={activate}>Lagre og bekreft pris</Button>
+        <Button disabled={purchaseBusy || unitPrice == null || !licensed.length} onClick={activate}><UiText text="Lagre og bekreft pris" /></Button>
       </DialogContent>
     </Dialog>
   );
@@ -4904,36 +4774,32 @@ function Marketing({
     <div className="page-pad marketing-page">
       <div className="operations-head">
         <div>
-          <p className="eyebrow">MARKEDSFØRING</p>
-          <h2>Innhold og utsendinger</h2>
+          <p className="eyebrow"><UiText text="MARKEDSFØRING" /></p>
+          <h2><UiText text="Innhold og utsendinger" /></h2>
         </div>
         {canManageModules(role) && (
           <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
-            <UsersRound />
-            Administrer brukere
-          </Button>
+            <UsersRound /><UiText text="Administrer brukere" /></Button>
         )}
       </div>
       <div className="marketing-top-grid">
         <SocialConnections key={organizationId} organizationId={organizationId} role={role} onChange={setSocial}/>
-        <section className="surface marketing-email-card"><span className="marketing-email-icon"><Mail size={28}/></span><h3>Send e-post til kunder</h3><p>Velg kundegruppe og send fra din egen e-postkonto, nå eller senere.</p><Button onClick={()=>setEmailOpen(true)}><Mail size={18}/>Lag e-post</Button><small>Sendte og planlagte e-poster vises i innholdsplanen.</small></section>
+        <section className="surface marketing-email-card"><span className="marketing-email-icon"><Mail size={28}/></span><h3><UiText text="Send e-post til kunder" /></h3><p><UiText text="Velg kundegruppe og send fra din egen e-postkonto, nå eller senere." /></p><Button onClick={()=>setEmailOpen(true)}><Mail size={18}/><UiText text="Lag e-post" /></Button><small><UiText text="Sendte og planlagte e-poster vises i innholdsplanen." /></small></section>
       </div>
-      <Dialog open={emailOpen} onOpenChange={setEmailOpen}><DialogContent className="marketing-email-dialog"><DialogHeader><DialogTitle>E-post til kunder</DialogTitle><DialogDescription>Skriv en melding og velg når den skal sendes.</DialogDescription></DialogHeader><BulkEmail companies={companies} organizationId={organizationId} onSent={()=>{setEmailOpen(false);setPlanRevision(n=>n+1);}}/></DialogContent></Dialog>
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}><DialogContent className="marketing-email-dialog"><DialogHeader><DialogTitle><UiText text="E-post til kunder" /></DialogTitle><DialogDescription><UiText text="Skriv en melding og velg når den skal sendes." /></DialogDescription></DialogHeader><BulkEmail companies={companies} organizationId={organizationId} onSent={()=>{setEmailOpen(false);setPlanRevision(n=>n+1);}}/></DialogContent></Dialog>
       <section className="surface marketing-composer">
         <div className="surface-head">
-          <h3>Lag ett innlegg</h3>
+          <h3><UiText text="Lag ett innlegg" /></h3>
         </div>
         <Textarea
           rows={7}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Skriv innholdet én gang …"
+          placeholder={ui("Skriv innholdet én gang …")}
         />
         <div className="marketing-images">
           <label className="marketing-image-upload">
-            <Upload size={18} />
-            Legg til bilder
-            <input type="file" accept="image/*" multiple onChange={addImages} />
+            <Upload size={18} /><UiText text="Legg til bilder" /><input type="file" accept="image/*" multiple onChange={addImages} />
           </label>
           {imagePreviews.length > 0 && (
             <div className="marketing-image-previews">
@@ -4942,7 +4808,7 @@ function Marketing({
                   <img src={url} alt={`Forhåndsvisning av ${file.name}`} />
                   <button
                     type="button"
-                    aria-label={`Fjern ${file.name}`}
+                    aria-label={ui("Fjern {0}",{"0":file.name})}
                     onClick={() =>
                       setImages((current) =>
                         current.filter((_, imageIndex) => imageIndex !== index),
@@ -4955,10 +4821,10 @@ function Marketing({
               ))}
             </div>
           )}
-          <small>Maks seks bilder, 10 MB per bilde og 20 MB samlet. PNG, JPEG, GIF eller WebP.</small>
+          <small><UiText text="Maks seks bilder, 10 MB per bilde og 20 MB samlet. PNG, JPEG, GIF eller WebP." /></small>
         </div>
         <fieldset className="social-channel-fieldset">
-          <legend>Velg kanaler</legend>
+          <legend><UiText text="Velg kanaler" /></legend>
           <div className="channel-picks social-channel-picks">
             {channels.map((channel) => (
               <label key={channel} className={`social-channel-choice${social.connections.some(c=>c.platform===channel&&!c.expired)?"":" is-unavailable"}`} title={social.connections.some(c=>c.platform===channel&&!c.expired)?channel:`${channel} er ikke tilkoblet`}>
@@ -4979,61 +4845,59 @@ function Marketing({
             ))}
           </div>
         </fieldset>
-        <Label>Ønsket publiseringstidspunkt</Label>
-        <DateTimePicker label="Ønsket publiseringstidspunkt" value={scheduledAt} onChange={setScheduledAt} showNow/>
+        <Label><UiText text="Ønsket publiseringstidspunkt" /></Label>
+        <DateTimePicker label={ui("Ønsket publiseringstidspunkt")} value={scheduledAt} onChange={setScheduledAt} showNow/>
         <Button onClick={savePost} disabled={savingPost}>
-          {savingPost ? "Lagrer …" : "Lagre kladd"}
+          {savingPost ? ui("Lagrer …") : ui("Lagre kladd")}
         </Button>
-        <p className="form-hint">
-          Lagre kladden, og velg «Planlegg publisering» i innholdsplanen for automatisk publisering til Facebook og Instagram. Du kan også publisere med en gang.
-        </p>
+        <p className="form-hint"><UiText text="Lagre kladden, og velg «Planlegg publisering» i innholdsplanen for automatisk publisering til Facebook og Instagram. Du kan også publisere med en gang." /></p>
       </section>
       <button type="button" className="content-plan-launcher" onClick={showPlan} aria-haspopup="dialog">
         <span className="content-plan-launcher-icon"><CalendarCheck2 size={22}/></span>
-        <span><strong>Innholdsplan</strong><small>Innlegg og e-poster · kommende og historikk</small></span>
-        <span className="content-plan-launcher-count">{planCounts.upcoming} kommende</span><ChevronRight size={20}/>
+        <span><strong><UiText text="Innholdsplan" /></strong><small><UiText text="Innlegg og e-poster · kommende og historikk" /></small></span>
+        <span className="content-plan-launcher-count">{planCounts.upcoming}<UiText text=" kommende" /></span><ChevronRight size={20}/>
       </button>
       <Dialog open={planOpen} onOpenChange={setPlanOpen}>
         <DialogContent className="content-plan-dialog">
-          <DialogHeader><DialogTitle>Innholdsplan</DialogTitle><DialogDescription>Kladder og planlagt publisering. Innlegg med status «Planlagt» publiseres automatisk. Publisert innhold finner du i Historikk.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle><UiText text="Innholdsplan" /></DialogTitle><DialogDescription><UiText text="Kladder og planlagt publisering. Innlegg med status «Planlagt» publiseres automatisk. Publisert innhold finner du i Historikk." /></DialogDescription></DialogHeader>
           <div className="content-plan-toolbar">
-            <div className="content-plan-tabs" role="group" aria-label="Vis innhold">
-              <button type="button" aria-pressed={planView==='upcoming'} onClick={()=>changePlanView('upcoming')}>Kommende <span>{planCounts.upcoming}</span></button>
-              <button type="button" aria-pressed={planView==='history'} onClick={()=>changePlanView('history')}>Historikk <span>{planCounts.history}</span></button>
+            <div className="content-plan-tabs" role="group" aria-label={ui("Vis innhold")}>
+              <button type="button" aria-pressed={planView==='upcoming'} onClick={()=>changePlanView('upcoming')}><UiText text="Kommende " /><span>{planCounts.upcoming}</span></button>
+              <button type="button" aria-pressed={planView==='history'} onClick={()=>changePlanView('history')}><UiText text="Historikk " /><span>{planCounts.history}</span></button>
             </div>
-            <label className="content-plan-search"><Search size={18}/><Input type="search" aria-label="Søk i innlegg og e-poster" placeholder="Søk i innlegg og e-poster …" value={planQuery} onChange={e=>{setPlanQuery(e.target.value);setPlanPage(1);setPlanLoading(true);}}/></label>
+            <label className="content-plan-search"><Search size={18}/><Input type="search" aria-label={ui("Søk i innlegg og e-poster")} placeholder={ui("Søk i innlegg og e-poster …")} value={planQuery} onChange={e=>{setPlanQuery(e.target.value);setPlanPage(1);setPlanLoading(true);}}/></label>
           </div>
           <div className="content-plan-list" aria-busy={planLoading}>
-            {planLoading ? <p className="content-plan-empty" role="status">Henter innhold …</p> : planError ? <div className="content-plan-empty" role="alert"><p>{planError}</p><Button variant="outline" onClick={()=>setPlanRevision(n=>n+1)}>Prøv igjen</Button></div> : !posts.length ? <p className="content-plan-empty" role="status">{planQuery ? `Ingen innlegg eller e-poster inneholder «${planQuery}». Prøv et annet søk eller bytt fane.` : planView==='history' ? 'Ingen publiserte innlegg eller sendte e-poster ennå.' : 'Ingen kommende innlegg, kladder eller e-poster.'}</p> : posts.map(post=>(
+            {planLoading ? <p className="content-plan-empty" role="status"><UiText text="Henter innhold …" /></p> : planError ? <div className="content-plan-empty" role="alert"><p>{planError}</p><Button variant="outline" onClick={()=>setPlanRevision(n=>n+1)}><UiText text="Prøv igjen" /></Button></div> : !posts.length ? <p className="content-plan-empty" role="status">{planQuery ? ui("Ingen innlegg eller e-poster inneholder «{0}». Prøv et annet søk eller bytt fane.",{"0":planQuery}) : planView==='history' ? ui("Ingen publiserte innlegg eller sendte e-poster ennå.") : ui("Ingen kommende innlegg, kladder eller e-poster.")}</p> : posts.map(post=>(
               <article className="content-plan-row" key={post.id}>
-                <button type="button" className="content-plan-preview" aria-label={`Vis innlegg: ${post.content.slice(0,60)}`} onClick={()=>setDetailId(post.id)}>
+                <button type="button" className="content-plan-preview" aria-label={ui("Vis innlegg: {0}",{"0":post.content.slice(0,60)})} onClick={()=>setDetailId(post.id)}>
                   <span className="content-plan-thumbnail">{post.images?.[0] ? <MarketingPostImage id={post.images[0].id} filename={post.images[0].filename} organizationId={organizationId}/> : post.kind==="email"?<Mail size={24}/>:<Megaphone size={24}/>}</span>
                   <span className="content-plan-copy"><span className="content-plan-post-text">{post.subject?`${post.subject} · `:""}{post.content}</span><small>{JSON.parse(post.platforms).join(' · ')}{post.images?.length ? ` · ${post.images.length} bilder` : ''}</small></span>
                 </button>
-                <div className="content-plan-date"><strong>{post.status}</strong><small>{post.sentAt ? date(post.sentAt,true) : post.scheduledAt ? date(post.scheduledAt,true) : 'Uten planlagt tidspunkt'}</small></div>
-                <div className="content-plan-actions">{canPublish(post)&&<>{(JSON.parse(post.platforms) as string[]).every(c=>['Facebook','Instagram'].includes(c))&&<Button variant="outline" onClick={()=>openPublish(post,'schedule')}>Planlegg publisering</Button>}<Button variant="outline" onClick={()=>openPublish(post)}>Publiser nå</Button></>}{post.kind!=='email'&&post.status==='Planlagt'&&<Button variant="outline" disabled={cancellingId!==null} onClick={()=>cancelScheduledPost(post)}>{cancellingId===post.id?'Avbryter …':'Avbryt planlegging'}</Button>}<Button variant="ghost" aria-label={`Slett innlegg: ${post.content.slice(0,60)}`} disabled={post.status==='Publiserer'||post.status==='Sender'||post.canManage===false} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
+                <div className="content-plan-date"><strong>{ui(post.status)}</strong><small>{post.sentAt ? date(post.sentAt,true) : post.scheduledAt ? date(post.scheduledAt,true) : ui("Uten planlagt tidspunkt")}</small></div>
+                <div className="content-plan-actions">{canPublish(post)&&<>{(JSON.parse(post.platforms) as string[]).every(c=>['Facebook','Instagram'].includes(c))&&<Button variant="outline" onClick={()=>openPublish(post,'schedule')}><UiText text="Planlegg publisering" /></Button>}<Button variant="outline" onClick={()=>openPublish(post)}><UiText text="Publiser nå" /></Button></>}{post.kind!=='email'&&post.status==="Planlagt"&&<Button variant="outline" disabled={cancellingId!==null} onClick={()=>cancelScheduledPost(post)}>{cancellingId===post.id?ui("Avbryter …"):ui("Avbryt planlegging")}</Button>}<Button variant="ghost" aria-label={ui("Slett innlegg: {0}",{"0":post.content.slice(0,60)})} disabled={post.status==='Publiserer'||post.status==='Sender'||post.canManage===false} onClick={()=>setDeleteId(post.id)}><Trash2 size={17}/></Button></div>
               </article>
             ))}
           </div>
-          <div className="content-plan-footer"><span aria-live="polite">{planLoading?'Henter …':`${planMeta.total} ${planQuery?'treff':'oppføringer'} · Side ${planMeta.page} av ${planMeta.pages}`}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}>Forrige</Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}>Neste</Button></div></div>
+          <div className="content-plan-footer"><span aria-live="polite">{planLoading?ui("Henter …"):ui("{0} {1} · Side {2} av {3}",{"0":planMeta.total,"1":planQuery?ui("treff"):ui("oppføringer"),"2":planMeta.page,"3":planMeta.pages})}</span><div><Button variant="outline" disabled={planLoading||!!planError||planMeta.page<=1} onClick={()=>{setPlanPage(planMeta.page-1);setPlanLoading(true);}}><UiText text="Forrige" /></Button><Button variant="outline" disabled={planLoading||!!planError||planMeta.page>=planMeta.pages} onClick={()=>{setPlanPage(planMeta.page+1);setPlanLoading(true);}}><UiText text="Neste" /></Button></div></div>
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:"Innlegg"}</DialogTitle><DialogDescription>{detailPost?.status} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
-        {detailPost&&<>{detailPost.kind!=="email"&&detailPost.error&&<p role="alert">{detailPost.error}</p>}{detailPost.kind==="email"&&<><p>Fra: {detailPost.sender} · {detailPost.recipientCount} mottakere</p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint">Vedlegg: {f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint">Planlagt tidspunkt: {date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?'Publisert':delivery.error||'Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.'}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}>Tilbake til innholdsplanen</Button></>}
+      <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:<UiText text="Innlegg" />}</DialogTitle><DialogDescription>{ui(detailPost?.status)} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
+        {detailPost&&<>{detailPost.kind!=="email"&&detailPost.error&&<p role="alert">{detailPost.error}</p>}{detailPost.kind==="email"&&<><p><UiText text="Fra: " />{detailPost.sender} · {detailPost.recipientCount}<UiText text=" mottakere" /></p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint"><UiText text="Vedlegg: " />{f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint"><UiText text="Planlagt tidspunkt: " />{date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?<UiText text="Publisert" />:delivery.error||ui("Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.")}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}><UiText text="Tilbake til innholdsplanen" /></Button></>}
       </DialogContent></Dialog>
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
-        <DialogContent><DialogHeader><DialogTitle>{publishMode==='schedule'?'Planlegg publisering':'Publiser innlegget nå?'}</DialogTitle><DialogDescription>{publishMode==='schedule'?'Innlegget publiseres automatisk på kontoene nedenfor til valgt tidspunkt, også når CRM er lukket.':'Innlegget blir synlig på kontoene nedenfor med en gang.'}</DialogDescription></DialogHeader>
-          {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0} bilder</p>
+        <DialogContent><DialogHeader><DialogTitle>{publishMode==='schedule'?<UiText text="Planlegg publisering" />:ui("Publiser innlegget nå?")}</DialogTitle><DialogDescription>{publishMode==='schedule'?ui("Innlegget publiseres automatisk på kontoene nedenfor til valgt tidspunkt, også når CRM er lukket."):ui("Innlegget blir synlig på kontoene nedenfor med en gang.")}</DialogDescription></DialogHeader>
+          {publishPost && <><p style={{whiteSpace:"pre-wrap",maxHeight:"35vh",overflowY:"auto"}}>{publishPost.content}</p><p>{publishPost.images?.length??0}<UiText text=" bilder" /></p>
           <ul>{(JSON.parse(publishPost.platforms) as string[]).map(channel=><li key={channel}>{channel}: {confirmedTargets.find(c=>c.platform===channel)?.accountName}</li>)}</ul></>}
-          {publishMode==='schedule'&&<div><Label>Publiseringstidspunkt</Label><DateTimePicker label="Publiseringstidspunkt" value={publishAt} onChange={setPublishAt}/><p className="form-hint">Du kan avbryte i innholdsplanen frem til publiseringen starter.</p></div>}
-          {preparing&&<p role="status">Klargjør bilder …</p>}
+          {publishMode==='schedule'&&<div><Label><UiText text="Publiseringstidspunkt" /></Label><DateTimePicker label={ui("Publiseringstidspunkt")} value={publishAt} onChange={setPublishAt}/><p className="form-hint"><UiText text="Du kan avbryte i innholdsplanen frem til publiseringen starter." /></p></div>}
+          {preparing&&<p role="status"><UiText text="Klargjør bilder …" /></p>}
           {prepareError&&<p role="alert">{prepareError}</p>}
-          {preparedPreviews.length>0&&<><div className="marketing-publish-previews">{preparedPreviews.map((i,index)=><img key={i.id} src={i.url} alt={`Bilde ${index+1} slik det publiseres`}/>)}</div><p className="form-hint">Tilpasset for Instagram med proporsjonene bevart. Eventuelle marger og gjennomsiktighet får hvit bakgrunn. Animasjoner blir stillbilder.{preparedImages.some(i=>i.upscaled)?' Små originalbilder er forstørret og kan bli mindre skarpe.':''}</p></>}
+          {preparedPreviews.length>0&&<><div className="marketing-publish-previews">{preparedPreviews.map((i,index)=><img key={i.id} src={i.url} alt={`Bilde ${index+1} slik det publiseres`}/>)}</div><p className="form-hint"><UiText text="Tilpasset for Instagram med proporsjonene bevart. Eventuelle marger og gjennomsiktighet får hvit bakgrunn. Animasjoner blir stillbilder." />{preparedImages.some(i=>i.upscaled)?ui(" Små originalbilder er forstørret og kan bli mindre skarpe."):''}</p></>}
           {!preparing&&!prepareError&&!preparedPreviews.length&&publishPost?.images?.length?<div className="marketing-publish-previews">{publishPost.images.map(i=><MarketingPostImage key={i.id} id={i.id} filename={i.filename} organizationId={organizationId}/>)}</div>:null}
-          <Button disabled={publishing||preparing||Boolean(prepareError)||(publishMode==='schedule'&&!publishAt)} onClick={publishNow}>{publishing?(publishMode==='schedule'?'Planlegger …':'Publiserer …'):(publishMode==='schedule'?'Bekreft og planlegg':'Bekreft og publiser')}</Button>
+          <Button disabled={publishing||preparing||Boolean(prepareError)||(publishMode==='schedule'&&!publishAt)} onClick={publishNow}>{publishing?(publishMode==='schedule'?ui("Planlegger …"):ui("Publiserer …")):(publishMode==='schedule'?ui("Bekreft og planlegg"):ui("Bekreft og publiser"))}</Button>
         </DialogContent>
       </Dialog>
-      <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>{deleteId!==null&&deleteId<0?"Avbryt eller fjern e-post?":"Slett fra innholdsplanen?"}</DialogTitle><DialogDescription>{deleteId!==null&&deleteId<0?"En planlagt e-post avbrytes og blir liggende i historikken. En tidligere utsending fjernes bare fra CRM-oversikten, ikke fra mottakerens postkasse.":"Innlegget fjernes fra oversikten i CRM-et. Publiserte innlegg beholdes hos kanalen."}</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}>Avbryt</Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?'Behandler …':deleteId!==null&&deleteId<0?'Bekreft':'Slett fra innholdsplanen'}</Button></div></DialogContent></Dialog>
+      <Dialog open={deleteId!==null} onOpenChange={open=>{if(!open&&!deleting)setDeleteId(null);}}><DialogContent><DialogHeader><DialogTitle>{deleteId!==null&&deleteId<0?ui("Avbryt eller fjern e-post?"):ui("Slett fra innholdsplanen?")}</DialogTitle><DialogDescription>{deleteId!==null&&deleteId<0?ui("En planlagt e-post avbrytes og blir liggende i historikken. En tidligere utsending fjernes bare fra CRM-oversikten, ikke fra mottakerens postkasse."):ui("Innlegget fjernes fra oversikten i CRM-et. Publiserte innlegg beholdes hos kanalen.")}</DialogDescription></DialogHeader><p className="marketing-delete-excerpt">{posts.find(p=>p.id===deleteId)?.content}</p><div className="offer-actions"><Button variant="outline" disabled={deleting} onClick={()=>setDeleteId(null)}><UiText text="Avbryt" /></Button><Button variant="destructive" disabled={deleting} onClick={deletePost}>{deleting?ui("Behandler …"):deleteId!==null&&deleteId<0?<UiText text="Bekreft" />:ui("Slett fra innholdsplanen")}</Button></div></DialogContent></Dialog>
       {chooser}
     </div>
   );
@@ -5051,6 +4915,7 @@ function SuperadminSettings(p: {
   addMember: () => void;
   ownerEmail: string;
 }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const {t}=useI18n();
@@ -5068,7 +4933,7 @@ function SuperadminSettings(p: {
       );
       const data = await response.json();
       if (!response.ok)
-        return toast.error(data.error ?? "Kunne ikke søke etter bedriften");
+        return toast.error(ui(data.error ?? "Kunne ikke søke etter bedriften"));
       setCompanyResults(data.companies ?? []);
       setCompanySearched(true);
     } finally {
@@ -5095,13 +4960,13 @@ function SuperadminSettings(p: {
     <div className="page-pad admin-grid">
       <AdminCard
         eye="SUPERADMIN"
-        title="Kundeorganisasjoner"
+        title={ui("Kundeorganisasjoner")}
         ico={<Building2 />}
       >
         <div className="organization-form">
           <div className="lookup-row">
             <Input
-              placeholder="Søk etter bedriftsnavn eller organisasjonsnummer"
+              placeholder={ui("Søk etter bedriftsnavn eller organisasjonsnummer")}
               value={companyQuery}
               onChange={(event) => {
                 setCompanyQuery(event.target.value);
@@ -5118,7 +4983,7 @@ function SuperadminSettings(p: {
               disabled={companySearchBusy}
               onClick={searchCompany}
             >
-              {companySearchBusy ? "Søker …" : "Søk i Brreg"}
+              {companySearchBusy ? ui("Søker …") : ui("Søk i Brreg")}
             </Button>
           </div>
           {companyResults.length > 0 && (
@@ -5132,8 +4997,7 @@ function SuperadminSettings(p: {
                   <Building2 />
                   <span>
                     <strong>{company.name}</strong>
-                    <small>
-                      Org: {company.orgNumber} · {company.city}
+                    <small><UiText text="Org: " />{company.orgNumber} · {company.city}
                     </small>
                   </span>
                   <ChevronRight />
@@ -5142,33 +5006,31 @@ function SuperadminSettings(p: {
             </div>
           )}
           {companySearched && !companyResults.length && (
-            <p className="form-hint">
-              Fant ingen treff. Du kan fylle inn bedriften manuelt nedenfor.
-            </p>
+            <p className="form-hint"><UiText text="Fant ingen treff. Du kan fylle inn bedriften manuelt nedenfor." /></p>
           )}
           <Input
-            placeholder="Bedriftsnavn"
+            placeholder={ui("Bedriftsnavn")}
             value={p.newOrg.name}
             onChange={(e) => p.setNewOrg({ ...p.newOrg, name: e.target.value })}
           />
           <Input
             inputMode="numeric"
             maxLength={11}
-            placeholder="Organisasjonsnummer"
+            placeholder={ui("Organisasjonsnummer")}
             value={p.newOrg.orgNumber}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, orgNumber: e.target.value })
             }
           />
           <Input
-            placeholder="Kontaktpersonens navn"
+            placeholder={ui("Kontaktpersonens navn")}
             value={p.newOrg.adminName}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminName: e.target.value })
             }
           />
           <Input
-            placeholder="Kontaktpersonens e-post"
+            placeholder={ui("Kontaktpersonens e-post")}
             value={p.newOrg.adminEmail}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminEmail: e.target.value })
@@ -5176,7 +5038,7 @@ function SuperadminSettings(p: {
           />
           <Input
             type="tel"
-            placeholder="Kontaktpersonens telefonnummer"
+            placeholder={ui("Kontaktpersonens telefonnummer")}
             value={p.newOrg.adminPhone}
             onChange={(e) =>
               p.setNewOrg({ ...p.newOrg, adminPhone: e.target.value })
@@ -5188,12 +5050,12 @@ function SuperadminSettings(p: {
               p.setNewOrg({ ...p.newOrg, adminRole })
             }
           >
-            <SelectTrigger aria-label="Kontaktpersonens rolle">
-              <SelectValue placeholder="Velg rolle" />
+            <SelectTrigger aria-label={ui("Kontaktpersonens rolle")}>
+              <SelectValue placeholder={ui("Velg rolle")} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Administrator">Administrator</SelectItem>
-              <SelectItem value="Bruker">Bruker</SelectItem>
+              <SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem>
               <SelectItem value="Partner">Partner</SelectItem>
             </SelectContent>
           </Select>
@@ -5201,22 +5063,22 @@ function SuperadminSettings(p: {
           {p.newOrg.adminRole === "Partner" && <CommissionField value={p.newOrg.commissionPercent} onChange={commissionPercent=>p.setNewOrg({...p.newOrg,commissionPercent})}/>}
           <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
-          <Button onClick={p.addOrg}>Opprett kundeorganisasjon</Button>
+          <Button onClick={p.addOrg}><UiText text="Opprett kundeorganisasjon" /></Button>
         </div>
       </AdminCard>
       <AdminCard
         eye="BEDRIFTSBRUKERE"
-        title="Opprett bruker i en bedrift"
+        title={ui("Opprett bruker i en bedrift")}
         ico={<Building2 />}
       >
         <CompanyUserCreate organizationId={p.activeOrgId} refreshKey={p.refreshKey} onCreated={p.onUserCreated} />
       </AdminCard>
       <AdminCard
         eye="EIERKONTROLL"
-        title="Superadministratorer"
+        title={ui("Superadministratorer")}
         ico={<ShieldCheck />}
       >
-        <p>Bare eierkontoen kan gi superadmintilgang.</p>
+        <p><UiText text="Bare eierkontoen kan gi superadmintilgang." /></p>
         <div className="member-list">
           {p.members
             .filter((m) => m.role === "Superadmin")
@@ -5237,7 +5099,7 @@ function SuperadminSettings(p: {
                   {["joakimfn@gmail.com", "jfn@noracre.no"].includes(
                     m.email.toLowerCase(),
                   )
-                    ? "Eier"
+                    ? ui("Eier")
                     : "Superadmin"}
                 </em>
               </div>
@@ -5248,7 +5110,7 @@ function SuperadminSettings(p: {
         ) && (
           <div className="member-form">
             <Input
-              placeholder="Navn"
+              placeholder={ui("Navn")}
               value={p.newMember.role === "Superadmin" ? p.newMember.name : ""}
               onChange={(e) =>
                 p.setNewMember({
@@ -5259,7 +5121,7 @@ function SuperadminSettings(p: {
               }
             />
             <Input
-              placeholder="E-post"
+              placeholder={ui("E-post")}
               value={p.newMember.role === "Superadmin" ? p.newMember.email : ""}
               onChange={(e) =>
                 p.setNewMember({
@@ -5269,7 +5131,7 @@ function SuperadminSettings(p: {
                 })
               }
             />
-            <Button onClick={p.addMember}>Gi superadmintilgang</Button>
+            <Button onClick={p.addMember}><UiText text="Gi superadmintilgang" /></Button>
           </div>
         )}
       </AdminCard>
@@ -5297,6 +5159,8 @@ function Operations(p: {
     > & PriceFields & {referredByPartnerId:string;commissionPercent:string},
   ) => Promise<boolean>;
 }) {
+ const {date,followUpLabel,daysSince,number}=useCrmFormatting();
+ const {ui}=useUiTranslation();
   const {t}=useI18n();
   const [q, setQ] = useState(""),
     [selectedOrganization, setSelectedOrganization] =
@@ -5344,14 +5208,14 @@ function Operations(p: {
       ),
     ];
     if (!emails.length)
-      return toast.error("Ingen kontaktpersoner i utvalget har e-postadresse");
+      return toast.error(ui("Ingen kontaktpersoner i utvalget har e-postadresse"));
     window.location.href = `mailto:?bcc=${encodeURIComponent(emails.join(","))}&subject=${encodeURIComponent("Informasjon fra Noracre CRM")}`;
   }
   if (!p.data)
     return (
       <div className="page-pad">
         <section className="surface">
-          <p>Laster driftsoversikten …</p>
+          <p><UiText text="Laster driftsoversikten …" /></p>
         </section>
       </div>
     );
@@ -5360,58 +5224,49 @@ function Operations(p: {
     <div className="page-pad operations">
       <div className="operations-banner">
         <div>
-          <p className="eyebrow">KUN FOR SUPERADMIN</p>
-          <h2>Drift og kundeoversikt</h2>
-          <p>
-            Her ser du abonnementer, bruk og supportbehov på tvers av alle
-            kundeorganisasjoner.
-          </p>
+          <p className="eyebrow"><UiText text="KUN FOR SUPERADMIN" /></p>
+          <h2><UiText text="Drift og kundeoversikt" /></h2>
+          <p><UiText text="Her ser du abonnementer, bruk og supportbehov på tvers av alle kundeorganisasjoner." /></p>
         </div>
         <HealthStatus/>
       </div>
       <div className="metric-grid operations-metrics">
         <Metric
-          label="Aktive bedrifter"
+          label={ui("Aktive bedrifter")}
           value={s.activeOrganizations}
           tone="green"
         />
-        <Metric label="Aktive brukere" value={s.activeUsers} />
+        <Metric label={ui("Aktive brukere")} value={s.activeUsers} />
         <Metric
-          label="Deaktiverte bedrifter"
+          label={ui("Deaktiverte bedrifter")}
           value={s.lostOrganizations}
           tone="red"
         />
         <Metric label="Deaktiverte brukere" value={s.lostUsers} tone="red" />
         <Metric label="Ringelistemoduler" value={s.ringModuleOrganizations} />
         <Metric
-          label="Markedsføringsmoduler"
+          label={ui("Markedsføringsmoduler")}
           value={s.marketingModuleOrganizations}
         />
         <div className="metric money">
-          <span>Beregnet månedsbeløp</span>
-          <strong>{defaultI18n.number(s.monthlyAmount)} kr</strong>
+          <span><UiText text="Beregnet månedsbeløp" /></span>
+          <strong>{number(s.monthlyAmount)} kr</strong>
         </div>
       </div>
       <OperationsInsights organizationId={p.activeOrgId}/>
-      <details className="surface operations-fold customer-organizations-fold"><summary className="operations-fold-trigger"><span><strong>Kundeorganisasjoner</strong></span><ChevronRight size={20}/></summary><div className="operations-fold-body">
+      <details className="surface operations-fold customer-organizations-fold"><summary className="operations-fold-trigger"><span><strong><UiText text="Kundeorganisasjoner" /></strong></span><ChevronRight size={20}/></summary><div className="operations-fold-body">
         <div className="operations-head">
           <div className="operations-toolbar">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline">
-                  <Mail />
-                  Send mail
-                </Button>
+                  <Mail /><UiText text="Send mail" /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => emailOrganizations("Aktiv")}>
-                  Aktive bedrifter
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => emailOrganizations("Aktiv")}><UiText text="Aktive bedrifter" /></DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => emailOrganizations("Deaktivert")}
-                >
-                  Deaktiverte bedrifter
-                </DropdownMenuItem>
+                ><UiText text="Deaktiverte bedrifter" /></DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <div className="search-box operations-search">
@@ -5419,20 +5274,20 @@ function Operations(p: {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Søk etter kunde …"
+                placeholder={ui("Søk etter kunde …")}
               />
             </div>
           </div>
         </div>
         <div className="operations-table">
           <div className="operations-table-head">
-            <span>Bedrift</span>
-            <span>Kontaktperson</span>
-            <span>Brukere</span>
-            <span>Moduler</span>
-            <span>Bruk siste 30 dager</span>
-            <span>Månedsbeløp</span>
-            <span>Status og handlinger</span>
+            <span><UiText text="Bedrift" /></span>
+            <span><UiText text="Kontaktperson" /></span>
+            <span><UiText text="Brukere" /></span>
+            <span><UiText text="Moduler" /></span>
+            <span><UiText text="Bruk siste 30 dager" /></span>
+            <span><UiText text="Månedsbeløp" /></span>
+            <span><UiText text="Status og handlinger" /></span>
           </div>
           {rows.map((o) => (
             <div className="operations-row" key={o.id}>
@@ -5445,7 +5300,7 @@ function Operations(p: {
                   {o.name}
                 </button>
                 <small>
-                  {o.crmCustomers} kunder i CRM · sist brukt{" "}
+                  {o.crmCustomers}<UiText text=" kunder i CRM · sist brukt" />{" "}
                   {date(o.lastActivity)}
                 </small>
               </div>
@@ -5456,15 +5311,14 @@ function Operations(p: {
                     {o.primaryContactEmail}
                   </a>
                 ) : (
-                  <small>E-post mangler</small>
+                  <small><UiText text="E-post mangler" /></small>
                 )}
                 {o.primaryContactPhone ? (
                   <PhoneLink phone={o.primaryContactPhone}/>
                 ) : null}
               </div>
               <span>
-                {o.activeUsers} aktive
-                {o.lostUsers ? ` · ${o.lostUsers} deaktiverte` : ""}
+                {o.activeUsers}<UiText text=" aktive" />{o.lostUsers ? ` · ${o.lostUsers} deaktiverte` : ""}
               </span>
               <span>
                 {[
@@ -5476,10 +5330,10 @@ function Operations(p: {
                     : "",
                 ]
                   .filter(Boolean)
-                  .join(" · ") || "Kun CRM"}
+                  .join(" · ") || ui("Kun CRM")}
               </span>
-              <span>{o.activities30d} aktiviteter</span>
-              <strong>{defaultI18n.number(o.monthlyAmount)} kr</strong>
+              <span>{o.activities30d}<UiText text=" aktiviteter" /></span>
+              <strong>{number(o.monthlyAmount)} kr</strong>
               <div className="operations-actions">
                 <Select
                   value={o.status}
@@ -5489,18 +5343,16 @@ function Operations(p: {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Aktiv">Aktiv</SelectItem>
-                    <SelectItem value="Deaktivert">Deaktivert</SelectItem>
+                    <SelectItem value="Aktiv"><UiText text="Aktiv" /></SelectItem>
+                    <SelectItem value="Deaktivert"><UiText text="Deaktivert" /></SelectItem>
                   </SelectContent>
                 </Select>
-                {o.scheduledDisableAt && <><small>Deaktiveres {date(o.scheduledDisableAt,true)}</small><Button variant="outline" onClick={()=>p.setStatus(o.id,"Aktiv")}>Avbryt deaktivering</Button></>}
+                {o.scheduledDisableAt && <><small><UiText text="Deaktiveres " />{date(o.scheduledDisableAt,true)}</small><Button variant="outline" onClick={()=>p.setStatus(o.id,"Aktiv")}><UiText text="Avbryt deaktivering" /></Button></>}
                 {o.status === "Deaktivert" && o.retainUntil && (
-                  <small>Data beholdes til {date(o.retainUntil)}</small>
+                  <small><UiText text="Data beholdes til " />{date(o.retainUntil)}</small>
                 )}
                 {o.hasSupportAccess ? (
-                  <Button onClick={() => p.openOrganization(o.id)}>
-                    Åpne CRM
-                  </Button>
+                  <Button onClick={() => p.openOrganization(o.id)}><UiText text="Åpne CRM" /></Button>
                 ) : (
                   <Button
                     variant="outline"
@@ -5509,8 +5361,8 @@ function Operations(p: {
                   >
                     <Headphones />
                     {o.pendingAccessRequest
-                      ? "Forespørsel sendt"
-                      : "Be om tilgang"}
+                      ? ui("Forespørsel sendt")
+                      : ui("Be om tilgang")}
                   </Button>
                 )}
               </div>
@@ -5527,32 +5379,28 @@ function Operations(p: {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selectedOrganization?.name}</DialogTitle>
-            <DialogDescription>
-              Kundeinformasjon, abonnement og bruk av Noracre CRM.
-            </DialogDescription>
+            <DialogDescription><UiText text="Kundeinformasjon, abonnement og bruk av Noracre CRM." /></DialogDescription>
           </DialogHeader>
           <div className="organization-detail-summary">
             <div>
-              <span>Brukere</span>
-              <strong>{selectedOrganization?.activeUsers ?? 0} aktive</strong>
+              <span><UiText text="Brukere" /></span>
+              <strong>{selectedOrganization?.activeUsers ?? 0}<UiText text=" aktive" /></strong>
             </div>
             <div>
-              <span>Kunder i CRM</span>
+              <span><UiText text="Kunder i CRM" /></span>
               <strong>{selectedOrganization?.crmCustomers ?? 0}</strong>
             </div>
             <div>
-              <span>Månedsbeløp</span>
+              <span><UiText text="Månedsbeløp" /></span>
               <strong>
-                {(selectedOrganization?.monthlyAmount ?? 0).toLocaleString(
-                  "nb-NO",
-                )}{" "}
+                {number(selectedOrganization?.monthlyAmount ?? 0)}{" "}
                 kr
               </strong>
             </div>
           </div>
           <div className="form-grid organization-detail-form">
             <div className="full">
-              <Label>Bedriftsnavn</Label>
+              <Label><UiText text="Bedriftsnavn" /></Label>
               <Input
                 value={details.name}
                 onChange={(event) =>
@@ -5561,38 +5409,38 @@ function Operations(p: {
               />
             </div>
             <div>
-              <Label>Organisasjonsnummer</Label>
+              <Label><UiText text="Organisasjonsnummer " /></Label>
               <Input
                 inputMode="numeric"
                 value={details.orgNumber}
                 onChange={(event) =>
                   setDetails({ ...details, orgNumber: event.target.value })
                 }
-                placeholder="9 sifre"
+                placeholder={ui("9 sifre")}
               />
             </div>
             <div>
-              <Label>Bransje</Label>
+              <Label><UiText text="Bransje" /></Label>
               <Input
                 value={details.industry}
                 onChange={(event) =>
                   setDetails({ ...details, industry: event.target.value })
                 }
-                placeholder="Ikke registrert"
+                placeholder={ui("Ikke registrert")}
               />
             </div>
             <div className="full">
-              <Label>Adresse</Label>
+              <Label><UiText text="Adresse" /></Label>
               <Input
                 value={details.address}
                 onChange={(event) =>
                   setDetails({ ...details, address: event.target.value })
                 }
-                placeholder="Ikke registrert"
+                placeholder={ui("Ikke registrert")}
               />
             </div>
             <div>
-              <Label>Postnummer</Label>
+              <Label><UiText text="Postnummer" /></Label>
               <Input
                 value={details.postalCode}
                 onChange={(event) =>
@@ -5601,7 +5449,7 @@ function Operations(p: {
               />
             </div>
             <div>
-              <Label>Poststed</Label>
+              <Label><UiText text="Poststed" /></Label>
               <Input
                 value={details.city}
                 onChange={(event) =>
@@ -5610,25 +5458,25 @@ function Operations(p: {
               />
             </div>
             <div>
-              <Label>Telefon</Label>
+              <Label><UiText text="Telefon" /></Label>
               <Input
                 type="tel"
                 value={details.phone}
                 onChange={(event) =>
                   setDetails({ ...details, phone: event.target.value })
                 }
-                placeholder="Ikke registrert"
+                placeholder={ui("Ikke registrert")}
               />
             </div>
             <div>
-              <Label>E-post</Label>
+              <Label><UiText text="E-post" /></Label>
               <Input
                 type="email"
                 value={details.email}
                 onChange={(event) =>
                   setDetails({ ...details, email: event.target.value })
                 }
-                placeholder="Ikke registrert"
+                placeholder={ui("Ikke registrert")}
               />
             </div>
           </div>
@@ -5638,23 +5486,19 @@ function Operations(p: {
           </div>
           {selectedOrganization?.isPartner && <CommissionField editing value={details.commissionPercent} onChange={commissionPercent=>setDetails({...details,commissionPercent})}/>}
           <NegotiatedPrices values={details} change={(values) => setDetails({...details,...values})} />
-          <p className="form-hint">Lagre prisene dere har avtalt. Endringen gjelder eksisterende og nye brukerlisenser fra nå; tidligere fakturagrunnlag beholdes.</p>
+          <p className="form-hint"><UiText text="Lagre prisene dere har avtalt. Endringen gjelder eksisterende og nye brukerlisenser fra nå; tidligere fakturagrunnlag beholdes." /></p>
           <div className="offer-actions">
             <Button
               variant="outline"
               onClick={() => setSelectedOrganization(null)}
-            >
-              Lukk
-            </Button>
+            ><UiText text="Lukk" /></Button>
             <Button
               onClick={async () => {
                 if (!selectedOrganization) return;
                 if (await p.updateDetails(selectedOrganization.id, details))
                   setSelectedOrganization(null);
               }}
-            >
-              Lagre informasjon
-            </Button>
+            ><UiText text="Lagre informasjon" /></Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -5724,6 +5568,7 @@ function AvatarCropDialog({
     avatarZoom: number;
   }) => void;
 }) {
+ const {ui}=useUiTranslation();
   const drag = useRef<{
       clientX: number;
       clientY: number;
@@ -5735,11 +5580,8 @@ function AvatarCropDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Tilpass profilbildet</DialogTitle>
-          <DialogDescription>
-            Dra bildet med musen for å plassere det. Bruk skyveknappen for å
-            zoome.
-          </DialogDescription>
+          <DialogTitle><UiText text="Tilpass profilbildet" /></DialogTitle>
+          <DialogDescription><UiText text="Dra bildet med musen for å plassere det. Bruk skyveknappen for å zoome." /></DialogDescription>
         </DialogHeader>
         <div className="linkedin-crop">
           <div
@@ -5775,7 +5617,7 @@ function AvatarCropDialog({
             {src && (
               <img
                 src={src}
-                alt="Forhåndsvisning av profilbilde"
+                alt={ui("Forhåndsvisning av profilbilde")}
                 draggable={false}
                 style={{
                   left: `${x}%`,
@@ -5789,7 +5631,7 @@ function AvatarCropDialog({
           <div className="crop-zoom">
             <span>−</span>
             <Input
-              aria-label="Zoom profilbilde"
+              aria-label={ui("Zoom profilbilde")}
               type="range"
               min="100"
               max="250"
@@ -5805,7 +5647,7 @@ function AvatarCropDialog({
             />
             <span>+</span>
           </div>
-          <Button onClick={() => setOpen(false)}>Bruk bildet</Button>
+          <Button onClick={() => setOpen(false)}><UiText text="Bruk bildet" /></Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -5814,8 +5656,9 @@ function AvatarCropDialog({
 
 
 function NegotiatedPrices({values,change}:{values:PriceFields;change:(value:PriceFields)=>void}) {
-  return <fieldset className="negotiated-prices"><legend>Avtalte priser</legend>
-    <p className="form-hint">Kroner per bruker per måned, eks. mva. Skriv 0 hvis inkludert. Tom modulpris betyr at pris må avtales før kjøp.</p>
-    {([["crmPrice","CRM-bruker"],["ringPrice","Ringelister"],["marketingPrice","Markedsføring"]] as const).map(([key,label])=><label key={key}>{label}<Input type="number" min="0" max="1000000" step="1" inputMode="numeric" required={key==="crmPrice"} value={values[key]} onChange={e=>change({...values,[key]:e.target.value})} placeholder={key==="crmPrice"?"Avtalt pris":"Ikke avtalt"}/></label>)}
+ const {ui}=useUiTranslation();
+  return <fieldset className="negotiated-prices"><legend><UiText text="Avtalte priser" /></legend>
+    <p className="form-hint"><UiText text="Kroner per bruker per måned, eks. mva. Skriv 0 hvis inkludert. Tom modulpris betyr at pris må avtales før kjøp." /></p>
+    {([["crmPrice",ui("CRM-bruker")],["ringPrice",ui("Ringelister")],["marketingPrice",ui("Markedsføring")]] as const).map(([key,label])=><label key={key}>{label}<Input type="number" min="0" max="1000000" step="1" inputMode="numeric" required={key==="crmPrice"} value={values[key]} onChange={e=>change({...values,[key]:e.target.value})} placeholder={key==="crmPrice"?ui("Avtalt pris"):ui("Ikke avtalt")}/></label>)}
   </fieldset>;
 }

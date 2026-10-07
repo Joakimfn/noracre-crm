@@ -1,4 +1,6 @@
 "use client";
+import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+
 import {useCrmApi} from "@/lib/crm-api";
 
 import { useEffect, useRef, useState } from "react";
@@ -17,6 +19,7 @@ const totalPrice = (company: Company, draft: Draft) => (company.crmPrice ?? 0) +
 export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
   organizationId: number; refreshKey: number; onCreated: () => void;
 }) {
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -35,8 +38,8 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       .then(async response => {
         const data = await response.json();
         if (!response.ok) throw Error(data.error || "Kunne ikke hente bedriftene.");
-        if (!cancelled) { setCompanies(data.organizations); setError(""); }
-      }).catch(error => { if (!cancelled) setError(error.message); })
+        if (!cancelled) { setCompanies(data.organizations); setError(ui("")); }
+      }).catch(error => { if (!cancelled) setError(ui(error.message)); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [organizationId, refreshKey, reload]);
@@ -45,7 +48,7 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
   async function create() {
     if (!review || locked.current) return;
     locked.current = true;
-    setBusy(true); setError(""); setResult("");
+    setBusy(true); setError(ui("")); setResult("");
     try {
       const response = await apiFetch("/api/admin", {
         method: "POST",
@@ -64,53 +67,54 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       setReview(null);
       onCreated();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Sendingen kunne ikke bekreftes. Kontroller brukerlisten før du prøver igjen.");
+      setError(ui(error instanceof Error ? error.message : "Sendingen kunne ikke bekreftes. Kontroller brukerlisten før du prøver igjen."));
     } finally { locked.current = false; setBusy(false); }
   }
   return <>
-    <p>Opprett tilgang for en bruker i en eksisterende bedrift. Nye brukere velger selv passord via innloggingssiden.</p>
+    <p><UiText text="Opprett tilgang for en bruker i en eksisterende bedrift. Nye brukere velger selv passord via innloggingssiden." /></p>
     <form className="organization-form" onSubmit={event => {
       event.preventDefault();
-      if (selected && selected.crmPrice != null) { setError(""); setResult(""); setReview({ draft: { ...draft, name: draft.name.trim(), email: draft.email.trim().toLowerCase() }, company: selected }); }
+      if (selected && selected.crmPrice != null) { setError(ui("")); setResult(""); setReview({ draft: { ...draft, name: draft.name.trim(), email: draft.email.trim().toLowerCase() }, company: selected }); }
     }}>
-      <Label htmlFor="customer-user-company">Bedrift</Label>
+      <Label htmlFor="customer-user-company"><UiText text="Bedrift" /></Label>
       <Select value={draft.organizationId ? String(draft.organizationId) : ""} onValueChange={value => setDraft({ ...draft, organizationId: Number(value), role: "Bruker", moduleKeys: [] })} disabled={loading || busy}>
-        <SelectTrigger id="customer-user-company"><SelectValue placeholder={loading ? "Henter bedrifter …" : "Velg bedrift"} /></SelectTrigger>
+        <SelectTrigger id="customer-user-company"><SelectValue placeholder={loading ? ui("Henter bedrifter …") : ui("Velg bedrift")} /></SelectTrigger>
         <SelectContent>{activeCompanies.map(company => <SelectItem key={company.id} value={String(company.id)}>{company.name}</SelectItem>)}</SelectContent>
       </Select>
-      <Label htmlFor="customer-user-name">Navn</Label>
+      <Label htmlFor="customer-user-name"><UiText text="Navn" /></Label>
       <Input id="customer-user-name" required maxLength={160} value={draft.name} onChange={event => setDraft({ ...draft, name: event.target.value })} />
-      <Label htmlFor="customer-user-email">E-post</Label>
+      <Label htmlFor="customer-user-email"><UiText text="E-post" /></Label>
       <Input id="customer-user-email" type="email" required maxLength={254} value={draft.email} onChange={event => setDraft({ ...draft, email: event.target.value })} />
-      <Label htmlFor="customer-user-phone">Telefon (valgfritt)</Label>
+      <Label htmlFor="customer-user-phone"><UiText text="Telefon (valgfritt)" /></Label>
       <Input id="customer-user-phone" type="tel" maxLength={50} value={draft.phone} onChange={event => setDraft({ ...draft, phone: event.target.value })} />
-      <Label htmlFor="customer-user-role">Rolle</Label>
+      <Label htmlFor="customer-user-role"><UiText text="Rolle" /></Label>
       <Select value={draft.role} onValueChange={role => setDraft({ ...draft, role })}>
         <SelectTrigger id="customer-user-role"><SelectValue /></SelectTrigger>
-        <SelectContent><SelectItem value="Bruker">Bruker</SelectItem><SelectItem value="Administrator">Administrator</SelectItem>{selected?.isPartner&&<SelectItem value="Partner">Partner</SelectItem>}</SelectContent>
+        <SelectContent><SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem><SelectItem value="Administrator">Administrator</SelectItem>{selected?.isPartner&&<SelectItem value="Partner">Partner</SelectItem>}</SelectContent>
       </Select>
       <fieldset className="company-user-modules" disabled={!selected || loading || busy}>
-        <legend>Tilleggsmoduler (valgfritt)</legend>
+        <legend><UiText text="Tilleggsmoduler (valgfritt)" /></legend>
         {moduleCatalog.map(module => <label key={module.key}>
           <input type="checkbox" checked={draft.moduleKeys.includes(module.key)} disabled={!selected || selected[module.priceKey] == null}
             onChange={event => setDraft({ ...draft, moduleKeys: event.target.checked ? [...draft.moduleKeys, module.key] : draft.moduleKeys.filter(key => key !== module.key) })} />
-          <span><strong>{module.name}</strong><small>{!selected ? "Velg bedrift først" : selected[module.priceKey] == null ? "Avtal pris under Drift for å aktivere" : `${selected[module.priceKey]} kr per måned`}</small></span>
+          <span><strong>{module.name}</strong><small>{!selected ? ui("Velg bedrift først") : selected[module.priceKey] == null ? ui("Avtal pris under Drift for å aktivere") : ui("{0} kr per måned",{"0":selected[module.priceKey]})}</small></span>
         </label>)}
       </fieldset>
-      <p className="form-hint">{selected ? selected.crmPrice == null ? "Avtal CRM-pris under Drift før brukeren opprettes." : `CRM: ${selected.crmPrice} kr. Totalt for denne brukeren: ${totalPrice(selected, draft)} kr per måned eks. mva.` : "Velg bedriften brukeren skal ha tilgang til."}</p>
-      <Button type="submit" disabled={loading || busy || !selected || selected.crmPrice == null || !draft.name.trim() || !draft.email.trim()}>Opprett bedriftsbruker</Button>
+      <p className="form-hint">{selected ? selected.crmPrice == null ? ui("Avtal CRM-pris under Drift før brukeren opprettes.") : ui("CRM: {0} kr. Totalt for denne brukeren: {1} kr per måned eks. mva.",{"0":selected.crmPrice,"1":totalPrice(selected, draft)}) : ui("Velg bedriften brukeren skal ha tilgang til.")}</p>
+      <Button type="submit" disabled={loading || busy || !selected || selected.crmPrice == null || !draft.name.trim() || !draft.email.trim()}><UiText text="Opprett bedriftsbruker" /></Button>
       {error && !review && <p role="alert">{error}</p>}
-      {!loading && !companies.length && <Button type="button" variant="outline" onClick={() => setReload(value => value + 1)}>Hent bedrifter på nytt</Button>}
+      {!loading && !companies.length && <Button type="button" variant="outline" onClick={() => setReload(value => value + 1)}><UiText text="Hent bedrifter på nytt" /></Button>}
       {result && <p role="status">{result}</p>}
     </form>
     <Dialog open={Boolean(review)} onOpenChange={open => { if (!open && !busy) setReview(null); }}>
       <DialogContent>
-        <DialogHeader><DialogTitle>Opprett bruker i {review?.company.name}?</DialogTitle><DialogDescription>{review?.draft.name} · {review?.draft.email} · {review?.draft.role}</DialogDescription></DialogHeader>
-        <p>Tilgang: CRM{review && moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => ` + ${module.name}`).join("")}.</p>
-        <p>Bedriftens abonnement øker med {review ? totalPrice(review.company, review.draft) : 0} kr per måned eks. mva. En invitasjon sendes til e-postadressen over.</p>
+        <DialogHeader><DialogTitle><UiText text="Opprett bruker i " />{review?.company.name}?</DialogTitle><DialogDescription>{review?.draft.name} · {review?.draft.email} · {ui(review?.draft.role)}</DialogDescription></DialogHeader>
+        <p><UiText text="Tilgang: CRM" />{review && moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => ` + ${module.name}`).join("")}.</p>
+        <p><UiText text="Bedriftens abonnement øker med " />{review ? totalPrice(review.company, review.draft) : 0}<UiText text=" kr per måned eks. mva. En invitasjon sendes til e-postadressen over." /></p>
         {error && <p role="alert">{error}</p>}
-        <Button disabled={busy} onClick={create}>{busy ? "Oppretter …" : "Opprett bruker og send invitasjon"}</Button>
+        <Button disabled={busy} onClick={create}>{busy ? ui("Oppretter …") : ui("Opprett bruker og send invitasjon")}</Button>
       </DialogContent>
     </Dialog>
   </>;
 }
+

@@ -20,9 +20,9 @@ test('module purchase views show only supplied company prices and handle no agre
  for(const [Component,price] of [[ui.CallLists,29],[ui.Marketing,69]]) {
    const props={agreedPrice:price,active:false,role:'Administrator',members:[],organizationId:1,currentMembershipId:1,companies:[],onActivated(){},onDataChanged:async()=>{},onGoToCustomer(){}};
    const html=renderToStaticMarkup(React.createElement(Component,props));
-   assert.ok(html.includes(`${price} kr per valgt bruker`));assert.ok(!html.includes('49 kr'));
+   assert.ok(html.includes(`<strong>${price} kr</strong>`));assert.match(html,/per bruker \/ måned/);assert.ok(!html.includes('49 kr'));
    const missing=renderToStaticMarkup(React.createElement(Component,{...props,agreedPrice:null}));
-   assert.ok(missing.includes('Kontakt Noracre for avtalt pris'));assert.match(missing,/<button[^>]*disabled/);
+   assert.match(missing,/kontakt med Noracre/i);assert.match(missing,/<button[^>]*disabled/);assert.ok(!missing.includes(`${price} kr`));
  }
 });
 test('price editor preserves explicit zero separately from an unconfigured module',()=>{

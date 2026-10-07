@@ -1,4 +1,6 @@
 "use client";
+import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+
 import {useCrmApi,useDemoMode} from "@/lib/crm-api";
 import {canManageModules} from "@/lib/roles";
 import { useEffect, useRef, useState } from "react";
@@ -12,6 +14,7 @@ export interface SocialConnection {id:number;platform:string;accountId:string;ac
 export interface SocialState {ready:boolean;connections:SocialConnection[];providers?:{meta:boolean;linkedin:boolean}}
 interface Choice {id:string;name:string;instagram:{id:string;name:string}|null}
 export function SocialConnections({organizationId,role,onChange}:{organizationId:number;role:string;onChange:(value:SocialState)=>void}){
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi(),demoMode=useDemoMode();
 
   const [data,setData]=useState<SocialState>({ready:false,connections:[]});
@@ -30,8 +33,8 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       const r=await apiFetch("/api/social/connections",{headers});const d=await r.json();
       if(!r.ok)throw Error(d.error);
       if(g!==generation.current)return;
-      setData(d);onChange(d);setError("");setConnectionError(d.connectionError??"");
-    }catch{if(g===generation.current)setError("Kunne ikke hente kontotilkoblingene. Prøv å åpne modulen på nytt.");}
+      setData(d);onChange(d);setError(ui(""));setConnectionError(d.connectionError??"");
+    }catch{if(g===generation.current)setError(ui("Kunne ikke hente kontotilkoblingene. Prøv å åpne modulen på nytt."));}
     finally{if(g===generation.current)setLoading(false);}
   }
   useEffect(()=>{
@@ -41,11 +44,11 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[organizationId]);
   async function connect(){
- if(demoMode)return toast.info("Kontotilkobling er deaktivert i demoen.");
+ if(demoMode)return toast.info(ui("Kontotilkobling er deaktivert i demoen."));
     if(busy)return;
     const g=generation.current;
     popup.current=window.open("about:blank","noracre-meta","width=650,height=760");
-    if(!popup.current)return toast.error("Tillat sprettoppvinduer for å koble til Meta.");
+    if(!popup.current)return toast.error(ui("Tillat sprettoppvinduer for å koble til Meta."));
     popup.current.opener=null;
     setBusy(true);setConnectionError("");
     try{
@@ -77,17 +80,17 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
     try{
       const r=await apiFetch("/api/social/meta/accounts",{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({id:pending,pageId,platforms:selected})});const d=await r.json();
       if(!r.ok)throw Error(d.error);
-      setPending("");await load();toast.success("Bedriftens kontoer er koblet til.");
-    }catch(e){toast.error(e instanceof Error?e.message:"Kunne ikke lagre tilkoblingen.");}finally{setBusy(false);}
+      setPending("");await load();toast.success(ui("Bedriftens kontoer er koblet til."));
+    }catch(e){toast.error(ui(e instanceof Error?e.message:"Kunne ikke lagre tilkoblingen."));}finally{setBusy(false);}
   }
   const [linkedinPending,setLinkedinPending]=useState("");
   const [linkedinPages,setLinkedinPages]=useState<{id:string;name:string}[]>([]),[linkedinPage,setLinkedinPage]=useState("");
   const [disconnectId,setDisconnectId]=useState<number|null>(null);
   async function connectLinkedIn(){
- if(demoMode)return toast.info("Kontotilkobling er deaktivert i demoen.");
+ if(demoMode)return toast.info(ui("Kontotilkobling er deaktivert i demoen."));
     if(busy)return;const g=generation.current;
     popup.current=window.open("about:blank","noracre-linkedin","width=650,height=760");
-    if(!popup.current)return toast.error("Tillat sprettoppvinduer for å koble til LinkedIn.");
+    if(!popup.current)return toast.error(ui("Tillat sprettoppvinduer for å koble til LinkedIn."));
     popup.current.opener=null;setBusy(true);setConnectionError("");
     try{
       const r=await apiFetch("/api/social/linkedin/start",{method:"POST",headers}),d=await r.json();if(!r.ok)throw Error(d.error);
@@ -108,22 +111,22 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   }
   async function saveLinkedIn(){
     if(busy)return;setBusy(true);
-    try{const r=await apiFetch("/api/social/linkedin/accounts",{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({id:linkedinPending,pageId:linkedinPage})}),d=await r.json();if(!r.ok)throw Error(d.error);setLinkedinPending("");await load();toast.success("LinkedIn-bedriftssiden er koblet til.");}
-    catch(e){toast.error(e instanceof Error?e.message:"Kunne ikke koble til LinkedIn.");}finally{setBusy(false);}
+    try{const r=await apiFetch("/api/social/linkedin/accounts",{method:"POST",headers:{...headers,"content-type":"application/json"},body:JSON.stringify({id:linkedinPending,pageId:linkedinPage})}),d=await r.json();if(!r.ok)throw Error(d.error);setLinkedinPending("");await load();toast.success(ui("LinkedIn-bedriftssiden er koblet til."));}
+    catch(e){toast.error(ui(e instanceof Error?e.message:"Kunne ikke koble til LinkedIn."));}finally{setBusy(false);}
   }
   async function disconnect(){
     const connection=data.connections.find(c=>c.id===disconnectId);
     if(!connection||busy)return;setBusy(true);
-    try{const r=await apiFetch(`/api/social/connections?id=${connection.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success(`${connection.platform} er koblet fra CRM-et.`);}
-    catch{toast.error(`Kunne ikke logge av ${connection.platform}. Prøv igjen.`);}finally{setBusy(false);}
+    try{const r=await apiFetch(`/api/social/connections?id=${connection.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success(ui(`${connection.platform} er koblet fra CRM-et.`));}
+    catch{toast.error(ui(`Kunne ikke logge av ${connection.platform}. Prøv igjen.`));}finally{setBusy(false);}
   }
   const chosen=pages.find(p=>p.id===pageId);
   const disconnecting=data.connections.find(c=>c.id===disconnectId);
   return <section className="surface">
-    <div className="surface-head"><h3>Kanaler</h3></div>
-    <p className="form-hint">{loading?"Henter kontotilkoblinger …":error||(!data.ready?"Kontotilkoblingene venter på at Noracre fullfører oppsettet.":"Koble til bedriftens kontoer på Facebook, Instagram og LinkedIn. Kun administratorer kan endre tilkoblingene.")}</p>
+    <div className="surface-head"><h3><UiText text="Kanaler" /></h3></div>
+    <p className="form-hint">{loading?ui("Henter kontotilkoblinger …"):error||(!data.ready?ui("Kontotilkoblingene venter på at Noracre fullfører oppsettet."):ui("Koble til bedriftens kontoer på Facebook, Instagram og LinkedIn. Kun administratorer kan endre tilkoblingene."))}</p>
     {connectionError&&<p role="alert" className="form-hint" style={{color:"var(--destructive)"}}>{connectionError}</p>}
-    {busy&&!pending&&!linkedinPending&&!disconnectId&&<Button variant="ghost" onClick={()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();setBusy(false);}}>Avbryt venting</Button>}
+    {busy&&!pending&&!linkedinPending&&!disconnectId&&<Button variant="ghost" onClick={()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();setBusy(false);}}><UiText text="Avbryt venting" /></Button>}
     <div className="channel-grid social-connections">
       {SOCIAL_CHANNELS.map(channel=>{
         const connection=data.connections.find(c=>c.platform===channel),meta=["Facebook","Instagram"].includes(channel),linkedin=channel==="LinkedIn",ready=linkedin?Boolean(data.providers?.linkedin):Boolean(data.providers?.meta??data.ready);
@@ -132,26 +135,27 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
           : channel==="Instagram" && /^[A-Za-z0-9._]{1,30}$/.test(connection.accountName)
             ? `https://www.instagram.com/${encodeURIComponent(connection.accountName)}/` : linkedin && /^\d+$/.test(connection.accountId) ? `https://www.linkedin.com/company/${connection.accountId}/` : null : null;
         return <div key={channel}>
-          {profileUrl ? <a className="social-profile-link" href={profileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Åpne ${connection!.accountName} på ${channel} (ny fane)`}><SocialChannelIcon channel={channel}/></a> : <SocialChannelIcon channel={channel}/>}
+          {profileUrl ? <a className="social-profile-link" href={profileUrl} target="_blank" rel="noopener noreferrer" aria-label={ui("Åpne {0} på {1} (ny fane)",{"0":connection!.accountName,"1":channel})}><SocialChannelIcon channel={channel}/></a> : <SocialChannelIcon channel={channel}/>}
           <strong>{channel}</strong>
-          <span>{connection?`${connection.accountName}${connection.expired?" · Tilgang utløpt":" · Tilkoblet"}`:meta?"Ikke tilkoblet":linkedin?(ready?"Ikke tilkoblet":"Venter på oppsett"):"Kommer senere"}</span>
-          {(meta||linkedin)&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||(!connection&&!ready)||Boolean(error)} onClick={()=>connection?setDisconnectId(connection.id):linkedin?connectLinkedIn():connect()}>{connection?"Logg av":busy?"Venter …":"Koble til"}</Button>}
+          <span>{connection?`${connection.accountName}${connection.expired?ui(" · Tilgang utløpt"):ui(" · Tilkoblet")}`:meta?ui("Ikke tilkoblet"):linkedin?(ready?ui("Ikke tilkoblet"):ui("Venter på oppsett")):ui("Kommer senere")}</span>
+          {(meta||linkedin)&&admin&&<Button size="sm" variant="outline" disabled={busy||loading||(!connection&&!ready)||Boolean(error)} onClick={()=>connection?setDisconnectId(connection.id):linkedin?connectLinkedIn():connect()}>{connection?ui("Logg av"):busy?ui("Venter …"):ui("Koble til")}</Button>}
 
         </div>;
       })}
     </div>
-    <Dialog open={Boolean(pending)} onOpenChange={open=>{if(!open&&!busy)setPending("");}}><DialogContent><DialogHeader><DialogTitle>Velg bedriftens kontoer</DialogTitle><DialogDescription>Velg siden som tilhører denne bedriften. Eksisterende tilkobling erstattes bare for kanalene du velger.</DialogDescription></DialogHeader>
-      {!pages.length?<p>Meta returnerte ingen sider med publiseringstilgang. Kontroller at du administrerer en Facebook-side, og at du ga tilgang til den.{discovery&&<span> Sider mottatt: {discovery.returned}. Uten kontotilgang: {discovery.missingToken}. Uten publiseringsrolle: {discovery.missingTask}. Uten rolleopplysninger: {discovery.missingTasksField}.</span>}</p>:<Select value={pageId} onValueChange={value=>{setPageId(value);setSelected([]);}}><SelectTrigger><SelectValue placeholder="Velg Facebook-side"/></SelectTrigger><SelectContent>{pages.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>}
+    <Dialog open={Boolean(pending)} onOpenChange={open=>{if(!open&&!busy)setPending("");}}><DialogContent><DialogHeader><DialogTitle><UiText text="Velg bedriftens kontoer" /></DialogTitle><DialogDescription><UiText text="Velg siden som tilhører denne bedriften. Eksisterende tilkobling erstattes bare for kanalene du velger." /></DialogDescription></DialogHeader>
+      {!pages.length?<p><UiText text="Meta returnerte ingen sider med publiseringstilgang. Kontroller at du administrerer en Facebook-side, og at du ga tilgang til den." />{discovery&&<span><UiText text=" Sider mottatt: " />{discovery.returned}<UiText text=". Uten kontotilgang: " />{discovery.missingToken}<UiText text=". Uten publiseringsrolle: " />{discovery.missingTask}<UiText text=". Uten rolleopplysninger: " />{discovery.missingTasksField}.</span>}</p>:<Select value={pageId} onValueChange={value=>{setPageId(value);setSelected([]);}}><SelectTrigger><SelectValue placeholder={ui("Velg Facebook-side")}/></SelectTrigger><SelectContent>{pages.map(p=><SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>}
       {chosen&&<div className="social-account-options">{["Facebook","Instagram"].map(platform=>{
         const enabled=allowed.includes(platform)&&(platform!=="Instagram"||Boolean(chosen.instagram));
-        return <label key={platform}><input type="checkbox" disabled={!enabled} checked={selected.includes(platform)} onChange={e=>setSelected(s=>e.target.checked?[...s,platform]:s.filter(p=>p!==platform))}/><span>{platform}: {platform==="Facebook"?chosen.name:chosen.instagram?.name??"Ingen tilknyttet profesjonell konto"}{!allowed.includes(platform)?" · Publiseringstillatelse mangler":""}</span></label>;
+        return <label key={platform}><input type="checkbox" disabled={!enabled} checked={selected.includes(platform)} onChange={e=>setSelected(s=>e.target.checked?[...s,platform]:s.filter(p=>p!==platform))}/><span>{platform}: {platform==="Facebook"?chosen.name:chosen.instagram?.name??ui("Ingen tilknyttet profesjonell konto")}{!allowed.includes(platform)?ui(" · Publiseringstillatelse mangler"):""}</span></label>;
       })}</div>}
-      <Button disabled={busy||!pageId||!selected.length} onClick={save}>{busy?"Lagrer …":"Koble til valgte kontoer"}</Button>
+      <Button disabled={busy||!pageId||!selected.length} onClick={save}>{busy?ui("Lagrer …"):ui("Koble til valgte kontoer")}</Button>
     </DialogContent></Dialog>
-    <Dialog open={Boolean(linkedinPending)} onOpenChange={open=>{if(!open&&!busy)setLinkedinPending("");}}><DialogContent><DialogHeader><DialogTitle>Velg LinkedIn-bedriftsside</DialogTitle><DialogDescription>Velg siden som tilhører bedriften i CRM-et. En eksisterende LinkedIn-tilkobling erstattes når du bekrefter.</DialogDescription></DialogHeader>
-      {!linkedinPages.length?<p>Ingen bedriftssider med publiseringstilgang ble funnet. Kontroller rollen din på LinkedIn-siden og tillatelsene du ga Noracre.</p>:<Select value={linkedinPage} onValueChange={setLinkedinPage}><SelectTrigger><SelectValue placeholder="Velg LinkedIn-side"/></SelectTrigger><SelectContent>{linkedinPages.map(page=><SelectItem key={page.id} value={page.id}>{page.name}</SelectItem>)}</SelectContent></Select>}
-      <Button disabled={busy||!linkedinPage} onClick={saveLinkedIn}>{busy?"Kobler til …":"Koble til bedriftssiden"}</Button>
+    <Dialog open={Boolean(linkedinPending)} onOpenChange={open=>{if(!open&&!busy)setLinkedinPending("");}}><DialogContent><DialogHeader><DialogTitle><UiText text="Velg LinkedIn-bedriftsside" /></DialogTitle><DialogDescription><UiText text="Velg siden som tilhører bedriften i CRM-et. En eksisterende LinkedIn-tilkobling erstattes når du bekrefter." /></DialogDescription></DialogHeader>
+      {!linkedinPages.length?<p><UiText text="Ingen bedriftssider med publiseringstilgang ble funnet. Kontroller rollen din på LinkedIn-siden og tillatelsene du ga Noracre." /></p>:<Select value={linkedinPage} onValueChange={setLinkedinPage}><SelectTrigger><SelectValue placeholder={ui("Velg LinkedIn-side")}/></SelectTrigger><SelectContent>{linkedinPages.map(page=><SelectItem key={page.id} value={page.id}>{page.name}</SelectItem>)}</SelectContent></Select>}
+      <Button disabled={busy||!linkedinPage} onClick={saveLinkedIn}>{busy?ui("Kobler til …"):ui("Koble til bedriftssiden")}</Button>
     </DialogContent></Dialog>
-    <Dialog open={Boolean(disconnecting)} onOpenChange={open=>{if(!open&&!busy)setDisconnectId(null);}}><DialogContent><DialogHeader><DialogTitle>Logge av {disconnecting?.platform}?</DialogTitle><DialogDescription>{disconnecting?.accountName} kobles fra CRM-et. Publiserte innlegg beholdes. Du kan koble til igjen senere.</DialogDescription></DialogHeader><Button variant="outline" disabled={busy} onClick={()=>setDisconnectId(null)}>Avbryt</Button><Button disabled={busy} onClick={disconnect}>{busy?"Logger av …":"Logg av"}</Button></DialogContent></Dialog>
+    <Dialog open={Boolean(disconnecting)} onOpenChange={open=>{if(!open&&!busy)setDisconnectId(null);}}><DialogContent><DialogHeader><DialogTitle><UiText text="Logge av " />{disconnecting?.platform}?</DialogTitle><DialogDescription>{disconnecting?.accountName}<UiText text=" kobles fra CRM-et. Publiserte innlegg beholdes. Du kan koble til igjen senere." /></DialogDescription></DialogHeader><Button variant="outline" disabled={busy} onClick={()=>setDisconnectId(null)}><UiText text="Avbryt" /></Button><Button disabled={busy} onClick={disconnect}>{busy?ui("Logger av …"):ui("Logg av")}</Button></DialogContent></Dialog>
   </section>;
 }
+
