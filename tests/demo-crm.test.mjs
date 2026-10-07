@@ -52,6 +52,29 @@ test('meeting bookings are reflected in demo follow-ups',async()=>{
  assert.equal((await read(request,'/api/call-lists')).entries.length,17);
 });
 
+test('call-list filters generate isolated demo prospects and preserve history',async()=>{
+ const request=runtime(),options=await read(request,'/api/call-list-options');
+ assert.ok(options.counties.length>10);assert.ok(options.municipalities.length>100);assert.ok(options.industries.length>100);assert.ok(options.organizationForms.some(x=>x.value==='ENK'));
+ const history=(await read(request,'/api/call-lists?view=history')).entries.length;
+ const generate=async(filters)=>await(await request('/api/call-lists',body('POST',{type:'generate',...filters}))).json();
+ const result=await generate({count:10,locationCodes:['county:46'],industryCodes:['69'],organizationForms:['AS'],minEmployees:1,maxEmployees:30,establishedFrom:'2011-01-01',establishedTo:'2011-12-31',requirePhone:true,requireEmail:true});
+ assert.equal(result.added,1);assert.equal(result.entries[0].city,'Bergen');assert.ok(result.entries[0].phone);assert.ok(result.entries[0].email);
+ assert.equal((await read(request,'/api/call-lists?view=history')).entries.length,history);
+ const meeting=await(await request('/api/call-lists',body('POST',{type:'status',id:result.entries[0].id,status:'Møte booket',meetingAt:'2026-09-25T10:00:00'}))).json();
+ assert.equal(meeting.company.id,2);assert.equal((await read(request,'/api/call-lists')).entries.length,0);
+ const sole=await generate({organizationForms:['ENK'],locationCodes:['5501']});assert.equal(sole.added,1);assert.equal(sole.entries[0].organizationForm,'ENK');
+ assert.equal((await generate({locationCodes:['0301'],industryCodes:['69']})).added,0);
+ assert.equal((await request('/api/call-lists',body('POST',{type:'generate',count:1000}))).status,400);
+ assert.equal((await read(runtime(),'/api/call-lists')).entries.length,18);
+});
+
+test('importing a demo call list and adding a customer stays in the demo',async()=>{
+ const request=runtime();
+ const imported=await(await request('/api/call-lists',body('POST',{type:'import',rows:[{name:'Fiktiv bedrift',city:'Oslo',email:'test@example.com'}]}))).json();assert.equal(imported.added,1);
+ const added=await(await request('/api/call-lists',body('POST',{type:'addCustomer',id:imported.entries[0].id}))).json();assert.equal(added.entry.status,'Lagt til som kunde');assert.equal(added.company.name,'Fiktiv bedrift');
+ assert.equal((await read(request,'/api/companies')).companies.length,37);assert.equal((await read(runtime(),'/api/companies')).companies.length,36);
+});
+
 test('demo never calls the network and blocks external effects and unrecognized operations',async()=>{
  const original=globalThis.fetch;let calls=0;globalThis.fetch=()=>{calls++;throw Error('Network forbidden');};
  try{
@@ -62,6 +85,8 @@ test('demo never calls the network and blocks external effects and unrecognized 
   const member=await request('/api/admin',body('POST',{type:'member',name:'Demo',email:'demo@example.com'}));
   assert.equal((await member.json()).invitationSent,false);
   await request('/api/companies',body('POST',{name:'Kun lokalt'}));
+  await read(request,'/api/call-list-options');
+  await request('/api/call-lists',body('POST',{type:'generate',locationCodes:['0301']}));
   assert.equal(calls,0);
  }finally{globalThis.fetch=original;}
 });

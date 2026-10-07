@@ -1664,7 +1664,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
             <Label htmlFor="profile-language">{locale==='nb'?'Språk':'Language'}</Label>
             <Select value={locale} onValueChange={value=>setLocale(value==='en'?'en':'nb')}>
               <SelectTrigger id="profile-language"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="nb">🇳🇴 Norsk</SelectItem><SelectItem value="en">🇬🇧 English</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="nb"><img src="/flags/no.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> Norsk</SelectItem><SelectItem value="en"><img src="/flags/gb.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> English</SelectItem></SelectContent>
             </Select>
             <p className="form-hint">{locale==='nb'?'Språkvalget huskes i denne nettleseren.':'Your language preference is remembered in this browser.'}</p>
             <Label><UiText text="Tema" /></Label>

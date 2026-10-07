@@ -1,4 +1,7 @@
 import type { CrmRequest } from './crm-api';
+import catalog from './call-list-catalog.json';
+import {organizationForms} from './call-list-options';
+import {parseCallListFilters,expandLocations,matchesCallListCompany} from './call-list-filters';
 import { norwegianToday } from './partner-payments';
 // This module has no network client, credentials, browser storage or database imports.
 // Every demo mount owns a separate in-memory store. Unknown operations fail closed.
@@ -11,8 +14,11 @@ export function createDemoRuntime(now = new Date()) {
     const names = ['Fjellheim Elektro AS', 'Kystlinje Regnskap AS', 'Solenga Bygg AS', 'Nordvik Transport AS', 'Eikeblad Interiør AS', 'Havbris Eiendom AS', 'Bergtun Renhold AS', 'Lunden Arkitekter AS', 'Solsiden Catering AS', 'Fjordglimt Bilservice AS', 'Nordstjerne IT AS', 'Strandvik Blomster AS', 'Varde Ventilasjon AS', 'Tind Mekaniske AS', 'Granli Trykkeri AS', 'Lysaker Design AS', 'Brekka Maskin AS', 'Knausen Hotell AS', 'Vesttun Hage AS', 'Åsheim Rørservice AS', 'Skoglia Møbler AS', 'Kystbyen Kontor AS', 'Fossheim Mat AS', 'Storvik Logistikk AS', 'Bjørk Media AS', 'Havnås Konsulent AS', 'Dalheim Verksted AS', 'Elvebredd Bakeri AS', 'Utsikten Prosjekt AS', 'Vikenga Sikkerhet AS', 'Nordenga Energi AS', 'Lien Service AS', 'Solstad Reiseliv AS', 'Fjellro Tekstil AS', 'Havtun Teknikk AS', 'Berglia Handel AS'];
     const cities = ['Tromsø', 'Bergen', 'Trondheim', 'Bodø', 'Kristiansand', 'Stavanger', 'Oslo', 'Ålesund'];
     const industries = ['Elektro og installasjon', 'Regnskap og rådgivning', 'Bygg og håndverk', 'Transport og logistikk', 'Interiør og handel', 'Eiendom', 'Renhold og service', 'Arkitektur', 'Catering', 'Bilservice', 'IT og teknologi', 'Blomsterhandel', 'Ventilasjon', 'Mekanisk industri', 'Trykkeri', 'Design', 'Maskiner', 'Hotell', 'Hage og landskap', 'Rørlegger', 'Møbelhandel', 'Kontorutstyr', 'Matproduksjon', 'Logistikk', 'Media', 'Rådgivning', 'Verksted', 'Bakeri', 'Prosjektledelse', 'Sikkerhet', 'Energi', 'Service', 'Reiseliv', 'Tekstil', 'Tekniske tjenester', 'Varehandel'];
+    const cityCodes = ['5501','4601','5001','1804','4204','1103','0301','1508'];
+    const industryCodes = ['43.210','69.201','41.200','49.410','47.599','68.209','81.210','71.111','56.210','45.200','62.010','47.761','43.220','25.620','18.120','74.102','46.610','55.101','81.300','43.220','47.591','46.650','10.890','52.290','73.110','70.220','45.200','10.710','71.129','80.100','35.119','81.100','79.110','13.920','71.129','46.900'];
     const stages = ['Ny kunde', 'Kontaktet', 'Møte avtalt', 'Tilbud sendt', 'Vunnet', 'Vunnet', 'Vunnet', 'Tapt'];
     let companies: Row[] = names.map((name, i) => ({ id: i + 1, organizationId: -1, name, customerType: 'Bedrift', orgNumber: '', contactName: ['Ida Nilsen', 'Thomas Hansen', 'Anne Larsen', 'Ole Johansen'][i % 4], phone: '00 00 ' + String(i + 1).padStart(2, '0') + ' 00', email: 'bedrift' + (i + 1) + '@example.com', stage: stages[i % 8], nextAction: i < 24 ? ['Avklar behov og neste steg', 'Følg opp tilbudet', 'Gjennomgå serviceavtalen', 'Planlegg oppstart'][i % 4] : '', nextActionDate: i < 24 ? at(i < 4 ? -2 : i < 10 ? 0 : 1 + (i % 12), 9 + i % 7) : '', nextContactId: null, note: ['Interessert i en langsiktig serviceavtale. Ønsker ett fast kontaktpunkt.', 'Planlegger utvidelse til høsten. Behov for levering og oppfølging på to lokasjoner.', 'Sammenligner løsninger. Legg vekt på responstid, kvalitet og enkel oppstart.', 'Eksisterende kunde. Følg opp tilfredshet og mulighet for utvidet samarbeid.'][i % 4], city: cities[i % 8], industry: industries[i], address: 'Eksempelveien ' + (i + 1), postalCode: '0000', employees: 3 + i % 28, revenue: 1200000 + i * 250000, source: 'Demodata', assignedTo: members[i % 6].name, lastContactAt: at(-(i % 12)), createdAt: at(-90 + i), updatedAt: stamp }));
+    const prospects: Row[] = companies.map((c,i)=>({...c,municipalityCode:cityCodes[i%8],industryCode:industryCodes[i],organizationForm:i%5===0?'ENK':'AS',name:i%5===0?c.name.replace(/ AS$/,''):c.name,establishedAt:String(2010+i%15)+'-04-15',demoCompanyId:c.id}));
     let contacts: Row[] = companies.flatMap((c, i) => [0, 1].map(j => ({ id: i * 2 + j + 1, companyId: c.id, name: j ? ['Marius Olsen', 'Hanne Berg', 'Lars Vik', 'Sofie Dahl'][i % 4] : c.contactName, title: j ? 'Prosjektleder' : 'Daglig leder', phone: c.phone, email: 'kontakt' + (i * 2 + j + 1) + '@example.com', isPrimary: j === 0 })));
     let activities: Row[] = companies.flatMap((c, i) => [
         ...[0, 1, 2].map(j => ({ id: i * 4 + j + 1, companyId: c.id, contactId: i * 2 + 1, companyName: c.name, kind: ['Telefon', 'Møte', 'E-post'][j], note: ['Innledende samtale. Kartlagt behov, omfang og ønsket fremdrift.', 'Gjennomgang av leveransen med daglig leder. Avtalt å sende et konkret forslag.', 'Sendt oversikt over anbefalt løsning og priser. Kunden tar dette opp i neste ledermøte.'][j], dueAt: '', completedAt: at(j === 2 ? -(i % 7) : -21 + j * 6 - (i % 5)), createdAt: at(j === 2 ? -(i % 7) : -21 + j * 6 - (i % 5)), createdBy: members[i % 6].name, reminderMinutes: '[]' })),
@@ -186,16 +192,38 @@ export function createDemoRuntime(now = new Date()) {
             return json({ template }, method === 'POST' ? 201 : 200);
         }
         if (path === '/api/call-list-options' && method === 'GET')
-            return json({ counties: [], municipalities: [], industries: [], organizationForms: [{ value: 'AS', label: 'Aksjeselskap' }] });
+            return json({...catalog, organizationForms});
         if (path === '/api/call-lists') {
             if (method === 'GET')
                 return json({ entries: calls.filter(c => url.searchParams.get('view') === 'history' ? c.status !== 'Ny' : c.status === 'Ny') });
-            if (method === 'POST' && data.type === 'status') {
+            if (method === 'POST' && data.type === 'generate') {
+                const parsed = parseCallListFilters(data);
+                if (!parsed.success) return json({error:parsed.error.issues[0]?.message ?? 'Ugyldige filtre.'},400);
+                const filters=parsed.data;
+                let locations:string[];
+                try { locations=expandLocations(filters.locationCodes,catalog.municipalities); }
+                catch { return json({error:'Velg et gyldig sted.'},400); }
+                const selected=prospects.filter(c=>filters.organizationForms.includes(c.organizationForm)&&(!filters.requirePhone||!!c.phone)&&(!filters.requireEmail||!!c.email)&&matchesCallListCompany({antallAnsatte:c.employees,stiftelsesdato:c.establishedAt,naeringskode1:{kode:c.industryCode},forretningsadresse:{kommunenummer:c.municipalityCode}},filters,locations)).slice(0,filters.count);
+                calls=[...calls.filter(c=>c.status!=='Ny'),...selected.map(c=>({...c,id:++serial,status:'Ny',handledBy:'',customerId:null,contactEmail:c.email,contactPhone:c.phone,website:'',meetingAt:'',createdAt:stamp,updatedAt:stamp}))];
+                return json({entries:calls.filter(c=>c.status==='Ny'),added:selected.length});
+            }
+            if (method === 'POST' && data.type === 'import') {
+                if(!Array.isArray(data.rows)||data.rows.length>1000)return json({error:'Ugyldig import.'},400);
+                const entries=data.rows.filter((c:Row)=>typeof c.name==='string'&&c.name.trim()).map((c:Row)=>({name:c.name.trim(),orgNumber:String(c.orgNumber??''),industry:String(c.industry??''),city:String(c.city??''),employees:Number(c.employees)||null,phone:String(c.phone??''),email:String(c.email??''),website:String(c.website??''),id:++serial,status:'Ny',handledBy:'',customerId:null,createdAt:stamp,updatedAt:stamp}));
+                calls.unshift(...entries);
+                return json({entries,added:entries.length});
+            }
+            if (method === 'POST' && ['status','addCustomer'].includes(data.type)) {
                 const entry = calls.find(c => c.id === id);
                 if (!entry)
                     return json({ error: 'Ukjent bedrift.' }, 404);
-                Object.assign(entry, data, { handledBy: profile.displayName, updatedAt: stamp });
-                const company = companies.find(c => c.id === entry.id);
+                Object.assign(entry, data, { status:data.type==='addCustomer'?'Lagt til som kunde':data.status,handledBy: profile.displayName, updatedAt: stamp });
+                let company = companies.find(c => c.id === (entry.demoCompanyId ?? entry.customerId ?? entry.id));
+                if(!company&&['Lagt til som kunde','Møte booket','Tilbud sendt'].includes(entry.status)) {
+                    company={...entry,id:++serial,organizationId:-1,customerType:'Bedrift',stage:entry.status==='Møte booket'?'Møte avtalt':entry.status==='Tilbud sendt'?'Tilbud sendt':'Ny kunde',assignedTo:profile.displayName,nextAction:'',nextActionDate:'',note:'',source:'Demodata'};
+                    companies.push(company);
+                }
+                if(company)entry.customerId=company.id;
                 if (data.status === 'Møte booket' && company) {
                     activities.unshift({ id: ++serial, companyId: company.id, companyName: company.name, kind: 'Møte', note: data.meetingNote || 'Avtalt møte', dueAt: data.meetingAt, completedAt: '', createdAt: stamp, createdBy: profile.displayName, reminderMinutes: JSON.stringify(data.reminderMinutes ?? [15]) });
                     refreshNext(company.id);
