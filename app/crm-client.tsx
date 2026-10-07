@@ -1922,7 +1922,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
           <DialogHeader>
             <DialogTitle><UiText text="Registrer " />{contactKind.toLowerCase()}</DialogTitle>
             <DialogDescription>
-              {selected?.name}<UiText text="· det tar bare noen sekunder." /></DialogDescription>
+              {selected?.name}<UiText text=" · det tar bare noen sekunder." /></DialogDescription>
           </DialogHeader>
           <div className="contact-kind-row">
             {["Telefon", "E-post", "Møte", "Annet"].map((k) => (
@@ -2215,7 +2215,7 @@ function Add(p: {
                       <Building2 />
                       <span>
                         <strong>{r.name}</strong>
-                        <small><UiText text="Org:" />{r.orgNumber} · {r.city}
+                        <small><UiText text="Org: " />{r.orgNumber} · {r.city}
                         </small>
                       </span>
                       <ChevronRight />
@@ -2256,7 +2256,7 @@ function Add(p: {
                 </div>
                 {!person && (
                   <div className="full">
-                    <Label><UiText text="Organisasjonsnummer" /><span><UiText text="(valgfritt)" /></span>
+                    <Label><UiText text="Organisasjonsnummer " /><span><UiText text="(valgfritt)" /></span>
                     </Label>
                     <Input
                       inputMode="numeric"
@@ -2845,7 +2845,7 @@ function Customers(p: {
                       </strong>
                       <p>{a.note || ui("Ingen notat")}</p>
                       <span>
-                        {date(a.completedAt || a.createdAt, true)}<UiText text="· registrert av" />{a.createdBy}
+                        {date(a.completedAt || a.createdAt, true)}<UiText text=" · registrert av " />{a.createdBy}
                       </span>
                     </div>
                     <ChevronRight />
@@ -3206,7 +3206,7 @@ function Reports(p: {
               <div className="avatar">{n.slice(0, 2).toUpperCase()}</div>
               <strong>{n}</strong>
               <span>
-                {activities.filter((a) => a.createdBy === n).length}<UiText text="aktiviteter" /></span>
+                {activities.filter((a) => a.createdBy === n).length}<UiText text=" aktiviteter" /></span>
             </div>
           ))
         ) : (
@@ -3322,7 +3322,7 @@ function Admin(p: {
           <div className="support-request" key={r.id}>
             <div>
               <strong><UiText text="Support ber om midlertidig tilgang" /></strong>
-              <span><UiText text="Sendt av" />{r.requestedBy} · {date(r.createdAt, true)}
+              <span><UiText text="Sendt av " />{r.requestedBy} · {date(r.createdAt, true)}
               </span>
             </div>
             <div className="support-approval-actions"><Button onClick={() => p.approveSupport(r.id,"24h")}><UiText text="Godkjenn i 24 timer" /></Button><Button variant="outline" onClick={()=>p.approveSupport(r.id,"untilRevoked")}><UiText text="Godkjenn til vi slår av" /></Button></div>
@@ -3496,7 +3496,7 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
           value={draft.body}
           onChange={(e) => setDraft({ ...draft, body: e.target.value })}
         />
-        <p className="form-hint"><UiText text="Bruk" />{"{{bedrift}}"}<UiText text=" og " />{"{{kontaktperson}}"}<UiText text=". Verdiene fylles inn før sending." /></p>
+        <p className="form-hint"><UiText text="Bruk " />{"{{bedrift}}"}<UiText text=" og " />{"{{kontaktperson}}"}<UiText text=". Verdiene fylles inn før sending." /></p>
         <div>
           <Button onClick={save}>
             {draft.id ? ui("Lagre endringer") : ui("Opprett mal")}
@@ -3842,7 +3842,7 @@ function CallLists({
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle><UiText text="Aktiver Ringelister" /></DialogTitle>
-              <DialogDescription><UiText text="Velg hvilke ansatte som skal ha modulen. Avtalt pris er" />{unitPrice}<UiText text="kr per bruker per måned eks. mva." /></DialogDescription>
+              <DialogDescription><UiText text="Velg hvilke ansatte som skal ha modulen. Avtalt pris er " />{unitPrice}<UiText text=" kr per bruker per måned eks. mva." /></DialogDescription>
             </DialogHeader>
             <div className="module-member-list">
               <div className="module-member-all">
@@ -3885,7 +3885,7 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : <UiText text="brukere" />}
+                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
               </span>
               <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
@@ -3959,7 +3959,7 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : <UiText text="brukere" />}
+                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
               </span>
               <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
             </div>
@@ -4218,7 +4218,7 @@ function CallLists({
           <DialogHeader>
             <DialogTitle><UiText text="Kundekortet er opprettet" /></DialogTitle>
             <DialogDescription>
-              {createdCustomer?.name}<UiText text="er registrert med status «Tilbud sendt»." /></DialogDescription>
+              {createdCustomer?.name}<UiText text=" er registrert med status «Tilbud sendt»." /></DialogDescription>
           </DialogHeader>
           <div className="offer-actions">
             <Button variant="outline" onClick={() => setCreatedCustomer(null)}><UiText text="Fortsett i ringelisten" /></Button>
@@ -4279,7 +4279,7 @@ function ProspectRows({
         <div className="prospect-row" key={row.id}>
           <div>
             <strong>{row.name}</strong>
-            <small><UiText text="Org:" />{row.orgNumber} · {row.city || ui("Ukjent sted")}
+            <small><UiText text="Org: " />{row.orgNumber} · {row.city || ui("Ukjent sted")}
             </small>
           </div>
           <div>
@@ -4719,7 +4719,7 @@ function Marketing({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle><UiText text="Markedsføring for ansatte" /></DialogTitle>
-          <DialogDescription><UiText text="Avtalt pris:" />{unitPrice}<UiText text="kr per valgt bruker per måned eks. mva." /></DialogDescription>
+          <DialogDescription><UiText text="Avtalt pris: " />{unitPrice}<UiText text=" kr per valgt bruker per måned eks. mva." /></DialogDescription>
         </DialogHeader>
         <div className="module-member-list">
           <div className="module-member-all">
@@ -4997,7 +4997,7 @@ function SuperadminSettings(p: {
                   <Building2 />
                   <span>
                     <strong>{company.name}</strong>
-                    <small><UiText text="Org:" />{company.orgNumber} · {company.city}
+                    <small><UiText text="Org: " />{company.orgNumber} · {company.city}
                     </small>
                   </span>
                   <ChevronRight />
@@ -5318,7 +5318,7 @@ function Operations(p: {
                 ) : null}
               </div>
               <span>
-                {o.activeUsers}<UiText text="aktive" />{o.lostUsers ? ` · ${o.lostUsers} deaktiverte` : ""}
+                {o.activeUsers}<UiText text=" aktive" />{o.lostUsers ? ` · ${o.lostUsers} deaktiverte` : ""}
               </span>
               <span>
                 {[
@@ -5409,7 +5409,7 @@ function Operations(p: {
               />
             </div>
             <div>
-              <Label><UiText text="Organisasjonsnummer" /></Label>
+              <Label><UiText text="Organisasjonsnummer " /></Label>
               <Input
                 inputMode="numeric"
                 value={details.orgNumber}
