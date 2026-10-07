@@ -11,8 +11,9 @@ const root=path.resolve(import.meta.dirname,'..'),dir=await mkdtemp(path.join(tm
 await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
 await build({stdin:{contents:"export * from './lib/i18n';export * from './lib/i18n/react';export {nb} from './lib/i18n/messages/nb';export {en} from './lib/i18n/messages/en';",resolveDir:root},bundle:true,format:'esm',platform:'node',packages:'external',outfile:path.join(dir,'i18n.mjs')});
 const app=await import(pathToFileURL(path.join(dir,'i18n.mjs')));
-test('public locale selection stays Norwegian until another language is complete',()=>{
- for(const value of ['nb-NO','no','en-GB','de','__proto__',null])assert.equal(app.resolvePublishedLocale(value),'nb');
+test('published language selection accepts English and Norwegian with a safe fallback',()=>{
+ for(const value of ['nb-NO','no','de','__proto__',null])assert.equal(app.resolvePublishedLocale(value),'nb');
+ assert.equal(app.resolvePublishedLocale('en-GB'),'en');
  assert.equal(app.resolveLocale('EN-us'),'en');assert.equal(app.resolveLocale('no-NO'),'nb');
 });
 test('catalogues have matching keys, placeholders and plural structure',()=>{

@@ -1,4 +1,7 @@
 "use client";
+import {useI18n} from '@/lib/i18n/react';
+import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+
 import {useCrmApi} from "@/lib/crm-api";
 import { useEffect, useRef, useState } from "react";
 import { MailAccount } from "@/components/mail-account";
@@ -9,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 type Props = { organizationId: number; companyIds: number[]; contactId?: number; attachmentIds?: number[]; files?: File[]; subject: string; message: string; recipientLabel: string; bulk?: boolean; scheduledAt?: string; onSent?: () => void };
 export function EmailSend(p: Props) {
+ const {locale}=useI18n();
+ const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
   const [open,setOpen]=useState(false), [sending,setSending]=useState(false), [config,setConfig]=useState<{configured:boolean;from:string;replyTo:string}|null>(null);
@@ -25,12 +30,13 @@ export function EmailSend(p: Props) {
       p.files?.forEach(file=>form.append("files",file));
       const response=await apiFetch("/api/email",{method:"POST",headers:{"x-organization-id":String(p.organizationId),"idempotency-key":attempt.current.key},body:form});
       const data=await response.json();if(!response.ok){if(data.id)p.onSent?.();throw new Error(data.error||"E-posten kunne ikke sendes.");}
-      toast.success(data.scheduled?`E-post planlagt til ${data.count} mottakere.`:`E-post sendt fra kontoen din til ${data.count} mottaker${data.count===1?"":"e"}.`);setOpen(false);p.onSent?.();
-    }catch(error){toast.error(error instanceof Error?error.message:"Sendingen kunne ikke bekreftes. Prøv igjen med samme melding.");}finally{setSending(false);}
+      toast.success(ui(data.scheduled?`E-post planlagt til ${data.count} mottakere.`:`E-post sendt fra kontoen din til ${data.count} mottaker${data.count===1?"":"e"}.`));setOpen(false);p.onSent?.();
+    }catch(error){toast.error(ui(error instanceof Error?error.message:"Sendingen kunne ikke bekreftes. Prøv igjen med samme melding."));}finally{setSending(false);}
   }
-  return <div className="email-send"><Button disabled={sending||!p.companyIds.length||!p.subject.trim()||!p.message.trim()||!config?.configured} onClick={()=>setOpen(true)}><Mail/>{p.scheduledAt?"Planlegg e-post":"Send e-post"}</Button>
-    <p className="form-hint">{config?.configured?`Fra: ${config.from}`:config===null?"Henter e-postkonto …":"Ingen e-postkonto er tilkoblet"}.{p.bulk?" Mottakerne skjules som blindkopi, og du får en kopi.":""}</p>
+  return <div className="email-send"><Button disabled={sending||!p.companyIds.length||!p.subject.trim()||!p.message.trim()||!config?.configured} onClick={()=>setOpen(true)}><Mail/>{p.scheduledAt?ui("Planlegg e-post"):ui("Send e-post")}</Button>
+    <p className="form-hint">{config?.configured?ui("Fra: {0}",{"0":config.from}):config===null?ui("Henter e-postkonto …"):ui("Ingen e-postkonto er tilkoblet")}.{p.bulk?ui(" Mottakerne skjules som blindkopi, og du får en kopi."):""}</p>
     {config?.configured===false&&<MailAccount organizationId={p.organizationId} onChange={refresh}/>}
-    <Dialog open={open} onOpenChange={value=>{if(!sending)setOpen(value);}}><DialogContent><DialogHeader><DialogTitle>{p.scheduledAt?"Planlegge e-posten?":"Send e-posten?"}</DialogTitle><DialogDescription>{p.recipientLabel}</DialogDescription></DialogHeader><p>Fra: {config?.from||"Ingen konto"}</p>{p.scheduledAt&&<p>Sendes automatisk: {new Date(p.scheduledAt).toLocaleString("nb-NO")} ({Intl.DateTimeFormat().resolvedOptions().timeZone}). Mottakerutvalget lagres slik det er nå.</p>}<strong>{p.subject}</strong><p className="email-confirm-body">{p.message}</p><p>{(p.files?.length??0)+(p.attachmentIds?.length??0)} vedlegg</p><Button disabled={sending} onClick={send}>{sending?"Behandler …":p.scheduledAt?"Bekreft planlegging":"Bekreft og send"}</Button></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={value=>{if(!sending)setOpen(value);}}><DialogContent><DialogHeader><DialogTitle>{p.scheduledAt?ui("Planlegge e-posten?"):ui("Send e-posten?")}</DialogTitle><DialogDescription>{p.recipientLabel}</DialogDescription></DialogHeader><p><UiText text="Fra: " />{config?.from||ui("Ingen konto")}</p>{p.scheduledAt&&<p><UiText text="Sendes automatisk: " />{new Date(p.scheduledAt).toLocaleString(locale==='en'?'en-GB':'nb-NO')} ({Intl.DateTimeFormat().resolvedOptions().timeZone}<UiText text="). Mottakerutvalget lagres slik det er nå." /></p>}<strong>{p.subject}</strong><p className="email-confirm-body">{p.message}</p><p>{(p.files?.length??0)+(p.attachmentIds?.length??0)}<UiText text=" vedlegg" /></p><Button disabled={sending} onClick={send}>{sending?ui("Behandler …"):p.scheduledAt?ui("Bekreft planlegging"):ui("Bekreft og send")}</Button></DialogContent></Dialog>
   </div>;
 }
+

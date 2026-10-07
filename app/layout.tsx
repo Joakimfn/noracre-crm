@@ -1,5 +1,7 @@
 import {I18nProvider} from '@/lib/i18n/react';
-import {DEFAULT_LOCALE,locales} from '@/lib/i18n';
+import {resolveLocale,locales} from '@/lib/i18n';
+import {cookies} from 'next/headers';
+import {LANGUAGE_COOKIE} from '@/lib/i18n/preference';
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
@@ -7,12 +9,13 @@ export const metadata: Metadata = {
   description: "Kunder, oppfølging og salg samlet på ett sted.",
   icons: { icon: "/favicon.svg" },
 };
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale=resolveLocale((await cookies()).get(LANGUAGE_COOKIE)?.value);
   return (
-    <html lang={DEFAULT_LOCALE} dir={locales[DEFAULT_LOCALE].direction}>
-      <body><I18nProvider>{children}</I18nProvider></body>
+    <html lang={locale} dir={locales[locale].direction}>
+      <body><I18nProvider locale={locale}>{children}</I18nProvider></body>
     </html>
   );
 }

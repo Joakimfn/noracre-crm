@@ -6,6 +6,8 @@ import handler from "vinext/server/app-router-entry";
 import { guardRequest, secureResponse } from "../lib/request-security";
 import { publicWebsite } from "../lib/public-site";
 import { publicEnquiry } from "../lib/public-enquiries";
+import {resolveLocale} from '../lib/i18n/config';
+import {readLanguagePreference} from '../lib/i18n/preference';
 
 interface Env {
   ASSETS: Fetcher;
@@ -32,13 +34,20 @@ const worker = {
       if(url.pathname==='/api/public/enquiry')return secureResponse(request,await publicEnquiry(request,env));
       const isWebsite=['noracre.no','www.noracre.no'].includes(url.hostname);
       const isPreview=url.pathname==='/nettside'||url.pathname.startsWith('/nettside/');
+      // Public presentation uses only its isolated sample-data runtime, never tenant data.
+      if(url.pathname==='/portfolio'){
+        const guarded=await guardRequest(request);
+        return secureResponse(request,guarded instanceof Response?guarded:await handler.fetch(guarded,env,ctx));
+      }
       if(isWebsite||isPreview){
         if(!['GET','HEAD'].includes(request.method))return secureResponse(request,new Response(null,{status:405,headers:{Allow:'GET, HEAD'}}));
         if(isWebsite&&url.hostname==='www.noracre.no'){url.hostname='noracre.no';return secureResponse(request,Response.redirect(url.toString(),308));}
         if(url.pathname==='/robots.txt')return secureResponse(request,new Response('User-agent: *\nAllow: /\nSitemap: https://noracre.no/sitemap.xml\n',{headers:{'Content-Type':'text/plain'}}));
         if(url.pathname==='/sitemap.xml')return secureResponse(request,new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['','/crm','/moduler','/om-noracre','/kontakt','/demo','/bli-kunde','/personvern'].map(p=>'<url><loc>https://noracre.no'+p+'</loc></url>').join('')+'</urlset>',{headers:{'Content-Type':'application/xml'}}));
         if(isPreview||!url.pathname.match(/\.[a-z0-9]+$/i)){
-          const response=publicWebsite(isPreview?url.pathname.slice('/nettside'.length)||'/':url.pathname,isPreview?'/nettside':'',env);
+          const savedLanguage=readLanguagePreference(request.headers.get('cookie'));
+          const locale=resolveLocale(url.searchParams.has('lang')?url.searchParams.get('lang'):savedLanguage);
+          const response=publicWebsite(isPreview?url.pathname.slice('/nettside'.length)||'/':url.pathname,isPreview?'/nettside':'',env,locale);
           return secureResponse(request,request.method==='HEAD'?new Response(null,response):response);
         }
         return secureResponse(request,await env.ASSETS.fetch(request));

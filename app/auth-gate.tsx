@@ -1,4 +1,6 @@
 "use client";
+import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+
 
 import { FormEvent, useEffect, useState } from "react";
 import CRMClient from "./crm-client";
@@ -9,6 +11,7 @@ type AuthConfig = { configured: boolean; url?: string; anonKey?: string };
 type AuthMode = "login" | "signup" | "reset";
 
 export default function AuthGate() {
+ const {ui}=useUiTranslation();
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [checking, setChecking] = useState(true);
   const [ready, setReady] = useState(false);
@@ -52,12 +55,12 @@ export default function AuthGate() {
   async function authenticate(event: FormEvent) {
     event.preventDefault();
     if (mode === "signup" && password.length < 8) {
-      setMessage("Passordet må inneholde minst 8 tegn.");
+      setMessage(ui("Passordet må inneholde minst 8 tegn."));
       return;
     }
     if (!config?.url || !config.anonKey) return;
     setBusy(true);
-    setMessage("");
+    setMessage(ui(""));
     const endpoint =
       mode === "login"
         ? `${config.url}/auth/v1/token?grant_type=password`
@@ -87,11 +90,11 @@ export default function AuthGate() {
         }
         setReady(true);
       } else {
-        setMessage("Sjekk e-posten din og bekreft kontoen før du logger inn.");
+        setMessage(ui("Sjekk e-posten din og bekreft kontoen før du logger inn."));
         setMode("login");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Noe gikk galt.");
+      setMessage(ui(error instanceof Error ? error.message : "Noe gikk galt."));
     } finally {
       setBusy(false);
     }
@@ -100,9 +103,9 @@ export default function AuthGate() {
   async function recoverPassword(event: FormEvent) {
     event.preventDefault();
     if (recoveryBusy) return;
-    setRecoveryMessage("");
+    setRecoveryMessage(ui(""));
     if (!config?.url || !config.anonKey) {
-      setRecoveryMessage("Passordgjenoppretting er midlertidig utilgjengelig. Prøv igjen senere.");
+      setRecoveryMessage(ui("Passordgjenoppretting er midlertidig utilgjengelig. Prøv igjen senere."));
       return;
     }
     setRecoveryBusy(true);
@@ -115,7 +118,7 @@ export default function AuthGate() {
       if (!response.ok) throw new Error("Kunne ikke sende lenken. Prøv igjen om litt.");
       setRecoverySent(true);
     } catch {
-      setRecoveryMessage("Kunne ikke sende lenken. Prøv igjen om litt.");
+      setRecoveryMessage(ui("Kunne ikke sende lenken. Prøv igjen om litt."));
     } finally {
       setRecoveryBusy(false);
     }
@@ -124,12 +127,12 @@ export default function AuthGate() {
   async function updatePassword(event: FormEvent) {
     event.preventDefault();
     if (password.length < 8) {
-      setMessage("Passordet må inneholde minst 8 tegn.");
+      setMessage(ui("Passordet må inneholde minst 8 tegn."));
       return;
     }
     if (!config?.url || !config.anonKey) return;
     setBusy(true);
-    setMessage("");
+    setMessage(ui(""));
     const session = JSON.parse(
       localStorage.getItem(supabaseSessionKey) ?? "{}",
     ) as { access_token?: string };
@@ -147,13 +150,13 @@ export default function AuthGate() {
       if (access.ok) setReady(true);
       else {
         setMode("login");
-        setMessage("Passordet er oppdatert. Logg inn for å fortsette.");
+        setMessage(ui("Passordet er oppdatert. Logg inn for å fortsette."));
       }
-    } else setMessage("Kunne ikke oppdatere passordet. Be om en ny lenke.");
+    } else setMessage(ui("Kunne ikke oppdatere passordet. Be om en ny lenke."));
     setBusy(false);
   }
 
-  if (checking) return <main className="session-loading" role="status" aria-live="polite" aria-label="Åpner Noracre CRM"><img src="/noracre-logo-primary.svg" alt="Noracre"/><span>Gjør klart arbeidsområdet ditt …</span></main>;
+  if (checking) return <main className="session-loading" role="status" aria-live="polite" aria-label={ui("Åpner Noracre CRM")}><img src="/noracre-logo-primary.svg" alt="Noracre"/><span><UiText text="Gjør klart arbeidsområdet ditt …" /></span></main>;
   if (ready) return <CRMClient />;
   return (
     <main className="login-page">
@@ -162,47 +165,41 @@ export default function AuthGate() {
         <p className="eyebrow">NORACRE CRM</p>
         <h1>
           {mode === "login"
-            ? "Logg inn"
+            ? ui("Logg inn")
             : mode === "signup"
-              ? "Opprett brukerkonto"
-              : "Velg nytt passord"}
+              ? ui("Opprett brukerkonto")
+              : ui("Velg nytt passord")}
         </h1>
         <p>
           {mode === "login"
-            ? "Logg inn for å se kunder, kontaktpersoner og oppfølginger."
+            ? ui("Logg inn for å se kunder, kontaktpersoner og oppfølginger.")
             : mode === "signup"
-              ? "Bruk e-postadressen administratoren har registrert for deg."
-              : "Skriv inn et nytt passord for kontoen din."}
+              ? ui("Bruk e-postadressen administratoren har registrert for deg.")
+              : ui("Skriv inn et nytt passord for kontoen din.")}
         </p>
         <form onSubmit={mode === "reset" ? updatePassword : authenticate} className="login-form">
           {mode !== "reset" && (
-            <label>
-              E-post
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+            <label><UiText text="E-post" /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
             </label>
           )}
-          <label>
-            Passord
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={mode === "login" ? undefined : 8} aria-describedby={mode === "login" ? undefined : "password-requirement"} autoComplete={mode === "login" ? "current-password" : "new-password"} required />
+          <label><UiText text="Passord" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={mode === "login" ? undefined : 8} aria-describedby={mode === "login" ? undefined : "password-requirement"} autoComplete={mode === "login" ? "current-password" : "new-password"} required />
           </label>
           {mode !== "login" && (
-            <p id="password-requirement" style={{ fontSize: "0.875rem", margin: 0 }}>
-              Passordet må inneholde minst 8 tegn.
-            </p>
+            <p id="password-requirement" style={{ fontSize: "0.875rem", margin: 0 }}><UiText text="Passordet må inneholde minst 8 tegn." /></p>
           )}
           <button className="login-button" type="submit" disabled={busy || !config?.configured}>
             {busy
-              ? "Vent litt …"
+              ? ui("Vent litt …")
               : mode === "login"
-                ? "Logg inn"
+                ? ui("Logg inn")
                 : mode === "signup"
-                  ? "Opprett konto"
-                  : "Lagre nytt passord"}
+                  ? ui("Opprett konto")
+                  : ui("Lagre nytt passord")}
           </button>
         </form>
         {message && <p className="login-message">{message}</p>}
         {!config?.configured && config !== null && (
-          <p className="login-message">Innloggingen klargjøres. Prøv igjen litt senere.</p>
+          <p className="login-message"><UiText text="Innloggingen klargjøres. Prøv igjen litt senere." /></p>
         )}
         {mode === "login" && (
           <Dialog open={recoveryOpen} onOpenChange={(open) => {
@@ -210,46 +207,46 @@ export default function AuthGate() {
             setRecoveryOpen(open);
             if (open) {
               setRecoveryEmail(email);
-              setRecoveryMessage("");
+              setRecoveryMessage(ui(""));
               setRecoverySent(false);
             }
           }}>
             <DialogTrigger asChild>
-              <button className="login-link" type="button">Glemt passord</button>
+              <button className="login-link" type="button"><UiText text="Glemt passord" /></button>
             </DialogTrigger>
             <DialogContent showCloseButton={false} style={{ background: "#fff", color: "#073b3d", borderRadius: "20px", padding: "28px", maxWidth: "440px", width: "calc(100% - 32px)" }}>
               <DialogHeader>
-                <DialogTitle style={{ fontSize: "1.5rem" }}>{recoverySent ? "Sjekk e-posten din" : "Glemt passord?"}</DialogTitle>
+                <DialogTitle style={{ fontSize: "1.5rem" }}>{recoverySent ? ui("Sjekk e-posten din") : ui("Glemt passord?")}</DialogTitle>
                 <DialogDescription style={{ fontSize: "1rem", lineHeight: 1.6 }}>
                   {recoverySent
-                    ? "Hvis e-postadressen er registrert, får du en lenke for å velge et nytt passord. Sjekk også søppelpost."
-                    : "Skriv inn e-postadressen din, så sender vi deg en lenke for å velge et nytt passord."}
+                    ? ui("Hvis e-postadressen er registrert, får du en lenke for å velge et nytt passord. Sjekk også søppelpost.")
+                    : ui("Skriv inn e-postadressen din, så sender vi deg en lenke for å velge et nytt passord.")}
                 </DialogDescription>
               </DialogHeader>
               {!recoverySent && (
                 <form className="login-form" onSubmit={recoverPassword}>
-                  <label htmlFor="recovery-email">E-post
-                    <input id="recovery-email" type="email" autoComplete="email" placeholder="navn@bedrift.no" value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} required disabled={recoveryBusy} autoFocus />
+                  <label htmlFor="recovery-email"><UiText text="E-post" /><input id="recovery-email" type="email" autoComplete="email" placeholder={ui("navn@bedrift.no")} value={recoveryEmail} onChange={(event) => setRecoveryEmail(event.target.value)} required disabled={recoveryBusy} autoFocus />
                   </label>
                   {recoveryMessage && <p className="login-message" role="alert">{recoveryMessage}</p>}
                   <button className="login-button" type="submit" disabled={recoveryBusy}>
-                    {recoveryBusy ? "Sender …" : "Send lenke"}
+                    {recoveryBusy ? ui("Sender …") : ui("Send lenke")}
                   </button>
                 </form>
               )}
               <DialogClose asChild>
-                <button className="login-link" type="button" disabled={recoveryBusy}>{recoverySent ? "Tilbake til innlogging" : "Avbryt"}</button>
+                <button className="login-link" type="button" disabled={recoveryBusy}>{recoverySent ? ui("Tilbake til innlogging") : <UiText text="Avbryt" />}</button>
               </DialogClose>
             </DialogContent>
           </Dialog>
         )}
         {mode !== "reset" && (
           <button className="login-link" type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
-            {mode === "login" ? "Opprett konto" : "Har du allerede konto? Logg inn"}
+            {mode === "login" ? ui("Opprett konto") : ui("Har du allerede konto? Logg inn")}
           </button>
         )}
       </section>
     </main>
   );
 }
+
 
