@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const root=path.resolve(import.meta.dirname,'..');
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-access-'));
-const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai','partners','partner-payments'];
+const routes=['companies','activities','contacts','attachments','admin','marketing','marketing-images','call-lists','offers','export','session','profile','company-lookup','superadmin','operations','email','call-list-ai','partners','partner-payments','saved-call-lists'];
 await build({stdin:{contents:routes.map((r,i)=>`export * as route${i} from './app/api/${r}/route';`).join('\n')+`\nexport * as importRoute from './app/api/import/route';\nexport {matchesCustomer} from './lib/customer-search';\nexport {activeReminder,validateReminderMinutes} from './lib/followup-reminder';\nexport {guessColumns,mapImportRow,importDate} from './lib/data-import';\nexport * as schema from './db/schema';\nexport {getChatGPTUser} from './app/chatgpt-auth';\nexport {reminderIsDue} from './lib/followup-reminder';\nexport {validateImage,safeImageType} from './lib/safe-image';\nexport {guardRequest,secureResponse} from './lib/request-security';\nexport {apiFetch} from './lib/api-client';`,resolveDir:root},bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'routes.mjs'),packages:'external',plugins:[{name:'test-runtime',setup(b){
  b.onResolve({filter:/^@\/lib\/email-campaigns$/},()=>({path:'campaigns',namespace:'test'}));
  b.onResolve({filter:/^@\/lib\/user-mail$/},()=>({path:'user-mail',namespace:'test'}));
@@ -29,7 +29,7 @@ for(const table of Object.values(app.schema)){
  const cols=c.columns.map(col=>`"${col.name}" ${col.getSQLType()}${col.primary?' PRIMARY KEY':''}${col.notNull?' NOT NULL':''}${col.default!==undefined?' DEFAULT '+(typeof col.default==='string'?"'"+col.default.replaceAll("'","''")+"'":Number(col.default)):''}`);
  sql.exec(`CREATE TABLE "${c.name}" (${cols.join(',')})`);
 }
-sql.exec('CREATE UNIQUE INDEX test_org_module_unique ON organization_modules(organization_id,module_key); CREATE UNIQUE INDEX test_member_module_unique ON module_licenses(organization_id,membership_id,module_key)');
+sql.exec('CREATE UNIQUE INDEX test_assignment_unique ON call_list_assignments(list_id,membership_id); CREATE UNIQUE INDEX test_org_module_unique ON organization_modules(organization_id,module_key); CREATE UNIQUE INDEX test_member_module_unique ON module_licenses(organization_id,membership_id,module_key)');
 globalThis.testDb=drizzle(async(query,params,method)=>{const s=sql.prepare(query);s.setReturnArrays(true);return {rows:method==='run'?(s.run(...params),[]):method==='get'?s.get(...params):s.all(...params)}});
 // Match D1's atomic batch semantics using the local SQLite transaction.
 globalThis.testDb.batch=async statements=>{sql.exec('BEGIN');try{const result=[];for(const statement of statements)result.push(await statement);sql.exec('COMMIT');return result;}catch(error){sql.exec('ROLLBACK');throw error;}};
@@ -797,4 +797,55 @@ test('support requests go to the partner administrator and require that companys
  assert.equal((await route('admin').POST(request(1200,1200,{type:'supportApproval',requestId:d.request.id,duration:'24h'}))).status,200);
  assert.equal((await route('admin').POST(request(1200,1200,{type:'support',enabled:false}))).status,200);
  }finally{globalThis.fetch=authFetch;globalThis.testMailKey=undefined;}
+});
+
+
+test('saved call lists isolate users, survive generation, delegate with durable notices, and delete without deleting customers',async()=>{
+ add('organizations',{id:1300,name:'Lists tenant',operating_countries:'["NO","GB","IE","AU","NZ"]',created_at:'2026-01-01'});
+ for(const [id,role]of [[1300,'Administrator'],[1301,'Bruker'],[1302,'Bruker']]){
+ add('memberships',{id,organization_id:1300,user_id:String(id),email:id+'@test.no',name:'List user '+id,role,created_at:'2026-01-01'});
+ add('module_licenses',{organization_id:1300,membership_id:id,module_key:'ringelister',active:1,price_per_user:29,activated_at:'2026-01-01'});
+ }
+ add('organization_modules',{organization_id:1300,module_key:'ringelister',active:1,price_per_user:29,activated_at:'2026-01-01'});
+ const imported=async(user,name,country='GB')=>{const r=await route('call-lists').POST(request(user,1300,{type:'import',listName:name,country,rows:[{orgNumber:'SC012345',name:'Example Ltd'}]}));assert.equal(r.status,201);return r.json();};
+ const one=await imported(1300,'UK leads'),two=await imported(1302,'Other personal list','IE');
+ assert.equal(one.list.country,'GB');assert.equal(one.entries[0].country,'GB');
+ const listing=async user=>(await(await route('saved-call-lists').GET(request(user,1300))).json());
+ assert.deepEqual((await listing(1301)).lists,[]);
+ assert.equal((await route('call-lists').GET(request(1301,1300,undefined,'?listId='+one.list.id))).status,404);
+ assert.equal((await route('call-lists').POST(request(1301,1300,{type:'status',id:one.entries[0].id,status:'Kontaktet'}))).status,404);
+ assert.equal((await route('saved-call-lists').POST(request(1301,1300,{type:'assign',listId:one.list.id,membershipId:1301}))).status,404);
+ const action=body=>route('saved-call-lists').POST(request(1300,1300,body));
+ assert.equal((await action({type:'assign',listId:one.list.id,membershipId:2})).status,400);
+ assert.equal((await action({type:'assign',listId:one.list.id,membershipId:1301})).status,200);
+ let assigned=await listing(1301);assert.deepEqual(assigned.lists.map(l=>l.id),[one.list.id]);assert.equal(assigned.assignments[0].assignedBy,'List user 1300');assert.equal(assigned.assignments[0].acknowledgedAt,'');
+ const assignmentId=assigned.assignments[0].id;
+ assert.equal((await route('saved-call-lists').POST(request(1301,1300,{type:'acknowledge',ids:[assignmentId]}))).status,200);
+ assert.ok((await listing(1301)).assignments[0].acknowledgedAt);
+ assert.equal((await route('call-lists').GET(request(1301,1300,undefined,'?listId='+one.list.id))).status,200);
+ assert.equal((await route('saved-call-lists').POST(request(1301,1300,{type:'rename',listId:one.list.id,name:'Wrong'}))).status,403);
+ assert.equal((await action({type:'rename',listId:one.list.id,name:'Renamed UK'})).status,200);
+ const customer=await route('call-lists').POST(request(1301,1300,{type:'addCustomer',id:one.entries[0].id}));assert.equal(customer.status,200);const created=(await customer.json()).company;assert.equal(created.country,'GB');
+ assert.equal((await action({type:'unassign',listId:one.list.id,membershipId:1301})).status,200);
+ assert.equal((await route('call-lists').GET(request(1301,1300,undefined,'?listId='+one.list.id))).status,404);
+ assert.equal((await action({type:'delete',listId:one.list.id})).status,200);
+ assert.equal(sql.prepare('SELECT count(*) n FROM call_list_entries WHERE list_id=?').get(one.list.id).n,0);
+ assert.equal(sql.prepare('SELECT count(*) n FROM companies WHERE id=?').get(created.id).n,1);
+ assert.equal(sql.prepare('SELECT count(*) n FROM call_list_entries WHERE list_id=?').get(two.list.id).n,1);
+ assert.equal((await route('saved-call-lists').POST(request(1301,1300,{type:'countries',operatingCountries:['GB']}))).status,403);
+ assert.equal((await action({type:'countries',operatingCountries:['GB','IE']})).status,200);
+ assert.equal((await route('call-lists').POST(request(1300,1300,{type:'generate',country:'NO'}))).status,400);
+ for(const country of ['GB','AU','NZ'])assert.equal((await route('call-lists').POST(request(1300,1300,{type:'generate',country}))).status,country==='GB'?503:400);
+});
+
+test('partner creates a customer with countries and is always its referrer without granting CRM access',async()=>{
+ const data={type:'organization',name:'UK partner customer',orgNumber:'SC012345',adminName:'Jane',adminEmail:'jane@partner-test.no',adminRole:'Administrator',crmPrice:199,operatingCountries:['GB','IE'],referredByPartnerId:1101};
+ const r=await route('admin').POST(request(1200,1200,data));assert.equal(r.status,201);const org=(await r.json()).organization;
+ assert.equal(org.operatingCountries,'["GB","IE"]');assert.equal(org.orgNumber,'SC012345');assert.equal(org.referredByPartnerId,1200);assert.equal(org.isPartner,false);
+ const own=sql.prepare("SELECT organization_id FROM memberships WHERE user_id='owner'").get().organization_id;
+ const edit=await route('superadmin').POST(request('owner',own,{type:'organizationDetails',organizationId:org.id,name:org.name,orgNumber:org.orgNumber,crmPrice:199}));assert.equal(edit.status,200);assert.equal((await edit.json()).organization.orgNumber,'SC012345');
+ assert.equal((await route('companies').GET(request(1200,org.id))).status,403);
+ assert.equal((await route('admin').POST(request(1201,1200,data))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...data,adminRole:'Partner'}))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...data,operatingCountries:[]}))).status,400);
 });

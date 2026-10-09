@@ -1,3 +1,4 @@
+import {storedCountries} from "@/lib/operating-countries";
 import {parseCommissionPercentage} from "@/lib/commission-percentage";
 import {validateReferral} from "@/lib/partners";
 import {sendSupportRequest} from "@/lib/resend";
@@ -219,8 +220,9 @@ export async function POST(request: Request) {
       if(existing.isPartner && data.commissionPercent!==undefined)try{commissionBps=parseCommissionPercentage(data.commissionPercent);}catch(e){throw new AccessError(400,(e as Error).message);}
       const referralChanged = referredByPartnerId !== existing.referredByPartnerId;
       const partnerAssignedAt = referralChanged ? referredByPartnerId ? now : "" : existing.partnerAssignedAt;
-      const orgNumber = String(data.orgNumber ?? "").replace(/\D/g, "");
-      if (orgNumber && orgNumber.length !== 9)
+      const orgNumber = String(data.orgNumber ?? "").trim().replace(/\s/g, "");
+      const countries=storedCountries(existing.operatingCountries);
+      if (orgNumber && countries.length===1 && countries[0]==="NO" && !/^\d{9}$/.test(orgNumber))
         return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },

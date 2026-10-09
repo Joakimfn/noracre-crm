@@ -3,6 +3,9 @@ import {UiText,useUiTranslation} from '@/lib/i18n/ui';
 
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
+import {SavedCallListManager} from "@/components/saved-call-list-manager";
+import {OperatingCountryPicker} from "@/components/operating-country-picker";
+import {type RegisterCountry} from "@/lib/operating-countries";
 import {PartnerOverview} from "@/components/partner-overview";
 import {PartnerPreview} from "@/components/partner-preview";
 import {PartnerPicker,ReferrerSelect} from "@/components/partner-management";
@@ -212,6 +215,7 @@ type Contact = {
 type Organization = { id: number; name: string; status?: string; isPartner?: boolean };
 type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string };
 type NewOrganization = PriceFields & {
+  operatingCountries: RegisterCountry[];
   name: string;
   orgNumber: string;
   address: string;
@@ -228,6 +232,7 @@ type NewOrganization = PriceFields & {
   referredByPartnerId: string;
 };
 const emptyNewOrganization: NewOrganization = {
+  operatingCountries: ["NO"],
   crmPrice: "", ringPrice: "", marketingPrice: "",
   name: "",
   orgNumber: "",
@@ -3544,9 +3549,9 @@ function CallLists({
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
-  const initialCache = organizationId < 0 ? undefined : callListCache.get(organizationId);
+  const [country,setCountry]=useState<RegisterCountry>("NO"),[selectedListId,setSelectedListId]=useState<number|null>(null),[listRefresh,setListRefresh]=useState(0),[listName,setListName]=useState(""),[internationalQuery,setInternationalQuery]=useState(""),[internationalLocation,setInternationalLocation]=useState(""),[internationalIndustry,setInternationalIndustry]=useState("");
   const [entries, setEntries] = useState<CallListEntry[]>(
-      initialCache?.entries ?? [],
+      [],
     ),
     [history, setHistory] = useState<CallListEntry[]>([]),
     [historyLoaded, setHistoryLoaded] = useState(false),
@@ -3571,11 +3576,11 @@ function CallLists({
       contactPhone: "",
     }),
     [busy, setBusy] = useState(false),
-    [loadingEntries, setLoadingEntries] = useState(active && !initialCache),
+    [loadingEntries, setLoadingEntries] = useState(active),
     [purchaseOpen, setPurchaseOpen] = useState(false),
     [licensedMemberIds, setLicensedMemberIds] = useState<number[]>([]),
     [options, setOptions] = useState<CallListOptions>(
-      initialCache?.options ?? {
+      {
         counties: [],
         municipalities: [],
         industries: [],
@@ -3584,39 +3589,8 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const callListImportRef=useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (active) {
-      const cached = callListCache.get(organizationId);
-      if (!cached) setLoadingEntries(true);
-      loadCallListInitial(organizationId,false,apiFetch)
-        .then((data) => {
-          if (cancelled) return;
-          setEntries(data.entries);
-          setOptions(data.options);
-        })
-        .catch((error) => {
-          if (!cancelled)
-            toast.error(
-              ui(error instanceof Error
-                ? error.message
-                : "Kunne ikke hente ringelisten"),
-            );
-        })
-        .finally(() => setLoadingEntries(false));
-    } else setLoadingEntries(false);
-    return () => {
-      cancelled = true;
-    };
-  }, [active, organizationId]);
-  useEffect(() => {
-    if (!active || loadingEntries || !options.organizationForms.length) return;
-    callListCache.set(organizationId, {
-      entries,
-      options,
-      loadedAt: Date.now(),
-    });
-  }, [active, entries, loadingEntries, options, organizationId]);
+  useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(r=>r.json()).then(d=>{if(!cancelled)setOptions(d.options??d);}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
+  useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Kunne ikke hente ringelisten");if(!cancelled)setEntries(d.entries??[]);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
     if (!purchaseOpen || !canManageModules(role)) return;
     apiFetch("/api/admin", {
@@ -3657,10 +3631,13 @@ function CallLists({
           body: JSON.stringify({
             type: "generate",
             ...filters,
+            country,listName:listName.trim()||undefined,
+            ...(country!=="NO"?{query:internationalQuery,location:internationalLocation,industry:internationalIndustry,requirePhone:false,requireEmail:false,establishedFrom:"",establishedTo:""}:{}),
           }),
         }),
         d = await r.json();
       if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lage ringelisten"));
+      setSelectedListId(d.list?.id??null);setListRefresh(n=>n+1);
       setEntries(d.entries ?? []);
       callListCache.set(organizationId, {
         entries: d.entries ?? [],
@@ -3708,29 +3685,29 @@ function CallLists({
           "content-type": "application/json",
           "x-organization-id": String(organizationId),
         },
-        body: JSON.stringify({ type: "import", rows }),
+        body: JSON.stringify({ type: "import", rows,country,listName:listName.trim()||file.name.replace(/\.[^.]+$/,"") }),
       }),
       d = await r.json();
     if (!r.ok)
       return toast.error(ui(d.error ?? "Kunne ikke importere ringelisten"));
-    setEntries((current) => [...(d.entries ?? []), ...current]);
+    setSelectedListId(d.list?.id??null);setListRefresh(n=>n+1);setEntries(d.entries??[]);
     toast.success(ui(`${d.added} bedrifter ble importert`));
   }
   useEffect(()=>{
     let cancelled=false;
     const refresh=async()=>{
-      if(!active)return;
-      try {const d=await loadCallListInitial(organizationId,true,apiFetch);if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
-        const r=await apiFetch("/api/call-lists?view=history",{headers:{"x-organization-id":String(organizationId)}});
+      if(!active||!selectedListId)return;
+      try {const r0=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});if(!r0.ok)return;const d=await r0.json();if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
+        const r=await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`,{headers:{"x-organization-id":String(organizationId)}});
         if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
       }catch{if(!cancelled)toast.error(ui("Kunne ikke oppdatere navnene i ringelisten."));}
     };
     window.addEventListener("crm-profile-updated",refresh);
     return ()=>{cancelled=true;window.removeEventListener("crm-profile-updated",refresh);};
-  },[active,organizationId]);
+  },[active,organizationId,selectedListId]);
   async function loadHistory() {
-    if (historyLoaded) return;
-    const d = await apiFetch("/api/call-lists?view=history", {
+    if (historyLoaded || !selectedListId) return;
+    const d = await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`, {
       headers: { "x-organization-id": String(organizationId) },
     }).then((r) => r.json());
     setHistory(d.entries ?? []);
@@ -3838,6 +3815,7 @@ function CallLists({
     return (
       <div className="page-pad">
         <ModuleShowcase moduleKey="ringelister" role={role} price={unitPrice} onPurchase={() => setPurchaseOpen(true)} />
+        {canManageModules(role)&&<SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>}
         <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
@@ -3966,7 +3944,10 @@ function CallLists({
             <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Lagre og bekreft pris" /></Button>
           </DialogContent>
         </Dialog>
-        <fieldset className="call-filter-fields" disabled={busy}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
+        <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>
+        <div className="call-filter-grid"><div><Label htmlFor="new-list-name">Navn på ny ringeliste</Label><Input id="new-list-name" value={listName} maxLength={120} placeholder="F.eks. Byggfirmaer i London" onChange={e=>setListName(e.target.value)}/></div></div>
+        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{country!=="AU"&&country!=="NZ"&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}<div><Label>Antall bedrifter</Label><Input type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
+        <fieldset className="call-filter-fields" hidden={country!=="NO"} disabled={busy||country!=="NO"}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
           <div>
             <Label><UiText text="Min. ansatte" /></Label>
             <Input
@@ -4040,6 +4021,7 @@ function CallLists({
           </Button>
         </div>
         </fieldset>
+        {country!=="NO"&&<Button onClick={generate} disabled={busy}><Search/>{busy?ui("Lager liste …"):ui("Hent bedrifter")}</Button>}
       </section>
       <section className="surface">
         <Tabs
@@ -5013,9 +4995,9 @@ function SuperadminSettings(p: {
             value={p.newOrg.name}
             onChange={(e) => p.setNewOrg({ ...p.newOrg, name: e.target.value })}
           />
+          <OperatingCountryPicker value={p.newOrg.operatingCountries} onChange={operatingCountries=>p.setNewOrg({...p.newOrg,operatingCountries})}/>
           <Input
-            inputMode="numeric"
-            maxLength={11}
+            maxLength={30}
             placeholder={ui("Organisasjonsnummer")}
             value={p.newOrg.orgNumber}
             onChange={(e) =>

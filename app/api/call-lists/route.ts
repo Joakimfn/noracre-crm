@@ -1,3 +1,5 @@
+import {entryScope,requireList,countryFor,createList} from "@/lib/saved-call-lists";
+import {searchInternationalRegister,registerSource} from "@/lib/international-registers";
 import {parseCallListFilters,expandLocations,matchesCallListCompany} from '@/lib/call-list-filters';
 import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
@@ -7,6 +9,7 @@ import { and, desc, eq, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   activities,
+  savedCallLists,
   callListEntries,
   companies,
   contacts,
@@ -90,6 +93,13 @@ function values(
   };
 }
 
+async function insertListRows(list:typeof savedCallLists.$inferSelect,rows:(typeof callListEntries.$inferInsert)[],removeOnFailure=true){
+ const db=getDb(),batches=[];
+ for(let i=0;i<rows.length;i+=5)batches.push(db.insert(callListEntries).values(rows.slice(i,i+5).map(row=>({...row,listId:list.id,country:list.country}))).returning());
+ try{return (await db.batch(batches as [typeof batches[number],...typeof batches[number][]])).flat() as typeof callListEntries.$inferSelect[];}
+ catch(error){if(removeOnFailure)await db.batch([db.delete(callListEntries).where(and(eq(callListEntries.organizationId,list.organizationId),eq(callListEntries.listId,list.id))),db.delete(savedCallLists).where(and(eq(savedCallLists.organizationId,list.organizationId),eq(savedCallLists.id,list.id)))]);throw error;}
+}
+
 export async function GET(request: Request) {
   try {
     const ctx = await requireTenant(request),
@@ -126,6 +136,7 @@ export async function GET(request: Request) {
       if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
       return await actorJson(ctx,{ active: false, entries: [] });
     }
+    const scope = await entryScope(ctx,new URL(request.url).searchParams.get("listId"));
     const condition =
       view === "history"
         ? and(
@@ -139,9 +150,9 @@ export async function GET(request: Request) {
     const rows = await db
       .select()
       .from(callListEntries)
-      .where(condition)
+      .where(and(condition,scope))
       .orderBy(desc(callListEntries.id))
-      .limit(view === "history" ? 500 : 150);
+      .limit(1000);
     return await actorJson(ctx,{
       active: true,
       pricePerUser: module.pricePerUser,
@@ -181,6 +192,7 @@ export async function POST(request: Request) {
           { error: "Bedriften finnes ikke." },
           { status: 404 },
         );
+      if(current.listId)await requireList(ctx,current.listId);
       let customerId = current.customerId;
       const meetingAt =
         status === "Møte booket"
@@ -218,6 +230,7 @@ export async function POST(request: Request) {
                 and(
                   eq(companies.organizationId, ctx.organizationId),
                   eq(companies.orgNumber, current.orgNumber),
+                  eq(companies.country, current.country),
                 ),
               )
               .limit(1)
@@ -228,6 +241,7 @@ export async function POST(request: Request) {
             .values({
               organizationId: ctx.organizationId,
               name: current.name,
+              country: current.country,
               orgNumber: current.orgNumber,
               phone: contactPhone || current.phone,
               email: contactEmail || current.email,
@@ -353,6 +367,8 @@ export async function POST(request: Request) {
         .returning();
       return await actorJson(ctx,{ entry: row, company: customer });
     }
+    if(data.type !== "import" && data.type !== "generate")throw new AccessError(400,"Ukjent handling.");
+    const country = await countryFor(ctx,data.country);
     if (data.type === "import") {
       const rows = Array.isArray(data.rows)
         ? (data.rows as Record<string, unknown>[])
@@ -362,18 +378,21 @@ export async function POST(request: Request) {
             )
             .filter((row) => row.name)
         : [];
-      const inserted = [];
-      for (let i = 0; i < rows.length; i += 5)
-        inserted.push(
-          ...(await db
-            .insert(callListEntries)
-            .values(rows.slice(i, i + 5))
-            .returning()),
-        );
+      if(!rows.length)throw new AccessError(400,"Importfilen inneholder ingen bedrifter.");
+      const list=data.listId?await requireList(ctx,data.listId,true):await createList(ctx,country,data.listName??"Importert ringeliste",now);
+      if(list.country!==country)throw new AccessError(400,"Listen og importen må ha samme land.");
+      const inserted = await insertListRows(list,rows,!data.listId);
       return await actorJson(ctx,
-        { entries: inserted, added: inserted.length },
+        { entries: inserted, added: inserted.length, list },
         { status: 201 },
       );
+    }
+    if(country !== "NO"){
+      const candidates=(await searchInternationalRegister(country,data)).filter(row=>row.name&&row.orgNumber);
+      if(!candidates.length)throw new AccessError(404,"Fant ingen bedrifter. Prøv andre søkeord.");
+      const list=await createList(ctx,country,data.listName,now);
+      const inserted=await insertListRows(list,candidates.map(row=>values(row as unknown as Record<string,unknown>,ctx.organizationId,registerSource(country),now)));
+      return await actorJson(ctx,{entries:inserted,added:inserted.length,list});
     }
     const parsed=parseCallListFilters(data);
     if(!parsed.success)throw new AccessError(400,parsed.error.issues[0].message);
@@ -389,6 +408,7 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(callListEntries.organizationId, ctx.organizationId),
+            eq(callListEntries.country,"NO"),
             ne(callListEntries.status, "Ny"),
           ),
         ),
@@ -498,11 +518,10 @@ export async function POST(request: Request) {
         },
         { status: 404 },
       );
-    const batches=[];
-    for(let i=0;i<candidates.length;i+=5)batches.push(db.insert(callListEntries).values(candidates.slice(i,i+5)).returning());
-    const result=await db.batch([db.delete(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.status,'Ny'))),...batches]);
-    const inserted=result.slice(1).flat() as typeof callListEntries.$inferSelect[];
+    const list=await createList(ctx,country,data.listName,now);
+    const inserted=await insertListRows(list,candidates);
     return await actorJson(ctx,{
+      list,
       entries: shuffle(inserted),
       added: inserted.length,
     });

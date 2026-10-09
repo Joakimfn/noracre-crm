@@ -20,7 +20,7 @@ export async function refreshBrregBatch(db:D1Database,date=new Date(),fetcher:ty
  const claimed=await db.prepare("UPDATE background_jobs SET lease_until=? WHERE key='brreg' AND completed_at='' AND (lease_until='' OR lease_until<?) RETURNING cursor").bind(lease,now).first<{cursor:number}>();
  if(!claimed)return;
  try{
-  const rows=await db.prepare("SELECT c.id,c.org_number FROM companies c JOIN organizations o ON o.id=c.organization_id WHERE c.id>? AND c.customer_type='Bedrift' AND length(c.org_number)=9 AND o.status='Aktiv' ORDER BY c.id LIMIT 10").bind(claimed.cursor).all<{id:number;org_number:string}>();
+  const rows=await db.prepare("SELECT c.id,c.org_number FROM companies c JOIN organizations o ON o.id=c.organization_id WHERE c.id>? AND c.customer_type='Bedrift' AND c.country='NO' AND length(c.org_number)=9 AND o.status='Aktiv' ORDER BY c.id LIMIT 10").bind(claimed.cursor).all<{id:number;org_number:string}>();
   let failures=0;
   for(const row of rows.results){
    if(!/^\d{9}$/.test(row.org_number))continue;

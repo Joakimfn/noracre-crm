@@ -1,3 +1,4 @@
+import {parseCountries} from "@/lib/operating-countries";
 import {canViewAdministration} from "@/lib/roles";
 import {parseCommissionPercentage} from "@/lib/commission-percentage";
 import {validateReferral} from "@/lib/partners";
@@ -125,23 +126,27 @@ export async function POST(request: Request) {
       now = new Date().toISOString();
     const isOwner = isOwnerEmail(ctx.user.email);
     if (data.type === "organization") {
-      if (ctx.role !== "Superadmin")
+      if (ctx.role !== "Superadmin" && ctx.role !== "Partner")
         throw new AccessError(
           403,
-          "Bare superadmin kan opprette kundeorganisasjoner.",
+          "Bare superadmin og partnere kan opprette kundeorganisasjoner.",
         );
+      const [creatorOrganization] = await db.select().from(organizations).where(eq(organizations.id,ctx.organizationId)).limit(1);
+      if(ctx.role === "Partner" && !creatorOrganization?.isPartner)throw new AccessError(403,"Bedriften har ikke partnerstatus.");
+      let operatingCountries;try{operatingCountries=parseCountries(data.operatingCountries);}catch(e){throw new AccessError(400,(e as Error).message);}
       const email = String(data.adminEmail ?? "")
         .trim()
         .toLowerCase(),
-        orgNumber = String(data.orgNumber ?? "").replace(/\D/g, ""),
+        orgNumber = String(data.orgNumber ?? "").trim().replace(/\s/g, ""),
         phone = String(data.adminPhone ?? "").trim(),
         requestedRole = String(data.adminRole ?? "Administrator"),
         role = requestedRole;
       if (!["Bruker","Administrator","Partner"].includes(role)) throw new AccessError(400,"Ugyldig rolle.");
-      const referredByPartnerId = await validateReferral(data.referredByPartnerId);
+      if(ctx.role === "Partner" && role === "Partner")throw new AccessError(403,"Partnere kan opprette kunder med administrator eller bruker.");
+      const referredByPartnerId = ctx.role === "Partner" ? ctx.organizationId : await validateReferral(data.referredByPartnerId);
       let commissionBps:number|null=null;
       if(role === "Partner")try{commissionBps=parseCommissionPercentage(data.commissionPercent);}catch(e){throw new AccessError(400,(e as Error).message); }
-      if (orgNumber && orgNumber.length !== 9)
+      if (orgNumber && operatingCountries.length === 1 && operatingCountries[0] === "NO" && !/^\d{9}$/.test(orgNumber))
         return await actorJson(ctx,
           { error: "Organisasjonsnummeret må inneholde ni sifre." },
           { status: 400 },
@@ -154,6 +159,7 @@ export async function POST(request: Request) {
         .insert(organizations)
         .values({
           ...prices,
+          operatingCountries: JSON.stringify(operatingCountries),
           isPartner: role === "Partner",
           commissionBps,
           referredByPartnerId,

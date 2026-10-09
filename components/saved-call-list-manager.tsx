@@ -1,0 +1,46 @@
+"use client";
+import {useCallback,useEffect,useState} from 'react';
+import {useCrmApi} from '@/lib/crm-api';
+import {canManageModules} from '@/lib/roles';
+import {type RegisterCountry} from '@/lib/operating-countries';
+import {OperatingCountryPicker} from './operating-country-picker';
+import {Button} from './ui/button';
+import {Input} from './ui/input';
+import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from './ui/dialog';
+import {toast} from 'sonner';
+type List={id:number;name:string;country:RegisterCountry;createdByMembershipId:number};
+type Assignment={id:number;listId:number;membershipId:number;assignedBy:string;acknowledgedAt:string};
+type Source={code:RegisterCountry;name:string;source:string;ready:boolean;message:string};
+type Metadata={lists:List[];assignments:Assignment[];operatingCountries:RegisterCountry[];sources:Source[]};
+type Member={id:number;name:string;active:boolean};
+export function SavedCallListManager({organizationId,role,members,currentMembershipId,country,onCountryChange,selectedListId,onSelect,refreshKey}:{organizationId:number;role:string;members:Member[];currentMembershipId:number;country:RegisterCountry;onCountryChange:(c:RegisterCountry)=>void;selectedListId:number|null;onSelect:(id:number|null)=>void;refreshKey:number}){
+ const api=useCrmApi(),[meta,setMeta]=useState<Metadata|null>(null),[open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[names,setNames]=useState<Record<number,string>>({}),[targets,setTargets]=useState<Record<number,string>>({}),[countries,setCountries]=useState<RegisterCountry[]>(['NO']),[pending,setPending]=useState<Assignment[]>([]),[confirmDelete,setConfirmDelete]=useState<number|null>(null);
+ const load=useCallback(async()=>{const r=await api('/api/saved-call-lists',{headers:{'x-organization-id':String(organizationId)}}),d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke hente ringelister');return d as Metadata;},[api,organizationId]);
+ useEffect(()=>{let cancelled=false;load().then(d=>{if(cancelled)return;setMeta(d);setCountries(d.operatingCountries);setNames(Object.fromEntries(d.lists.map(l=>[l.id,l.name])));setError('');setPending(d.assignments.filter(a=>a.membershipId===currentMembershipId&&!a.acknowledgedAt&&d.lists.some(l=>l.id===a.listId)));}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[load,refreshKey,currentMembershipId]);
+ useEffect(()=>{if(!meta)return;const nextCountry=meta.sources.some(s=>s.code===country)?country:meta.operatingCountries[0];if(nextCountry!==country)onCountryChange(nextCountry);if(selectedListId&&!meta.lists.some(l=>l.id===selectedListId))return;const list=meta.lists.find(l=>l.id===selectedListId&&l.country===nextCountry);if(!list){const first=meta.lists.filter(l=>l.country===nextCountry).at(-1);if((first?.id??null)!==selectedListId)onSelect(first?.id??null);}},[meta,country,selectedListId,onCountryChange,onSelect]);
+ async function mutate(body:Record<string,unknown>){setBusy(true);try{const r=await api('/api/saved-call-lists',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke lagre');const next=await load();setMeta(next);if(body.type==='delete'&&body.listId===selectedListId)onSelect(null);setConfirmDelete(null);return true;}catch(e){toast.error(e instanceof Error?e.message:'Kunne ikke lagre');return false;}finally{setBusy(false);}}
+ const source=meta?.sources.find(s=>s.code===country),selected=meta?.lists.find(l=>l.id===selectedListId);
+ return <>
+ <div className="saved-list-toolbar">
+ <label>Registerland<select aria-label="Registerland" value={country} onChange={e=>{onCountryChange(e.target.value as RegisterCountry);onSelect(null);}}>{meta?.sources.map(s=><option value={s.code} key={s.code}>{s.name} · {s.source}</option>)}</select></label>
+ <label>Åpne ringeliste<select aria-label="Åpne lagret ringeliste" value={selectedListId??''} onChange={e=>onSelect(e.target.value?Number(e.target.value):null)}><option value="">Ingen lagret liste</option>{meta?.lists.filter(l=>l.country===country).map(l=><option key={l.id} value={l.id}>{l.name}</option>)}</select></label>
+ <Button variant="outline" onClick={()=>setOpen(true)}>Administrer ringelister</Button>
+ </div>
+ {error&&<p role="alert">{error}</p>}
+ {source&&!source.ready&&<p role="status" className="form-hint">{source.message} Du kan lagre og importere egne lister for dette landet.</p>}
+ {country!=='NO'&&<p className="form-hint">{source?.source} leverer bedriftsinformasjon. Telefon, e-post og antall ansatte er ikke nødvendigvis tilgjengelig.{country==='IE'&&<> Contains Irish Public Sector Data licensed under the <a href="https://data.gov.ie/pages/licence" target="_blank" rel="noreferrer">Creative Commons Attribution 4.0 International licence</a>.</>}</p>}
+ {meta&&!meta.operatingCountries.includes(country)&&<p className="form-hint">Dette landet er ikke lenger valgt for bedriften. Lagrede lister kan fortsatt åpnes.</p>}
+ {selected&&<p className="form-hint">Åpen liste: <strong>{selected.name}</strong></p>}
+ <Dialog open={open} onOpenChange={setOpen}><DialogContent className="saved-lists-dialog"><DialogHeader><DialogTitle>Lagrede ringelister</DialogTitle><DialogDescription>Åpne, gi nytt navn, slett eller deleger ringelister.</DialogDescription></DialogHeader>
+ {canManageModules(role)&&<section><OperatingCountryPicker value={countries} onChange={setCountries}/><Button disabled={busy||!countries.length} onClick={()=>void mutate({type:'countries',operatingCountries:countries})}>Lagre land</Button></section>}
+ {!meta?.lists.length&&<p>Ingen lagrede lister ennå. Nye og importerte lister lagres automatisk.</p>}
+ {meta?.lists.map(list=>{const manage=canManageModules(role)||list.createdByMembershipId===currentMembershipId;return <article className="saved-list-card" key={list.id}>
+ <div><strong>{list.name}</strong><small>{meta.sources.find(s=>s.code===list.country)?.name??list.country}</small></div>
+ <Button disabled={busy} onClick={()=>{onCountryChange(list.country);onSelect(list.id);setOpen(false);}}>Åpne</Button>
+ {manage&&<><Input aria-label={`Navn på ${list.name}`} value={names[list.id]??list.name} maxLength={120} onChange={e=>setNames({...names,[list.id]:e.target.value})}/><Button disabled={busy} variant="outline" onClick={()=>void mutate({type:'rename',listId:list.id,name:names[list.id]??list.name})}>Lagre navn</Button>
+ {confirmDelete===list.id?<><span>Slette listen og ringehistorikken? Kundene beholdes.</span><Button disabled={busy} variant="destructive" onClick={()=>void mutate({type:'delete',listId:list.id})}>Bekreft sletting</Button><Button variant="outline" onClick={()=>setConfirmDelete(null)}>Avbryt</Button></>:<Button disabled={busy} variant="outline" onClick={()=>setConfirmDelete(list.id)}>Slett</Button>}</>}
+ {canManageModules(role)&&<div className="saved-list-delegation"><select aria-label={`Deleger ${list.name} til bruker`} value={targets[list.id]??''} onChange={e=>setTargets({...targets,[list.id]:e.target.value})}><option value="">Velg bruker</option>{members.filter(m=>m.active).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select><Button disabled={busy||!targets[list.id]} onClick={()=>void mutate({type:'assign',listId:list.id,membershipId:Number(targets[list.id])})}>Deleger</Button>{meta.assignments.filter(a=>a.listId===list.id).map(a=><div key={a.id}>{members.find(m=>m.id===a.membershipId)?.name??'Bruker'} · delegert av {a.assignedBy}<Button size="sm" variant="outline" disabled={busy} onClick={()=>void mutate({type:'unassign',listId:list.id,membershipId:a.membershipId})}>Fjern delegering</Button></div>)}</div>}
+ </article>;})}</DialogContent></Dialog>
+ <Dialog open={pending.length>0} onOpenChange={value=>{if(!value)void mutate({type:'acknowledge',ids:pending.map(a=>a.id)}).then(ok=>{if(ok)setPending([]);});}}><DialogContent><DialogHeader><DialogTitle>Du har fått delegert ringelister</DialogTitle><DialogDescription>Listene er tilgjengelige under lagrede ringelister.</DialogDescription></DialogHeader>{pending.map(a=><p key={a.id}><strong>{meta?.lists.find(l=>l.id===a.listId)?.name}</strong> er delegert til deg av <strong>{a.assignedBy}</strong>.</p>)}<Button disabled={busy} onClick={()=>void mutate({type:'acknowledge',ids:pending.map(a=>a.id)}).then(ok=>{if(ok){const first=meta?.lists.find(l=>l.id===pending[0].listId);if(first){onCountryChange(first.country);onSelect(first.id);}setPending([]);}})}>Åpne ringelisten</Button></DialogContent></Dialog>
+ </>;
+}

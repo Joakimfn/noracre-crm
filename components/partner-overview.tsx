@@ -2,6 +2,7 @@
 import {useUiTranslation} from '@/lib/i18n/ui';
 
 import {useCrmApi} from "@/lib/crm-api";
+import {PartnerCustomerCreate} from "./partner-customer-create";
 import {PartnerCommission,type CommissionReport} from "./partner-commission";
 import {useEffect,useState} from 'react';
 import {useI18n} from '@/lib/i18n/react';
@@ -18,7 +19,7 @@ export function PartnerOverview({organizationId}:{organizationId:number}){
  useEffect(()=>{let cancelled=false;setReport(null);setError(ui(''));apiFetch('/api/partners',{headers:{'x-organization-id':String(organizationId)}}).then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||t('partner.error'));if(!cancelled)setReport(data);}).catch(e=>{if(!cancelled)setError(ui(e.message));});return()=>{cancelled=true;};},[organizationId,reload,t]);
  if(error)return <div className="page-pad"><p role="alert">{error}</p><Button onClick={()=>setReload(n=>n+1)}>{t('partner.retry')}</Button></div>;
  if(!report)return <div className="page-pad" role="status">{t('partner.loading')}</div>;
- return <PartnerReportView report={report}/>;
+ return <><div className="page-pad"><PartnerCustomerCreate organizationId={organizationId} onCreated={()=>setReload(n=>n+1)}/></div><PartnerReportView report={report}/></>;
 }
 export function PartnerReportView({report}:{report:PartnerReport}){
  const {t,money,date,calendarDate,number}=useI18n();

@@ -9,6 +9,7 @@ import {
 export const companies = sqliteTable(
   "companies",
   {
+    country: text("country").notNull().default("NO"),
     id: integer("id").primaryKey({ autoIncrement: true }),
     organizationId: integer("organization_id").notNull().default(1),
     importId: text("import_id").notNull().default(""),
@@ -87,6 +88,7 @@ export const auditLogs = sqliteTable("audit_logs", {
 });
 
 export const organizations = sqliteTable("organizations", {
+  operatingCountries: text("operating_countries").notNull().default('["NO"]'),
   commissionBps: integer("commission_bps"),
   isPartner: integer("is_partner", {mode:"boolean"}).notNull().default(false),
   referredByPartnerId: integer("referred_by_partner_id"),
@@ -290,9 +292,29 @@ export const offerTemplates = sqliteTable(
   (t) => [index("idx_offer_templates_org").on(t.organizationId, t.id)],
 );
 
+export const savedCallLists = sqliteTable("saved_call_lists", {
+ id: integer("id").primaryKey({autoIncrement:true}),
+ organizationId: integer("organization_id").notNull(),
+ name: text("name").notNull(),
+ country: text("country").notNull().default("NO"),
+ createdByMembershipId: integer("created_by_membership_id").notNull(),
+ createdAt: text("created_at").notNull(),
+ updatedAt: text("updated_at").notNull(),
+},t=>[index("idx_saved_lists_org").on(t.organizationId,t.id)]);
+export const callListAssignments = sqliteTable("call_list_assignments", {
+ id: integer("id").primaryKey({autoIncrement:true}),
+ organizationId: integer("organization_id").notNull(),
+ listId: integer("list_id").notNull(),
+ membershipId: integer("membership_id").notNull(),
+ assignedBy: text("assigned_by").notNull(),
+ createdAt: text("created_at").notNull(),
+ acknowledgedAt: text("acknowledged_at").notNull().default(""),
+},t=>[uniqueIndex("idx_list_assignment_unique").on(t.listId,t.membershipId),index("idx_list_assignment_member").on(t.organizationId,t.membershipId)]);
 export const callListEntries = sqliteTable(
   "call_list_entries",
   {
+    listId: integer("list_id"),
+    country: text("country").notNull().default("NO"),
     id: integer("id").primaryKey({ autoIncrement: true }),
     organizationId: integer("organization_id").notNull(),
     orgNumber: text("org_number").notNull().default(""),
