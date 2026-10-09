@@ -6,6 +6,7 @@ import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import {normalizeRegistryId} from '@/lib/prospect-import';
 import { getDb } from "@/db";
 import {
   activities,
@@ -67,10 +68,7 @@ function values(
 ) {
   return {
     organizationId,
-    orgNumber: String(row.orgNumber ?? row.organisasjonsnummer ?? "").replace(
-      /\s/g,
-      "",
-    ),
+    orgNumber: normalizeRegistryId(row.orgNumber ?? row.organisasjonsnummer),
     name: String(row.name ?? row.navn ?? "").trim(),
     industry: String(row.industry ?? row.bransje ?? ""),
     city: String(row.city ?? row.sted ?? ""),
@@ -382,7 +380,7 @@ export async function POST(request: Request) {
       if(!Array.isArray(data.rows)||data.rows.length<1||data.rows.length>25)throw new AccessError(400,"Oppdater 1–25 bedrifter per forespørsel.");
       const incoming=new Map<string,number>();
       for(const row of data.rows as Record<string,unknown>[]){
-        const id=String(row.orgNumber??"").replace(/\\s/g,"").trim().toUpperCase(),n=row.employees;
+        const id=normalizeRegistryId(row.orgNumber),n=row.employees;
         if(!id||id.length>64||!Number.isInteger(n)||Number(n)<0||Number(n)>1000000)throw new AccessError(400,"Oppgi et gyldig registreringsnummer og et helt ansattall mellom 0 og 1 000 000.");
         incoming.set(id,Number(n));
       }
