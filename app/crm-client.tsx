@@ -3589,7 +3589,7 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const callListImportRef=useRef<HTMLInputElement>(null);
-  useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(r=>r.json()).then(d=>{if(!cancelled)setOptions(d.options??d);}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
+  useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{if(!r.ok)throw Error("Kunne ikke hente filtrene");return r.json();}).then(d=>{if(!cancelled&&Array.isArray(d.counties)&&Array.isArray(d.municipalities)&&Array.isArray(d.industries))setOptions({...d,organizationForms:Array.isArray(d.organizationForms)&&d.organizationForms.length?d.organizationForms:organizationFormFallbackOptions});}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
   useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Kunne ikke hente ringelisten");if(!cancelled)setEntries(d.entries??[]);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
     if (!purchaseOpen || !canManageModules(role)) return;
