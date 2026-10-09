@@ -41,3 +41,30 @@ test('Register network failures and malformed responses are returned as useful A
  globalThis.fetch=async()=>Response.json({success:true,result:{}});
  await assert.rejects(app.searchInternationalRegister('IE',{}),e=>e.status===502&&e.code==='REGISTER_INVALID_RESPONSE');
 });
+
+test('Nigeria supports a licensed company API without leaking the token in the URL',async()=>{
+ registerSettings.OPENCORPORATES_API_TOKEN='secret';
+ registerSettings.OPENCORPORATES_COMMERCIAL_APPROVED='true';
+ globalThis.fetch=async(url,init)=>{
+  assert.equal(url.hostname,'api.opencorporates.com');
+  assert.equal(url.searchParams.get('jurisdiction_code'),'ng');
+  assert.equal(url.searchParams.get('exclude_inactive'),'true');
+  assert.equal(init.headers['X-API-TOKEN'],'secret');
+  assert.ok(!url.toString().includes('secret'));
+  return Response.json({results:{companies:[
+   {company:{company_number:'RC123456',name:'Lagos Services Ltd',registered_address:{locality:'Lagos'},restricted_for_marketing:null}},
+   {company:{company_number:'RC123456',name:'Duplicate Ltd'}},
+   {company:{company_number:'RC654321',name:'Restricted Ltd',restricted_for_marketing:true}}
+  ]}});
+ };
+ const rows=await app.searchInternationalRegister('NG',{query:'Services',count:25});
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].orgNumber,'RC123456');
+ assert.equal(rows[0].city,'Lagos');
+});
+test('Nigeria import remains available when paid register credentials are absent',async()=>{
+ delete registerSettings.OPENCORPORATES_API_TOKEN;
+ let called=false;globalThis.fetch=async()=>{called=true;throw new Error('Do not fetch');};
+ await assert.rejects(app.searchInternationalRegister('NG',{query:'Lagos'}),e=>e.status===503&&e.code==='REGISTER_NOT_CONFIGURED');
+ assert.equal(called,false);
+});

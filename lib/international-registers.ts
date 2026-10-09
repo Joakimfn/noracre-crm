@@ -49,6 +49,29 @@ export async function searchInternationalRegister(country:Exclude<RegisterCountr
  if(!Array.isArray(payload.result?.records))throw new AccessError(502,'CRO svarte med uventet format.','REGISTER_INVALID_RESPONSE');
  return payload.result.records.map((r:Record<string,unknown>)=>({orgNumber:text(r.company_num),name:text(r.company_name),industry:text(r.nace_v2_code),city:text(r.company_address_4)||text(r.company_address_3)}));
  }
+ if(country==='NG'){
+  // OpenCorporates requires a commercial licence for proprietary sales CRM usage.
+  // Never substitute unauthorised web scraping or imply that CAC publishes an open prospecting API.
+  if(!settings.OPENCORPORATES_API_TOKEN||settings.OPENCORPORATES_COMMERCIAL_APPROVED!=='true')
+   throw new AccessError(503,'Nigeria er klar for manuelle ringelister. Automatisk søk krever kommersiell OpenCorporates API-tilgang. Importer en egen liste i mellomtiden.','REGISTER_NOT_CONFIGURED');
+  if(!f.query)throw new AccessError(400,'Oppgi et bedriftsnavn eller søkeord for Nigeria.');
+  if(f.location||f.industry||f.from||f.to)throw new AccessError(400,'Nigeria-søket støtter foreløpig bedriftsnavn og antall. Bruk import for flere filtre.');
+  const url=new URL('https://api.opencorporates.com/v0.4/companies/search');
+  url.searchParams.set('q',f.query);
+  url.searchParams.set('jurisdiction_code','ng');
+  url.searchParams.set('exclude_inactive','true');
+  url.searchParams.set('per_page',String(f.count));
+  const payload=await json(url,{'X-API-TOKEN':settings.OPENCORPORATES_API_TOKEN});
+  if(!Array.isArray(payload.results?.companies))throw new AccessError(502,'OpenCorporates svarte med ugyldige data.','REGISTER_INVALID_RESPONSE');
+  const seen=new Set<string>();
+  return payload.results.companies.flatMap((entry:{company?:{company_number?:string;name?:string;current_status?:string;registered_address?:{locality?:string;region?:string;country?:string};registered_address_in_full?:string;restricted_for_marketing?:boolean|string}})=>{
+    const company=entry?.company;
+    const id=text(company?.company_number),name=text(company?.name);
+    if(!company||!id||!name||seen.has(id)||company.restricted_for_marketing===true||company.restricted_for_marketing==='yes')return [];
+    seen.add(id);
+    return [{orgNumber:id,name,city:text(company.registered_address?.locality)||text(company.registered_address?.region)||text(company.registered_address_in_full)}];
+  });
+ }
  if(country==='AU'){
  if(!settings.ABN_LOOKUP_GUID)throw new AccessError(503,'ABN Lookup er ikke aktivert. Noracre må legge inn registrert GUID.','REGISTER_NOT_CONFIGURED');
  if(!f.query)throw new AccessError(400,'Oppgi et bedriftsnavn eller søkeord for Australia.');
