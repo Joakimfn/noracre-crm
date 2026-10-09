@@ -3594,8 +3594,12 @@ function CallLists({
   const headcountImportRef=useRef<HTMLInputElement>(null);
   const [sourceReady,setSourceReady]=useState(true);
   const [employeeListMin,setEmployeeListMin]=useState(""),[employeeListMax,setEmployeeListMax]=useState(""),[includeUnknownEmployees,setIncludeUnknownEmployees]=useState(false);
+  const [listCityQuery,setListCityQuery]=useState(""),[listIndustryQuery,setListIndustryQuery]=useState("");
   const hasEmployeeBounds=employeeListMin!==""||employeeListMax!=="";
+  const hasListFilters=hasEmployeeBounds||listCityQuery.trim()!==""||listIndustryQuery.trim()!=="";
   const visibleEntries=entries.filter(entry=>{
+    if(listCityQuery&&!entry.city.toLowerCase().includes(listCityQuery.trim().toLowerCase()))return false;
+    if(listIndustryQuery&&!entry.industry.toLowerCase().includes(listIndustryQuery.trim().toLowerCase()))return false;
     if(!hasEmployeeBounds)return true;
     if(entry.employees==null)return includeUnknownEmployees;
     return (employeeListMin===""||entry.employees>=Number(employeeListMin))&&(employeeListMax===""||entry.employees<=Number(employeeListMax));
@@ -3679,14 +3683,14 @@ function CallLists({
       const raw=XLSX.utils.sheet_to_json<Record<string,unknown>>(book.Sheets[book.SheetNames[0]],{defval:""});
       const rows=mapProspectRows(raw.slice(0,1000));
       if(!rows.length)throw new Error("Fant ingen bedriftsnavn i importfilen. Bruk en kolonne som heter Company Name eller Supplier Name.");
-      let listId:number|null=null,list:any,allRows:CallListEntry[]=[];
+      let listId:number|null=null,allRows:CallListEntry[]=[];
       // A 100-row upload needs 25 INSERT statements, below the 50-query free-tier Worker limit.
       for(let i=0;i<rows.length;i+=100){
         const batch=rows.slice(i,i+100);
         const response=await apiFetch("/api/call-lists",{method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"import",country,rows:batch,listId:listId??undefined,listName:listName.trim()||file.name.replace(/\.[^.]+$/,"")})});
         const result=await response.json();
         if(!response.ok)throw new Error(result.error??"Kunne ikke importere ringelisten.");
-        listId=result.list?.id??listId;list=result.list;imported+=result.added??0;allRows=allRows.concat(result.entries??[]);
+        listId=result.list?.id??listId;imported+=result.added??0;allRows=allRows.concat(result.entries??[]);
       }
       setSelectedListId(listId);setListRefresh(n=>n+1);setEntries(allRows);
       callListCache.delete(organizationId);
@@ -4068,9 +4072,11 @@ function CallLists({
             <div className="call-filter-grid" aria-label="Filtrer bedrifter som allerede er i ringelisten">
               <div><Label htmlFor="list-employee-min">Min. ansatte i listen</Label><NormalizedNumberInput id="list-employee-min" type="number" min="0" value={employeeListMin} placeholder="Ingen grense" onChange={e=>setEmployeeListMin(e.target.value)}/></div>
               <div><Label htmlFor="list-employee-max">Maks ansatte i listen</Label><NormalizedNumberInput id="list-employee-max" type="number" min="0" value={employeeListMax} placeholder="Ingen grense" onChange={e=>setEmployeeListMax(e.target.value)}/></div>
+              <div><Label htmlFor="list-city">By / fylke / provins</Label><Input id="list-city" value={listCityQuery} onChange={e=>setListCityQuery(e.target.value)} placeholder="F.eks. Dublin eller Lusaka"/></div>
+              <div><Label htmlFor="list-industry">Bransje / sektor</Label><Input id="list-industry" value={listIndustryQuery} onChange={e=>setListIndustryQuery(e.target.value)} placeholder="F.eks. construction eller 6201"/></div>
               {hasEmployeeBounds&&<label className="form-hint"><input type="checkbox" checked={includeUnknownEmployees} onChange={e=>setIncludeUnknownEmployees(e.target.checked)}/> Vis også bedrifter med ukjent antall ansatte</label>}
             </div>
-            {hasEmployeeBounds&&<p className="form-hint">Viser {visibleEntries.length} av {entries.length} bedrifter. Filteret bruker bare ansattall som finnes i ringelisten, for eksempel fra en importert fil. Bedrifter uten oppgitt ansattall blir skjult med mindre du velger å vise dem.</p>}
+            {hasListFilters&&<p className="form-hint">Viser {visibleEntries.length} av {entries.length} bedrifter. Filteret bruker bare ansattall som finnes i ringelisten, for eksempel fra en importert fil. Bedrifter uten oppgitt ansattall blir skjult med mindre du velger å vise dem.</p>}
             {loadingEntries ? (
               <div className="list-skeleton">
                 <i />
