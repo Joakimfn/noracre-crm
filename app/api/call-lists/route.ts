@@ -5,7 +5,7 @@ import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import {normalizeRegistryId} from '@/lib/prospect-import';
 import { getDb } from "@/db";
 import {
@@ -385,7 +385,7 @@ export async function POST(request: Request) {
         incoming.set(id,Number(n));
       }
       const candidates=await db.select({id:callListEntries.id,orgNumber:callListEntries.orgNumber})
-        .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(callListEntries.orgNumber,[...incoming.keys()]))).limit(1000);
+        .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(sql`UPPER(REPLACE(${callListEntries.orgNumber}, ' ', ''))`,[...incoming.keys()]))).limit(1000);
       const updates=candidates.filter(row=>incoming.has(normalizeRegistryId(row.orgNumber))).map(row=>db.update(callListEntries)
         .set({employees:incoming.get(normalizeRegistryId(row.orgNumber))!,updatedAt:now})
         .where(and(eq(callListEntries.id,row.id),eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id))));
