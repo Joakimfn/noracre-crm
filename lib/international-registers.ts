@@ -5,9 +5,15 @@ export type RegisterRow={orgNumber:string;name:string;industry?:string;city?:str
 export const CRO_RESOURCE='3fef41bc-b8f4-4b10-8434-ce51c29b1bba';
 const text=(v:unknown)=>typeof v==='string'?v.trim():v==null?'':String(v);
 async function json(url:URL,headers:Record<string,string>={}){
- const r=await fetch(url,{headers:{Accept:'application/json',...headers},signal:AbortSignal.timeout(20000)});
- if(!r.ok)throw new AccessError(502,`Registeret svarte med ${r.status}. Prøv igjen senere.`,'REGISTER_ERROR');
- return r.json();
+ let r:Response;
+ try{r=await fetch(url,{headers:{Accept:'application/json',...headers},signal:AbortSignal.timeout(20000)});}
+ catch{throw new AccessError(502,'Fikk ikke kontakt med bedriftsregisteret. Prøv igjen senere.','REGISTER_UNAVAILABLE');}
+ if(!r.ok){
+  if(r.status===429)throw new AccessError(503,'Bedriftsregisteret har begrenset antall forespørsler. Prøv igjen senere.','REGISTER_RATE_LIMIT');
+  if(r.status===401||r.status===403)throw new AccessError(502,'Bedriftsregisteret avviste tilgangen. Kontakt Noracre support.','REGISTER_AUTH_ERROR');
+  throw new AccessError(502,`Bedriftsregisteret svarte med HTTP ${r.status}. Prøv igjen senere.`,'REGISTER_ERROR');
+ }
+ try{return await r.json();}catch{throw new AccessError(502,'Bedriftsregisteret svarte med ugyldige data. Prøv igjen senere.','REGISTER_INVALID_RESPONSE');}
 }
 export function internationalFilters(data:Record<string,unknown>){
  const count=Number(data.count??50),query=text(data.query),location=text(data.location),industry=text(data.industry),from=text(data.establishedFrom),to=text(data.establishedTo);
@@ -26,18 +32,21 @@ export async function searchInternationalRegister(country:Exclude<RegisterCountr
  url.searchParams.set('company_status','active');url.searchParams.set('size',String(f.count));
  for(const [key,value]of Object.entries({company_name_includes:f.query,location:f.location,sic_codes:f.industry,incorporated_from:f.from,incorporated_to:f.to}))if(value)url.searchParams.set(key,value);
  const payload=await json(url,{Authorization:`Basic ${btoa(settings.COMPANIES_HOUSE_API_KEY+':')}`});
- return (payload.items??[]).filter((r:{company_status?:string})=>r.company_status==='active').map((r:{company_number:string;company_name:string;sic_codes?:string[];registered_office_address?:{locality?:string;postal_code?:string}})=>({orgNumber:r.company_number,name:r.company_name,industry:r.sic_codes?.join(', ')??'',city:r.registered_office_address?.locality??r.registered_office_address?.postal_code??''}));
+ if(!Array.isArray(payload.items))throw new AccessError(502,'Companies House svarte med uventet format.','REGISTER_INVALID_RESPONSE');
+ return payload.items.filter((r:{company_status?:string})=>r.company_status==='active').map((r:{company_number:string;company_name:string;sic_codes?:string[];registered_office_address?:{locality?:string;postal_code?:string}})=>({orgNumber:r.company_number,name:r.company_name,industry:r.sic_codes?.join(', ')??'',city:r.registered_office_address?.locality??r.registered_office_address?.postal_code??''}));
  }
  if(country==='IE'){
  // Values are quoted and SQL wildcards escaped. No user-controlled identifiers or SQL fragments.
  const quote=(v:string)=>"'"+v.replaceAll("'","''")+"'",like=(v:string)=>quote('%'+v.replaceAll('!','!!').replaceAll('%','!%').replaceAll('_','!_')+'%');
- const where=[`company_status_code IN ('1151','1051','1153')`];
+ const where=[`company_status_code IN (1151,1153)`];
  if(f.query)where.push(`company_name ILIKE ${like(f.query)} ESCAPE '!'`);
  if(f.location)where.push('('+['company_address_1','company_address_2','company_address_3','company_address_4','eircode'].map(column=>`${column} ILIKE ${like(f.location)} ESCAPE '!'`).join(' OR ')+')');
- if(f.industry){if(!/^\d{2,5}$/.test(f.industry))throw new AccessError(400,'Oppgi en NACE-kode med 2–5 sifre.');where.push(`nace_v2_code LIKE ${quote(f.industry+'%')}`);}
+ if(f.industry){if(!/^\d{2,5}$/.test(f.industry))throw new AccessError(400,'Oppgi en NACE-kode med 2–5 sifre.');where.push(`REPLACE(nace_v2_code::text, '.', '') LIKE ${quote(f.industry+'%')}`);}
  if(f.from)where.push(`company_reg_date >= ${quote(f.from)}`);if(f.to)where.push(`company_reg_date < (${quote(f.to)}::date + INTERVAL '1 day')`);
  const url=new URL('https://opendata.cro.ie/api/3/action/datastore_search_sql');url.searchParams.set('sql',`SELECT company_num,company_name,nace_v2_code,company_address_3,company_address_4 FROM "${CRO_RESOURCE}" WHERE ${where.join(' AND ')} ORDER BY company_num DESC LIMIT ${f.count}`);
- const payload=await json(url);if(!payload.success)throw new AccessError(502,'CRO kunne ikke gjennomføre søket. Prøv igjen.','REGISTER_ERROR');
+ const payload=await json(url);
+ if(!payload.success)throw new AccessError(502,'CRO kunne ikke gjennomføre søket. Prøv igjen.','REGISTER_ERROR');
+ if(!Array.isArray(payload.result?.records))throw new AccessError(502,'CRO svarte med uventet format.','REGISTER_INVALID_RESPONSE');
  return payload.result.records.map((r:Record<string,unknown>)=>({orgNumber:text(r.company_num),name:text(r.company_name),industry:text(r.nace_v2_code),city:text(r.company_address_4)||text(r.company_address_3)}));
  }
  if(country==='AU'){

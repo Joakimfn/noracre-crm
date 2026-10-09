@@ -74,9 +74,11 @@ function values(
     name: String(row.name ?? row.navn ?? "").trim(),
     industry: String(row.industry ?? row.bransje ?? ""),
     city: String(row.city ?? row.sted ?? ""),
-    employees: Number.isFinite(Number(row.employees))
-      ? Number(row.employees)
-      : null,
+    employees: row.employees == null || row.employees === ""
+      ? null
+      : Number.isFinite(Number(row.employees))
+        ? Number(row.employees)
+        : null,
     phone: String(row.phone ?? row.telefon ?? ""),
     email: String(row.email ?? row.epost ?? ""),
     website: String(row.website ?? row.nettside ?? ""),
@@ -95,7 +97,10 @@ function values(
 
 async function insertListRows(list:typeof savedCallLists.$inferSelect,rows:(typeof callListEntries.$inferInsert)[],removeOnFailure=true){
  const db=getDb(),batches=[];
- for(let i=0;i<rows.length;i+=5)batches.push(db.insert(callListEntries).values(rows.slice(i,i+5).map(row=>({...row,listId:list.id,country:list.country}))).returning());
+ // Each entry binds 21 columns. D1 allows at most 100 bound parameters per query:
+ // five rows need 105 parameters and fail; four stay at 84.
+ const rowsPerInsert=4;
+ for(let i=0;i<rows.length;i+=rowsPerInsert)batches.push(db.insert(callListEntries).values(rows.slice(i,i+rowsPerInsert).map(row=>({...row,listId:list.id,country:list.country}))).returning());
  try{return (await db.batch(batches as [typeof batches[number],...typeof batches[number][]])).flat() as typeof callListEntries.$inferSelect[];}
  catch(error){if(removeOnFailure)await db.batch([db.delete(callListEntries).where(and(eq(callListEntries.organizationId,list.organizationId),eq(callListEntries.listId,list.id))),db.delete(savedCallLists).where(and(eq(savedCallLists.organizationId,list.organizationId),eq(savedCallLists.id,list.id)))]);throw error;}
 }

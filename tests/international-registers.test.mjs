@@ -14,7 +14,7 @@ test('UK uses Companies House active companies, preserves alphanumeric identifie
  const rows=await app.searchInternationalRegister('GB',{count:20,query:'Software',industry:'62012'});assert.equal(rows.length,1);assert.equal(rows[0].orgNumber,'SC012345');assert.equal(rows[0].city,'Edinburgh');
 });
 test('Ireland includes normal active status variants, escapes SQL values and never treats missing phone numbers as present',async()=>{
- globalThis.fetch=async url=>{assert.equal(url.hostname,'opendata.cro.ie');const sql=url.searchParams.get('sql');assert.ok(sql.includes("company_status_code IN ('1151','1051','1153')"));assert.ok(sql.includes("O''Reilly"));assert.ok(sql.endsWith('LIMIT 10'));return Response.json({success:true,result:{records:[{company_num:'765432',company_name:"O'Reilly Limited",company_address_4:'Dublin',nace_v2_code:'6201'}]}});};
+ globalThis.fetch=async url=>{assert.equal(url.hostname,'opendata.cro.ie');const sql=url.searchParams.get('sql');assert.ok(sql.includes("company_status_code IN (1151,1153)"));assert.ok(sql.includes("O''Reilly"));assert.ok(sql.endsWith('LIMIT 10'));return Response.json({success:true,result:{records:[{company_num:'765432',company_name:"O'Reilly Limited",company_address_4:'Dublin',nace_v2_code:'6201'}]}});};
  const rows=await app.searchInternationalRegister('IE',{count:10,query:"O'Reilly"});assert.equal(rows[0].orgNumber,'765432');assert.equal(rows[0].phone,undefined);
  await assert.rejects(app.searchInternationalRegister('IE',{requirePhone:true}),e=>e.status===400);
 });
@@ -27,4 +27,17 @@ test('NZ requires explicit approved API use and never downloads bulk marketing d
  registerSettings.NZBN_API_KEY='key';let calls=0;globalThis.fetch=async(url,init)=>{calls++;assert.equal(url.pathname,'/gateway/nzbn/v5/entities');assert.equal(url.searchParams.get('entity-status'),'Registered');assert.equal(init.headers['Ocp-Apim-Subscription-Key'],'key');return Response.json({items:[{nzbn:'9429041752715',entityName:'GRIZZLY LIMITED',entityStatusCode:'50'}]});};
  await assert.rejects(app.searchInternationalRegister('NZ',{query:'Grizzly'}),e=>e.status===503);assert.equal(calls,0);
  registerSettings.NZBN_CALL_LISTS_APPROVED='true';const rows=await app.searchInternationalRegister('NZ',{query:'Grizzly'});assert.equal(rows[0].orgNumber,'9429041752715');assert.equal(calls,1);
+});
+
+test('Ireland casts numeric NACE codes to text before prefix matching',async()=>{
+ globalThis.fetch=async url=>{const sql=url.searchParams.get('sql');assert.ok(sql.includes("REPLACE(nace_v2_code::text, '.', '') LIKE '6201%'"));return Response.json({success:true,result:{records:[]}});};
+ const rows=await app.searchInternationalRegister('IE',{count:10,industry:'6201'});assert.equal(rows.length,0);
+});
+test('Register network failures and malformed responses are returned as useful API errors',async()=>{
+ globalThis.fetch=async()=>{throw new TypeError('connection reset');};
+ await assert.rejects(app.searchInternationalRegister('IE',{}),e=>e.status===502&&e.code==='REGISTER_UNAVAILABLE');
+ globalThis.fetch=async()=>new Response('Service Unavailable',{status:503});
+ await assert.rejects(app.searchInternationalRegister('IE',{}),e=>e.status===502&&e.code==='REGISTER_ERROR');
+ globalThis.fetch=async()=>Response.json({success:true,result:{}});
+ await assert.rejects(app.searchInternationalRegister('IE',{}),e=>e.status===502&&e.code==='REGISTER_INVALID_RESPONSE');
 });
