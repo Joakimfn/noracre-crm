@@ -3729,8 +3729,7 @@ function CallLists({
         if(!response.ok)throw new Error(result.error??"Kunne ikke oppdatere antall ansatte.");
         updated+=result.updated??0;unmatched+=result.unmatched??0;
       }
-      const response=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});
-      if(response.ok){const result=await response.json();setEntries(result.entries??[]);}
+      setEntries(await fetchAllListRows(selectedListId));
       callListCache.delete(organizationId);
       toast.success(ui(`${updated} bedriftsoppføringer fikk oppdatert ansattall.`));
       if(unmatched)toast.info(ui(`${unmatched} registreringsnumre fra filen finnes ikke i denne listen.`));
