@@ -3630,12 +3630,18 @@ function CallLists({
           },
           body: JSON.stringify({
             type: "generate",
-            ...filters,
             country,listName:listName.trim()||undefined,
-            ...(country!=="NO"?{query:internationalQuery,location:internationalLocation,industry:internationalIndustry,requirePhone:false,requireEmail:false,establishedFrom:"",establishedTo:""}:{}),
+            ...(country==="NO"?filters:{
+              count:filters.count,
+              query:internationalQuery,
+              location:internationalLocation,
+              industry:internationalIndustry,
+              establishedFrom:country==="GB"||country==="IE"?filters.establishedFrom:"",
+              establishedTo:country==="GB"||country==="IE"?filters.establishedTo:"",
+            }),
           }),
         }),
-        d = await r.json();
+        d = await r.json().catch(()=>({error:`Serveren svarte med HTTP ${r.status}. Prøv igjen senere.`}));
       if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lage ringelisten"));
       setSelectedListId(d.list?.id??null);setListRefresh(n=>n+1);
       setEntries(d.entries ?? []);
@@ -3946,7 +3952,7 @@ function CallLists({
         </Dialog>
         <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>
         <div className="call-filter-grid"><div><Label htmlFor="new-list-name">Navn på ny ringeliste</Label><Input id="new-list-name" value={listName} maxLength={120} placeholder="F.eks. Byggfirmaer i London" onChange={e=>setListName(e.target.value)}/></div></div>
-        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{country!=="AU"&&country!=="NZ"&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}<div><Label>Antall bedrifter</Label><Input type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
+        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{country!=="AU"&&country!=="NZ"&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<><div><Label>Etablert fra</Label><Input aria-label="Internasjonalt etablert fra" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label>Etablert til</Label><Input aria-label="Internasjonalt etablert til" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}<div><Label>Antall bedrifter</Label><Input type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
         <fieldset className="call-filter-fields" hidden={country!=="NO"} disabled={busy||country!=="NO"}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
           <div>
             <Label><UiText text="Min. ansatte" /></Label>
