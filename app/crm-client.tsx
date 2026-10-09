@@ -3688,7 +3688,7 @@ function CallLists({
           orgNumber: pick(row, "org"),
           industry: pick(row, "bransje", "industry"),
           city: pick(row, "sted", "by", "city"),
-          employees: Number(pick(row, "ansatt", "employee")) || null,
+          employees: (()=>{const raw=pick(row,"ansatt","employee","staff","headcount").trim();if(!raw)return null;const n=Number(raw);return Number.isInteger(n)&&n>=0?n:null;})(),
           phone: pick(row, "telefon", "mobil", "phone"),
           email: pick(row, "e-post", "epost", "email"),
           website: pick(row, "nettside", "website"),
