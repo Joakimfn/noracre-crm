@@ -3750,11 +3750,13 @@ function CallLists({
   },[active,organizationId,selectedListId]);
   async function loadHistory() {
     if (historyLoaded || !selectedListId) return;
-    const d = await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`, {
-      headers: { "x-organization-id": String(organizationId) },
-    }).then((r) => r.json());
-    setHistory(d.entries ?? []);
-    setHistoryLoaded(true);
+    try {
+      const rows=await fetchAllListRows(selectedListId,"history");
+      setHistory(rows);
+      setHistoryLoaded(true);
+    }catch(error){
+      toast.error(ui(error instanceof Error?error.message:"Kunne ikke hente ringehistorikken."));
+    }
   }
   async function saveStatus(
     row: CallListEntry,
