@@ -12,7 +12,7 @@ function Input({ className, type, onChange, ...props }: React.ComponentProps<"in
         // alter text identifiers, dates, phone numbers, or decimal "0.7".
         if (type === "number") {
           const oldValue = event.currentTarget.value;
-          const normalized = oldValue.replace(/^(-?)0+(?=\\d)/, "$1");
+          const normalized = oldValue.replace(/^(-?)0+(?=\d)/, "$1");
           if (oldValue !== normalized) event.currentTarget.value = normalized;
         }
         onChange?.(event);
