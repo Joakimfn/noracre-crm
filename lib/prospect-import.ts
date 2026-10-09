@@ -6,6 +6,11 @@ function column(row:Record<string,unknown>,labels:string[]){
  for(const label of labels){const value=entries.find(([key])=>key===canonical(label))?.[1];if(value!==undefined&&value!==null&&String(value).trim()!=='')return String(value).trim();}
  return '';
 }
+// Preserve leading zeros and alphanumeric prefixes (GB, AU, NZ, NG) while
+// matching the same registration number across spreadsheets and stored lists.
+export function normalizeRegistryId(value:unknown){
+ return String(value??'').replace(/\\s/g,'').trim().toUpperCase();
+}
 export type ImportedProspect={name:string;orgNumber:string;industry:string;city:string;employees:number|null;phone:string;email:string;website:string};
 const idLabels=['orgNumber','org_number','organisasjonsnummer','company_number','company number','company_num','company num','registration_number','registration no','registration number','registered number','crn','rc_number','rc number','cac registration number','business registration number'];
 const employeeLabels=['employees','employee_count','employee count','employees_total','employees total','number of employees','number_of_employees','average number of employees','headcount','staff_count','staff count','antall ansatte','antall_ansatte','antallansatte'];
@@ -17,7 +22,7 @@ function employees(row:Record<string,unknown>){
 export function mapProspectRows(records:Record<string,unknown>[]):ImportedProspect[]{
  return records.map(row=>({
   name:column(row,['company name','company_name','companyname','supplier name','supplier_name','supplier','supplier_name_text','business name','business_name','firmanavn','bedrift','navn','name']),
-  orgNumber:column(row,idLabels).replace(/\s/g,''),
+  orgNumber:normalizeRegistryId(column(row,idLabels)),
   industry:column(row,['industry','bransje','naeringskode','nace','sic','sector','supplier sector','supplier_sector','category','award category']),
   city:column(row,['city','by','sted','town','locality','county','region','province','district','fylke','supplier city','supplier_city','supplier province']),
   employees:employees(row),
@@ -29,7 +34,7 @@ export function mapProspectRows(records:Record<string,unknown>[]):ImportedProspe
 export function mapHeadcountRows(records:Record<string,unknown>[]):Array<{orgNumber:string;employees:number}>{
  const seen=new Map<string,number>();
  for(const row of records){
-  const id=column(row,idLabels).replace(/\s/g,'').toUpperCase(),n=employees(row);
+  const id=normalizeRegistryId(column(row,idLabels)),n=employees(row);
   if(id&&id.length<=64&&n!==null)seen.set(id,n);
  }
  return [...seen].map(([orgNumber,employees])=>({orgNumber,employees}));
