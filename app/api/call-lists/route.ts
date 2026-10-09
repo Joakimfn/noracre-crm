@@ -74,7 +74,7 @@ function values(
     city: String(row.city ?? row.sted ?? ""),
     employees: row.employees == null || row.employees === ""
       ? null
-      : Number.isFinite(Number(row.employees))
+      : Number.isSafeInteger(Number(row.employees)) && Number(row.employees)>=0 && Number(row.employees)<=1000000
         ? Number(row.employees)
         : null,
     phone: String(row.phone ?? row.telefon ?? ""),
@@ -386,11 +386,11 @@ export async function POST(request: Request) {
       }
       const candidates=await db.select({id:callListEntries.id,orgNumber:callListEntries.orgNumber})
         .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(callListEntries.orgNumber,[...incoming.keys()]))).limit(1000);
-      const updates=candidates.filter(row=>incoming.has(row.orgNumber.toUpperCase())).map(row=>db.update(callListEntries)
-        .set({employees:incoming.get(row.orgNumber.toUpperCase())!,updatedAt:now})
+      const updates=candidates.filter(row=>incoming.has(normalizeRegistryId(row.orgNumber))).map(row=>db.update(callListEntries)
+        .set({employees:incoming.get(normalizeRegistryId(row.orgNumber))!,updatedAt:now})
         .where(and(eq(callListEntries.id,row.id),eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id))));
       if(updates.length)await db.batch(updates as [typeof updates[number],...typeof updates[number][]]);
-      return await actorJson(ctx,{updated:updates.length,unmatched:incoming.size-new Set(candidates.map(row=>row.orgNumber.toUpperCase())).size});
+      return await actorJson(ctx,{updated:updates.length,unmatched:incoming.size-new Set(candidates.map(row=>normalizeRegistryId(row.orgNumber))).size});
     }
     if (data.type === "import") {
       if(!Array.isArray(data.rows)||data.rows.length>100)throw new AccessError(400,"Importer maks 100 bedrifter per forespørsel. Store filer deles opp automatisk.");
