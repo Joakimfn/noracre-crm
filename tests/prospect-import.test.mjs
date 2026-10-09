@@ -7,7 +7,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 const dir=await mkdtemp(path.join(tmpdir(),'noracre-prospect-import-'));
 await build({entryPoints:[new URL('../lib/prospect-import.ts',import.meta.url).pathname],platform:'node',format:'esm',bundle:true,outfile:path.join(dir,'import.mjs')});
-const {mapProspectRows,mapHeadcountRows}=await import(pathToFileURL(path.join(dir,'import.mjs')));
+const {mapProspectRows,mapHeadcountRows,normalizeRegistryId}=await import(pathToFileURL(path.join(dir,'import.mjs')));
 after(()=>rm(dir,{recursive:true,force:true}));
 
 test('free company and supplier CSV exports map name, sector and province without invented registration IDs',()=>{
@@ -40,4 +40,17 @@ test('headcount updates need an actual company number, never join on fuzzy suppl
   {'Company Number':'BE000002','Employees':'unavailable'},
  ]);
  assert.deepEqual(rows,[{orgNumber:'12345678',employees:19},{orgNumber:'SC000007',employees:13}]);
+});
+
+test('registry IDs remove spaces and retain country prefixes',()=>{
+ const row=mapHeadcountRows([{'Company Number':' sc 012345 ','Employees':'17'}]);
+ assert.deepEqual(row,[{orgNumber:'SC012345',employees:17}]);
+});
+
+test('registration numbers match imported staff files regardless of spaces and letter case',()=>{
+ assert.equal(normalizeRegistryId(' sc 00 12345 '),'SC0012345');
+ assert.equal(normalizeRegistryId(' ie-0007 '),'IE-0007');
+ assert.equal(normalizeRegistryId(' 000123 '),'000123');
+ const incoming=mapHeadcountRows([{'Company Number':' sc 0012345 ','Employees':'21'}]);
+ assert.deepEqual(incoming,[{orgNumber:'SC0012345',employees:21}]);
 });

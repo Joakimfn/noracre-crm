@@ -5,7 +5,8 @@ import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import {normalizeRegistryId} from '@/lib/prospect-import';
 import { getDb } from "@/db";
 import {
   activities,
@@ -67,16 +68,13 @@ function values(
 ) {
   return {
     organizationId,
-    orgNumber: String(row.orgNumber ?? row.organisasjonsnummer ?? "").replace(
-      /\s/g,
-      "",
-    ),
+    orgNumber: normalizeRegistryId(row.orgNumber ?? row.organisasjonsnummer),
     name: String(row.name ?? row.navn ?? "").trim(),
     industry: String(row.industry ?? row.bransje ?? ""),
     city: String(row.city ?? row.sted ?? ""),
     employees: row.employees == null || row.employees === ""
       ? null
-      : Number.isFinite(Number(row.employees))
+      : Number.isSafeInteger(Number(row.employees)) && Number(row.employees)>=0 && Number(row.employees)<=1000000
         ? Number(row.employees)
         : null,
     phone: String(row.phone ?? row.telefon ?? ""),
@@ -141,7 +139,10 @@ export async function GET(request: Request) {
       if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
       return await actorJson(ctx,{ active: false, entries: [] });
     }
-    const scope = await entryScope(ctx,new URL(request.url).searchParams.get("listId"));
+    const params=new URL(request.url).searchParams;
+    const offset=Number(params.get("offset")??0);
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000)throw new AccessError(400,"Ugyldig side i ringelisten.");
+    const scope = await entryScope(ctx,params.get("listId"));
     const condition =
       view === "history"
         ? and(
@@ -157,11 +158,14 @@ export async function GET(request: Request) {
       .from(callListEntries)
       .where(and(condition,scope))
       .orderBy(desc(callListEntries.id))
-      .limit(1000);
+      .limit(1000)
+      .offset(offset);
     return await actorJson(ctx,{
       active: true,
       pricePerUser: module.pricePerUser,
       entries: view === "queue" ? shuffle(rows) : rows,
+      hasMore: rows.length===1000,
+      nextOffset: offset+rows.length,
     });
   } catch (e) {
     return accessResponse(e);
@@ -382,17 +386,17 @@ export async function POST(request: Request) {
       if(!Array.isArray(data.rows)||data.rows.length<1||data.rows.length>25)throw new AccessError(400,"Oppdater 1–25 bedrifter per forespørsel.");
       const incoming=new Map<string,number>();
       for(const row of data.rows as Record<string,unknown>[]){
-        const id=String(row.orgNumber??"").replace(/\\s/g,"").trim().toUpperCase(),n=row.employees;
+        const id=normalizeRegistryId(row.orgNumber),n=row.employees;
         if(!id||id.length>64||!Number.isInteger(n)||Number(n)<0||Number(n)>1000000)throw new AccessError(400,"Oppgi et gyldig registreringsnummer og et helt ansattall mellom 0 og 1 000 000.");
         incoming.set(id,Number(n));
       }
       const candidates=await db.select({id:callListEntries.id,orgNumber:callListEntries.orgNumber})
-        .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(callListEntries.orgNumber,[...incoming.keys()]))).limit(1000);
-      const updates=candidates.filter(row=>incoming.has(row.orgNumber.toUpperCase())).map(row=>db.update(callListEntries)
-        .set({employees:incoming.get(row.orgNumber.toUpperCase())!,updatedAt:now})
+        .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(sql`UPPER(REPLACE(${callListEntries.orgNumber}, ' ', ''))`,[...incoming.keys()]))).limit(1000);
+      const updates=candidates.filter(row=>incoming.has(normalizeRegistryId(row.orgNumber))).map(row=>db.update(callListEntries)
+        .set({employees:incoming.get(normalizeRegistryId(row.orgNumber))!,updatedAt:now})
         .where(and(eq(callListEntries.id,row.id),eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id))));
       if(updates.length)await db.batch(updates as [typeof updates[number],...typeof updates[number][]]);
-      return await actorJson(ctx,{updated:updates.length,unmatched:incoming.size-new Set(candidates.map(row=>row.orgNumber.toUpperCase())).size});
+      return await actorJson(ctx,{updated:updates.length,unmatched:incoming.size-new Set(candidates.map(row=>normalizeRegistryId(row.orgNumber))).size});
     }
     if (data.type === "import") {
       if(!Array.isArray(data.rows)||data.rows.length>100)throw new AccessError(400,"Importer maks 100 bedrifter per forespørsel. Store filer deles opp automatisk.");

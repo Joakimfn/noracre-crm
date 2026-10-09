@@ -3604,8 +3604,21 @@ function CallLists({
     if(entry.employees==null)return includeUnknownEmployees;
     return (employeeListMin===""||entry.employees>=Number(employeeListMin))&&(employeeListMax===""||entry.employees<=Number(employeeListMax));
   });
+  async function fetchAllListRows(listId:number,view:"queue"|"history"="queue"){
+    const collected:CallListEntry[]=[];
+    for(let offset=0;offset<100000;offset+=1000){
+      const response=await apiFetch(`/api/call-lists?listId=${listId}&view=${view}&offset=${offset}`,{headers:{"x-organization-id":String(organizationId)}});
+      const payload=await response.json().catch(()=>({error:"Ugyldig svar fra serveren."}));
+      if(!response.ok)throw new Error(payload.error??"Kunne ikke hente ringelisten.");
+      if(!Array.isArray(payload.entries))throw new Error("Ringelisten svarte med ugyldige data.");
+      collected.push(...payload.entries);
+      if(!payload.hasMore)return collected;
+      if(payload.entries.length!==1000)throw new Error("Ringelisten kunne ikke leses fullstendig.");
+    }
+    throw new Error("Ringelisten er for stor for denne visningen.");
+  }
   useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{if(!r.ok)throw Error("Kunne ikke hente filtrene");return r.json();}).then(d=>{if(!cancelled&&Array.isArray(d.counties)&&Array.isArray(d.municipalities)&&Array.isArray(d.industries))setOptions({...d,organizationForms:Array.isArray(d.organizationForms)&&d.organizationForms.length?d.organizationForms:organizationFormFallbackOptions});}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
-  useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Kunne ikke hente ringelisten");if(!cancelled)setEntries(d.entries??[]);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
+  useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);fetchAllListRows(selectedListId).then(rows=>{if(!cancelled)setEntries(rows);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
     if (!purchaseOpen || !canManageModules(role)) return;
     apiFetch("/api/admin", {
@@ -3677,13 +3690,13 @@ function CallLists({
     if(!file)return;
     if(file.size>5*1024*1024)return toast.error(ui("Importfilen kan være maks 5 MB."));
     setBusy(true);
-    let imported=0;
+    let imported=0,listId:number|null=null;
     try{
       const book=XLSX.read(await file.arrayBuffer(),{sheetRows:1001,sheets:0});
       const raw=XLSX.utils.sheet_to_json<Record<string,unknown>>(book.Sheets[book.SheetNames[0]],{defval:""});
       const rows=mapProspectRows(raw.slice(0,1000));
       if(!rows.length)throw new Error("Fant ingen bedriftsnavn i importfilen. Bruk en kolonne som heter Company Name eller Supplier Name.");
-      let listId:number|null=null,allRows:CallListEntry[]=[];
+      let allRows:CallListEntry[]=[];
       // A 100-row upload needs 25 INSERT statements, below the 50-query free-tier Worker limit.
       for(let i=0;i<rows.length;i+=100){
         const batch=rows.slice(i,i+100);
@@ -3696,7 +3709,7 @@ function CallLists({
       callListCache.delete(organizationId);
       toast.success(ui(`${imported} bedrifter ble importert`));
       if(raw.length===1000)toast.info(ui("Filen ble begrenset til de første 1 000 radene."));
-    }catch(error){toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
+    }catch(error){if(listId){setSelectedListId(listId);setListRefresh(n=>n+1);callListCache.delete(organizationId);}toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
     finally{setBusy(false);}
   }
   async function importHeadcountFile(e: ChangeEvent<HTMLInputElement>){
@@ -3716,8 +3729,7 @@ function CallLists({
         if(!response.ok)throw new Error(result.error??"Kunne ikke oppdatere antall ansatte.");
         updated+=result.updated??0;unmatched+=result.unmatched??0;
       }
-      const response=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});
-      if(response.ok){const result=await response.json();setEntries(result.entries??[]);}
+      setEntries(await fetchAllListRows(selectedListId));
       callListCache.delete(organizationId);
       toast.success(ui(`${updated} bedriftsoppføringer fikk oppdatert ansattall.`));
       if(unmatched)toast.info(ui(`${unmatched} registreringsnumre fra filen finnes ikke i denne listen.`));
@@ -3728,9 +3740,9 @@ function CallLists({
     let cancelled=false;
     const refresh=async()=>{
       if(!active||!selectedListId)return;
-      try {const r0=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});if(!r0.ok)return;const d=await r0.json();if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
-        const r=await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`,{headers:{"x-organization-id":String(organizationId)}});
-        if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
+      try {const rows=await fetchAllListRows(selectedListId);if(cancelled)return;setEntries(rows);setHistory([]);setHistoryLoaded(false);
+        const previous=await fetchAllListRows(selectedListId,"history");
+        if(!cancelled){setHistory(previous);setHistoryLoaded(true);}
       }catch{if(!cancelled)toast.error(ui("Kunne ikke oppdatere navnene i ringelisten."));}
     };
     window.addEventListener("crm-profile-updated",refresh);
@@ -3738,11 +3750,13 @@ function CallLists({
   },[active,organizationId,selectedListId]);
   async function loadHistory() {
     if (historyLoaded || !selectedListId) return;
-    const d = await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`, {
-      headers: { "x-organization-id": String(organizationId) },
-    }).then((r) => r.json());
-    setHistory(d.entries ?? []);
-    setHistoryLoaded(true);
+    try {
+      const rows=await fetchAllListRows(selectedListId,"history");
+      setHistory(rows);
+      setHistoryLoaded(true);
+    }catch(error){
+      toast.error(ui(error instanceof Error?error.message:"Kunne ikke hente ringehistorikken."));
+    }
   }
   async function saveStatus(
     row: CallListEntry,
