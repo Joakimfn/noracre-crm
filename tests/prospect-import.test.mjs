@@ -41,3 +41,8 @@ test('headcount updates need an actual company number, never join on fuzzy suppl
  ]);
  assert.deepEqual(rows,[{orgNumber:'12345678',employees:19},{orgNumber:'SC000007',employees:13}]);
 });
+
+test('registry IDs remove spaces and retain country prefixes',()=>{
+ const row=mapHeadcountRows([{'Company Number':' sc 012345 ','Employees':'17'}]);
+ assert.deepEqual(row,[{orgNumber:'SC012345',employees:17}]);
+});
