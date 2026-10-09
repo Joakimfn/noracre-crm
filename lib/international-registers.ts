@@ -49,6 +49,9 @@ export async function searchInternationalRegister(country:Exclude<RegisterCountr
  if(!Array.isArray(payload.result?.records))throw new AccessError(502,'CRO svarte med uventet format.','REGISTER_INVALID_RESPONSE');
  return payload.result.records.map((r:Record<string,unknown>)=>({orgNumber:text(r.company_num),name:text(r.company_name),industry:text(r.nace_v2_code),city:text(r.company_address_4)||text(r.company_address_3)}));
  }
+ if(country==='ZM'){
+  throw new AccessError(503,'Zambia kan bruke importerte ringelister fra ZPPA eller ZEPRA. Automatisk oppslag er foreløpig ikke aktivert: dataene er ikke et fullstendig selskapsregister.','REGISTER_NOT_CONFIGURED');
+ }
  if(country==='NG'){
   // OpenCorporates requires a commercial licence for proprietary sales CRM usage.
   // Never substitute unauthorised web scraping or imply that CAC publishes an open prospecting API.
