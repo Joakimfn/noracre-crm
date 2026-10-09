@@ -13,6 +13,7 @@ import {defaultI18n,type MessageKey} from "@/lib/i18n";
 import {useI18n} from "@/lib/i18n/react";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
 import {NorwegianDateInput} from '@/components/norwegian-date-input';
+import {mapProspectRows,mapHeadcountRows} from '@/lib/prospect-import';
 import {NormalizedNumberInput} from '@/components/normalized-number-input';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
 
@@ -3590,6 +3591,7 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const callListImportRef=useRef<HTMLInputElement>(null);
+  const headcountImportRef=useRef<HTMLInputElement>(null);
   const [sourceReady,setSourceReady]=useState(true);
   const [employeeListMin,setEmployeeListMin]=useState(""),[employeeListMax,setEmployeeListMax]=useState(""),[includeUnknownEmployees,setIncludeUnknownEmployees]=useState(false);
   const hasEmployeeBounds=employeeListMin!==""||employeeListMax!=="";
@@ -3665,48 +3667,58 @@ function CallLists({
       setBusy(false);
     }
   }
+
   async function importFile(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) return toast.error(ui("Importfilen kan være maks 5 MB."));
-    const book = XLSX.read(await file.arrayBuffer(), { sheetRows: 501, sheets: 0 }),
-      raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(
-        book.Sheets[book.SheetNames[0]],
-        { defval: "" },
-      ),
-      pick = (row: Record<string, unknown>, ...keys: string[]) => {
-        const key = Object.keys(row).find((item) =>
-          keys.some((term) => item.toLowerCase().includes(term)),
-        );
-        return key ? String(row[key]) : "";
-      },
-      rows = raw
-        .slice(0, 1000)
-        .map((row) => ({
-          name: pick(row, "bedrift", "firmanavn", "company", "navn"),
-          orgNumber: pick(row, "org"),
-          industry: pick(row, "bransje", "industry"),
-          city: pick(row, "sted", "by", "city"),
-          employees: (()=>{const raw=pick(row,"ansatt","employee","staff","headcount").trim();if(!raw)return null;const n=Number(raw);return Number.isInteger(n)&&n>=0?n:null;})(),
-          phone: pick(row, "telefon", "mobil", "phone"),
-          email: pick(row, "e-post", "epost", "email"),
-          website: pick(row, "nettside", "website"),
-        }))
-        .filter((row) => row.name);
-    const r = await apiFetch("/api/call-lists", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-organization-id": String(organizationId),
-        },
-        body: JSON.stringify({ type: "import", rows,country,listName:listName.trim()||file.name.replace(/\.[^.]+$/,"") }),
-      }),
-      d = await r.json();
-    if (!r.ok)
-      return toast.error(ui(d.error ?? "Kunne ikke importere ringelisten"));
-    setSelectedListId(d.list?.id??null);setListRefresh(n=>n+1);setEntries(d.entries??[]);
-    toast.success(ui(`${d.added} bedrifter ble importert`));
+    const file=e.target.files?.[0];e.target.value="";
+    if(!file)return;
+    if(file.size>5*1024*1024)return toast.error(ui("Importfilen kan være maks 5 MB."));
+    setBusy(true);
+    let imported=0;
+    try{
+      const book=XLSX.read(await file.arrayBuffer(),{sheetRows:1001,sheets:0});
+      const raw=XLSX.utils.sheet_to_json<Record<string,unknown>>(book.Sheets[book.SheetNames[0]],{defval:""});
+      const rows=mapProspectRows(raw.slice(0,1000));
+      if(!rows.length)throw new Error("Fant ingen bedriftsnavn i importfilen. Bruk en kolonne som heter Company Name eller Supplier Name.");
+      let listId:number|null=null,list:any,allRows:CallListEntry[]=[];
+      // A 100-row upload needs 25 INSERT statements, below the 50-query free-tier Worker limit.
+      for(let i=0;i<rows.length;i+=100){
+        const batch=rows.slice(i,i+100);
+        const response=await apiFetch("/api/call-lists",{method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"import",country,rows:batch,listId:listId??undefined,listName:listName.trim()||file.name.replace(/\.[^.]+$/,"")})});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error??"Kunne ikke importere ringelisten.");
+        listId=result.list?.id??listId;list=result.list;imported+=result.added??0;allRows=allRows.concat(result.entries??[]);
+      }
+      setSelectedListId(listId);setListRefresh(n=>n+1);setEntries(allRows);
+      callListCache.delete(organizationId);
+      toast.success(ui(`${imported} bedrifter ble importert`));
+      if(raw.length===1000)toast.info(ui("Filen ble begrenset til de første 1 000 radene."));
+    }catch(error){toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
+    finally{setBusy(false);}
+  }
+  async function importHeadcountFile(e: ChangeEvent<HTMLInputElement>){
+    const file=e.target.files?.[0];e.target.value="";
+    if(!file||!selectedListId)return;
+    if(file.size>5*1024*1024)return toast.error(ui("Importfilen kan være maks 5 MB."));
+    setBusy(true);
+    let updated=0,unmatched=0;
+    try{
+      const book=XLSX.read(await file.arrayBuffer(),{sheetRows:1001,sheets:0});
+      const raw=XLSX.utils.sheet_to_json<Record<string,unknown>>(book.Sheets[book.SheetNames[0]],{defval:""});
+      const rows=mapHeadcountRows(raw.slice(0,1000));
+      if(!rows.length)throw new Error("Fant ingen gyldige registreringsnumre og ansattall. Filen må ha Company Number og Employees.");
+      for(let i=0;i<rows.length;i+=25){
+        const response=await apiFetch("/api/call-lists",{method:"POST",headers:{"content-type":"application/json","x-organization-id":String(organizationId)},body:JSON.stringify({type:"enrichEmployees",country,listId:selectedListId,rows:rows.slice(i,i+25)})});
+        const result=await response.json();
+        if(!response.ok)throw new Error(result.error??"Kunne ikke oppdatere antall ansatte.");
+        updated+=result.updated??0;unmatched+=result.unmatched??0;
+      }
+      const response=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});
+      if(response.ok){const result=await response.json();setEntries(result.entries??[]);}
+      callListCache.delete(organizationId);
+      toast.success(ui(`${updated} bedriftsoppføringer fikk oppdatert ansattall.`));
+      if(unmatched)toast.info(ui(`${unmatched} registreringsnumre fra filen finnes ikke i denne listen.`));
+    }catch(error){toast.error(ui(error instanceof Error?error.message:"Kunne ikke importere ansattall."));}
+    finally{setBusy(false);}
   }
   useEffect(()=>{
     let cancelled=false;
@@ -3900,8 +3912,10 @@ function CallLists({
               <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
                 <UsersRound /><UiText text="Administrer brukere" /></Button>
             )}
-            <Button variant="outline" onClick={()=>callListImportRef.current?.click()}><Upload size={18}/><UiText text="Importer egen liste" /></Button>
+            <Button variant="outline" disabled={busy} onClick={()=>callListImportRef.current?.click()}><Upload size={18}/><UiText text="Importer egen liste" /></Button>
+            <Button variant="outline" disabled={busy||!selectedListId} onClick={()=>headcountImportRef.current?.click()}><Upload size={18}/>Oppdater ansatte fra CSV/Excel</Button>
             <input ref={callListImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importFile}/>
+            <input ref={headcountImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importHeadcountFile}/>
 
           </div>
         </div>
