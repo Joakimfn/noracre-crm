@@ -13,6 +13,7 @@ import {defaultI18n,type MessageKey} from "@/lib/i18n";
 import {useI18n} from "@/lib/i18n/react";
 import {CallListMultiPicker} from '@/components/call-list-multi-picker';
 import {NorwegianDateInput} from '@/components/norwegian-date-input';
+import {NormalizedNumberInput} from '@/components/normalized-number-input';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
 
 import { ModuleShowcase } from "@/components/module-showcase";
@@ -3589,6 +3590,13 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const callListImportRef=useRef<HTMLInputElement>(null);
+  const [employeeListMin,setEmployeeListMin]=useState(""),[employeeListMax,setEmployeeListMax]=useState(""),[includeUnknownEmployees,setIncludeUnknownEmployees]=useState(false);
+  const hasEmployeeBounds=employeeListMin!==""||employeeListMax!=="";
+  const visibleEntries=entries.filter(entry=>{
+    if(!hasEmployeeBounds)return true;
+    if(entry.employees==null)return includeUnknownEmployees;
+    return (employeeListMin===""||entry.employees>=Number(employeeListMin))&&(employeeListMax===""||entry.employees<=Number(employeeListMax));
+  });
   useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{if(!r.ok)throw Error("Kunne ikke hente filtrene");return r.json();}).then(d=>{if(!cancelled&&Array.isArray(d.counties)&&Array.isArray(d.municipalities)&&Array.isArray(d.industries))setOptions({...d,organizationForms:Array.isArray(d.organizationForms)&&d.organizationForms.length?d.organizationForms:organizationFormFallbackOptions});}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
   useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Kunne ikke hente ringelisten");if(!cancelled)setEntries(d.entries??[]);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
@@ -3952,11 +3960,11 @@ function CallLists({
         </Dialog>
         <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>
         <div className="call-filter-grid"><div><Label htmlFor="new-list-name">Navn på ny ringeliste</Label><Input id="new-list-name" value={listName} maxLength={120} placeholder="F.eks. Byggfirmaer i London" onChange={e=>setListName(e.target.value)}/></div></div>
-        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{country!=="AU"&&country!=="NZ"&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<><div><Label>Etablert fra</Label><Input aria-label="Internasjonalt etablert fra" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label>Etablert til</Label><Input aria-label="Internasjonalt etablert til" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}<div><Label>Antall bedrifter</Label><Input type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
+        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&country!=="NG"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<><div><Label>Etablert fra</Label><Input aria-label="Internasjonalt etablert fra" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label>Etablert til</Label><Input aria-label="Internasjonalt etablert til" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}<div><Label>Antall bedrifter</Label><NormalizedNumberInput type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
         <fieldset className="call-filter-fields" hidden={country!=="NO"} disabled={busy||country!=="NO"}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
           <div>
             <Label><UiText text="Min. ansatte" /></Label>
-            <Input
+            <NormalizedNumberInput
               type="number"
               min="0"
               value={filters.minEmployees}
@@ -3968,7 +3976,7 @@ function CallLists({
           </div>
           <div>
             <Label><UiText text="Maks ansatte" /></Label>
-            <Input
+            <NormalizedNumberInput
               type="number"
               min="0"
               placeholder={ui("Ingen grense")}
@@ -3986,7 +3994,7 @@ function CallLists({
           <div><Label><UiText text="Bransje" /></Label><CallListMultiPicker values={filters.industryCodes} onChange={industryCodes=>setFilters({...filters,industryCodes})} groups={[{heading:'Bransjer',options:options.industries}]} placeholder={ui("Søk etter bransje")} allLabel={ui("Alle bransjer")} noun={ui("bransjer")}/></div>
           <div>
             <Label><UiText text="Antall" /></Label>
-            <Input
+            <NormalizedNumberInput
               type="number"
               min="1"
               max="100"
@@ -4042,16 +4050,22 @@ function CallLists({
             <TabsTrigger value="history"><UiText text="Historikk" /></TabsTrigger>
           </TabsList>
           <TabsContent value="queue">
+            <div className="call-filter-grid" aria-label="Filtrer bedrifter som allerede er i ringelisten">
+              <div><Label htmlFor="list-employee-min">Min. ansatte i listen</Label><NormalizedNumberInput id="list-employee-min" type="number" min="0" value={employeeListMin} placeholder="Ingen grense" onChange={e=>setEmployeeListMin(e.target.value)}/></div>
+              <div><Label htmlFor="list-employee-max">Maks ansatte i listen</Label><NormalizedNumberInput id="list-employee-max" type="number" min="0" value={employeeListMax} placeholder="Ingen grense" onChange={e=>setEmployeeListMax(e.target.value)}/></div>
+              {hasEmployeeBounds&&<label className="form-hint"><input type="checkbox" checked={includeUnknownEmployees} onChange={e=>setIncludeUnknownEmployees(e.target.checked)}/> Vis også bedrifter med ukjent antall ansatte</label>}
+            </div>
+            {hasEmployeeBounds&&<p className="form-hint">Viser {visibleEntries.length} av {entries.length} bedrifter. Filteret bruker bare ansattall som finnes i ringelisten, for eksempel fra en importert fil. Bedrifter uten oppgitt ansattall blir skjult med mindre du velger å vise dem.</p>}
             {loadingEntries ? (
               <div className="list-skeleton">
                 <i />
                 <i />
                 <i />
               </div>
-            ) : entries.length ? (
-              <ProspectRows rows={entries} update={update} />
+            )  : visibleEntries.length ? (
+              <ProspectRows rows={visibleEntries} update={update} />
             ) : (
-              <p className="empty-line"><UiText text="Ingen bedrifter i listen ennå." /></p>
+              <p className="empty-line"><UiText text="Ingen bedrifter som matcher filteret, eller listen er tom." /></p>
             )}
           </TabsContent>
           <TabsContent value="history">
