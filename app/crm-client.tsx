@@ -3604,6 +3604,19 @@ function CallLists({
     if(entry.employees==null)return includeUnknownEmployees;
     return (employeeListMin===""||entry.employees>=Number(employeeListMin))&&(employeeListMax===""||entry.employees<=Number(employeeListMax));
   });
+  async function fetchAllListRows(listId:number,view:"queue"|"history"="queue"){
+    const collected:CallListEntry[]=[];
+    for(let offset=0;offset<100000;offset+=1000){
+      const response=await apiFetch(`/api/call-lists?listId=${listId}&view=${view}&offset=${offset}`,{headers:{"x-organization-id":String(organizationId)}});
+      const payload=await response.json().catch(()=>({error:"Ugyldig svar fra serveren."}));
+      if(!response.ok)throw new Error(payload.error??"Kunne ikke hente ringelisten.");
+      if(!Array.isArray(payload.entries))throw new Error("Ringelisten svarte med ugyldige data.");
+      collected.push(...payload.entries);
+      if(!payload.hasMore)return collected;
+      if(payload.entries.length!==1000)throw new Error("Ringelisten kunne ikke leses fullstendig.");
+    }
+    throw new Error("Ringelisten er for stor for denne visningen.");
+  }
   useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{if(!r.ok)throw Error("Kunne ikke hente filtrene");return r.json();}).then(d=>{if(!cancelled&&Array.isArray(d.counties)&&Array.isArray(d.municipalities)&&Array.isArray(d.industries))setOptions({...d,organizationForms:Array.isArray(d.organizationForms)&&d.organizationForms.length?d.organizationForms:organizationFormFallbackOptions});}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
   useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error||"Kunne ikke hente ringelisten");if(!cancelled)setEntries(d.entries??[]);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
