@@ -5,6 +5,7 @@ export const registerCountries = [
   {code:'AU',name:'Australia',source:'ABN Lookup'},
   {code:'NZ',name:'New Zealand',source:'NZBN'},
   {code:'NG',name:'Nigeria',source:'OpenCorporates (CAC records)'},
+  {code:'ZM',name:'Zambia',source:'ZPPA / ZEPRA åpne innkjøpsdata'},
 ] as const;
 export type RegisterCountry = typeof registerCountries[number]['code'];
 export function parseCountries(value:unknown):RegisterCountry[]{

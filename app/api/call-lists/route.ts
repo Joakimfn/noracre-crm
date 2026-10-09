@@ -5,7 +5,7 @@ import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
 import { actorJson, actorRef } from "@/lib/actor-names";
 import { canManageModules, requireModuleAccess } from "@/lib/module-access";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   activities,
@@ -372,12 +372,33 @@ export async function POST(request: Request) {
         .returning();
       return await actorJson(ctx,{ entry: row, company: customer });
     }
-    if(data.type !== "import" && data.type !== "generate")throw new AccessError(400,"Ukjent handling.");
+    if(data.type !== "import" && data.type !== "generate" && data.type !== "enrichEmployees")throw new AccessError(400,"Ukjent handling.");
     const country = await countryFor(ctx,data.country);
+    if(data.type==="enrichEmployees"){
+      // Upload only verifiable company-registration-number matches into an owned saved list.
+      // Small requests also work within the Cloudflare D1 free-tier subrequest limit.
+      const list=await requireList(ctx,data.listId,true);
+      if(list.country!==country)throw new AccessError(400,"Velg ringelisten fra riktig land.");
+      if(!Array.isArray(data.rows)||data.rows.length<1||data.rows.length>25)throw new AccessError(400,"Oppdater 1–25 bedrifter per forespørsel.");
+      const incoming=new Map<string,number>();
+      for(const row of data.rows as Record<string,unknown>[]){
+        const id=String(row.orgNumber??"").replace(/\\s/g,"").trim().toUpperCase(),n=row.employees;
+        if(!id||id.length>64||!Number.isInteger(n)||Number(n)<0||Number(n)>1000000)throw new AccessError(400,"Oppgi et gyldig registreringsnummer og et helt ansattall mellom 0 og 1 000 000.");
+        incoming.set(id,Number(n));
+      }
+      const candidates=await db.select({id:callListEntries.id,orgNumber:callListEntries.orgNumber})
+        .from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id),inArray(callListEntries.orgNumber,[...incoming.keys()]))).limit(1000);
+      const updates=candidates.filter(row=>incoming.has(row.orgNumber.toUpperCase())).map(row=>db.update(callListEntries)
+        .set({employees:incoming.get(row.orgNumber.toUpperCase())!,updatedAt:now})
+        .where(and(eq(callListEntries.id,row.id),eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id))));
+      if(updates.length)await db.batch(updates as [typeof updates[number],...typeof updates[number][]]);
+      return await actorJson(ctx,{updated:updates.length,unmatched:incoming.size-new Set(candidates.map(row=>row.orgNumber.toUpperCase())).size});
+    }
     if (data.type === "import") {
+      if(!Array.isArray(data.rows)||data.rows.length>100)throw new AccessError(400,"Importer maks 100 bedrifter per forespørsel. Store filer deles opp automatisk.");
       const rows = Array.isArray(data.rows)
         ? (data.rows as Record<string, unknown>[])
-            .slice(0, 1000)
+            .slice(0, 100)
             .map((row) =>
               values(row, ctx.organizationId, "Importert ringeliste", now),
             )
