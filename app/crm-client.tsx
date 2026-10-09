@@ -3740,9 +3740,9 @@ function CallLists({
     let cancelled=false;
     const refresh=async()=>{
       if(!active||!selectedListId)return;
-      try {const r0=await apiFetch(`/api/call-lists?listId=${selectedListId}`,{headers:{"x-organization-id":String(organizationId)}});if(!r0.ok)return;const d=await r0.json();if(cancelled)return;setEntries(d.entries);setHistory([]);setHistoryLoaded(false);
-        const r=await apiFetch(`/api/call-lists?view=history${selectedListId?`&listId=${selectedListId}`:""}`,{headers:{"x-organization-id":String(organizationId)}});
-        if(r.ok&&!cancelled){const data=await r.json();setHistory(data.entries??[]);setHistoryLoaded(true);}
+      try {const rows=await fetchAllListRows(selectedListId);if(cancelled)return;setEntries(rows);setHistory([]);setHistoryLoaded(false);
+        const previous=await fetchAllListRows(selectedListId,"history");
+        if(!cancelled){setHistory(previous);setHistoryLoaded(true);}
       }catch{if(!cancelled)toast.error(ui("Kunne ikke oppdatere navnene i ringelisten."));}
     };
     window.addEventListener("crm-profile-updated",refresh);
