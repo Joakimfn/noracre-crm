@@ -3690,13 +3690,13 @@ function CallLists({
     if(!file)return;
     if(file.size>5*1024*1024)return toast.error(ui("Importfilen kan være maks 5 MB."));
     setBusy(true);
-    let imported=0;
+    let imported=0,listId:number|null=null;
     try{
       const book=XLSX.read(await file.arrayBuffer(),{sheetRows:1001,sheets:0});
       const raw=XLSX.utils.sheet_to_json<Record<string,unknown>>(book.Sheets[book.SheetNames[0]],{defval:""});
       const rows=mapProspectRows(raw.slice(0,1000));
       if(!rows.length)throw new Error("Fant ingen bedriftsnavn i importfilen. Bruk en kolonne som heter Company Name eller Supplier Name.");
-      let listId:number|null=null,allRows:CallListEntry[]=[];
+      let allRows:CallListEntry[]=[];
       // A 100-row upload needs 25 INSERT statements, below the 50-query free-tier Worker limit.
       for(let i=0;i<rows.length;i+=100){
         const batch=rows.slice(i,i+100);
@@ -3709,7 +3709,7 @@ function CallLists({
       callListCache.delete(organizationId);
       toast.success(ui(`${imported} bedrifter ble importert`));
       if(raw.length===1000)toast.info(ui("Filen ble begrenset til de første 1 000 radene."));
-    }catch(error){toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
+    }catch(error){if(listId){setSelectedListId(listId);setListRefresh(n=>n+1);callListCache.delete(organizationId);}toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
     finally{setBusy(false);}
   }
   async function importHeadcountFile(e: ChangeEvent<HTMLInputElement>){
