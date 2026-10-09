@@ -9,7 +9,7 @@ function column(row:Record<string,unknown>,labels:string[]){
 // Preserve leading zeros and alphanumeric prefixes (GB, AU, NZ, NG) while
 // matching the same registration number across spreadsheets and stored lists.
 export function normalizeRegistryId(value:unknown){
- return String(value??'').replace(/\\s/g,'').trim().toUpperCase();
+ return String(value??'').replace(/\s/g,'').trim().toUpperCase();
 }
 export type ImportedProspect={name:string;orgNumber:string;industry:string;city:string;employees:number|null;phone:string;email:string;website:string};
 const idLabels=['orgNumber','org_number','organisasjonsnummer','company_number','company number','company_num','company num','registration_number','registration no','registration number','registered number','crn','rc_number','rc number','cac registration number','business registration number'];
