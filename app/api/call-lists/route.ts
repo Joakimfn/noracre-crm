@@ -139,7 +139,10 @@ export async function GET(request: Request) {
       if (!canManageModules(ctx.role)) throw new AccessError(403, "Modulen er ikke tildelt deg.", "MODULE_REQUIRED");
       return await actorJson(ctx,{ active: false, entries: [] });
     }
-    const scope = await entryScope(ctx,new URL(request.url).searchParams.get("listId"));
+    const params=new URL(request.url).searchParams;
+    const offset=Number(params.get("offset")??0);
+    if(!Number.isSafeInteger(offset)||offset<0||offset>100000)throw new AccessError(400,"Ugyldig side i ringelisten.");
+    const scope = await entryScope(ctx,params.get("listId"));
     const condition =
       view === "history"
         ? and(
@@ -155,11 +158,14 @@ export async function GET(request: Request) {
       .from(callListEntries)
       .where(and(condition,scope))
       .orderBy(desc(callListEntries.id))
-      .limit(1000);
+      .limit(1000)
+      .offset(offset);
     return await actorJson(ctx,{
       active: true,
       pricePerUser: module.pricePerUser,
       entries: view === "queue" ? shuffle(rows) : rows,
+      hasMore: rows.length===1000,
+      nextOffset: offset+rows.length,
     });
   } catch (e) {
     return accessResponse(e);
