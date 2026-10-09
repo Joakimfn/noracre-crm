@@ -12,7 +12,6 @@ const dir=await mkdtemp(path.join(tmpdir(),'noracre-numbers-'));
 await build({
  entryPoints:[path.join(root,'components/normalized-number-input.tsx')],
  bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'number.mjs'),
- external:['react','react/jsx-runtime'],
  plugins:[{name:'stub',setup(b){
   b.onResolve({filter:/^@\/components\/ui\/input$/},()=>({path:'input',namespace:'mock'}));
   b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const Input=()=>null'}));
