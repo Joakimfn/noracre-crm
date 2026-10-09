@@ -2,13 +2,13 @@ import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {mkdtemp,rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import {build} from 'esbuild';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const dir=await mkdtemp(path.join(tmpdir(),'noracre-numbers-'));
+// Resolve bundled React from this repository instead of /tmp.
+const dir=await mkdtemp(path.join(root,'.noracre-numbers-test-'));
 await build({
  entryPoints:[path.join(root,'components/normalized-number-input.tsx')],
  bundle:true,platform:'node',format:'esm',outfile:path.join(dir,'number.mjs'),
