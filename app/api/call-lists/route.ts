@@ -74,9 +74,11 @@ function values(
     name: String(row.name ?? row.navn ?? "").trim(),
     industry: String(row.industry ?? row.bransje ?? ""),
     city: String(row.city ?? row.sted ?? ""),
-    employees: Number.isFinite(Number(row.employees))
-      ? Number(row.employees)
-      : null,
+    employees: row.employees == null || row.employees === ""
+      ? null
+      : Number.isFinite(Number(row.employees))
+        ? Number(row.employees)
+        : null,
     phone: String(row.phone ?? row.telefon ?? ""),
     email: String(row.email ?? row.epost ?? ""),
     website: String(row.website ?? row.nettside ?? ""),
