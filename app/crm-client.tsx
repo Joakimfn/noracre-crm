@@ -3590,6 +3590,7 @@ function CallLists({
     ),
     [filters, setFilters] = useState(defaultCallListFilters);
   const callListImportRef=useRef<HTMLInputElement>(null);
+  const [sourceReady,setSourceReady]=useState(true);
   const [employeeListMin,setEmployeeListMin]=useState(""),[employeeListMax,setEmployeeListMax]=useState(""),[includeUnknownEmployees,setIncludeUnknownEmployees]=useState(false);
   const hasEmployeeBounds=employeeListMin!==""||employeeListMax!=="";
   const visibleEntries=entries.filter(entry=>{
@@ -3829,7 +3830,7 @@ function CallLists({
     return (
       <div className="page-pad">
         <ModuleShowcase moduleKey="ringelister" role={role} price={unitPrice} onPurchase={() => setPurchaseOpen(true)} />
-        {canManageModules(role)&&<SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>}
+        {canManageModules(role)&&<SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh} onSourceReadyChange={setSourceReady}/>}
         <Dialog open={purchaseOpen && canManageModules(role)} onOpenChange={setPurchaseOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
@@ -3958,7 +3959,7 @@ function CallLists({
             <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Lagre og bekreft pris" /></Button>
           </DialogContent>
         </Dialog>
-        <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh}/>
+        <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh} onSourceReadyChange={setSourceReady}/>
         <div className="call-filter-grid"><div><Label htmlFor="new-list-name">Navn på ny ringeliste</Label><Input id="new-list-name" value={listName} maxLength={120} placeholder="F.eks. Byggfirmaer i London" onChange={e=>setListName(e.target.value)}/></div></div>
         {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&country!=="NG"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<><div><Label>Etablert fra</Label><Input aria-label="Internasjonalt etablert fra" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label>Etablert til</Label><Input aria-label="Internasjonalt etablert til" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}<div><Label>Antall bedrifter</Label><NormalizedNumberInput type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
         <fieldset className="call-filter-fields" hidden={country!=="NO"} disabled={busy||country!=="NO"}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
@@ -4035,7 +4036,7 @@ function CallLists({
           </Button>
         </div>
         </fieldset>
-        {country!=="NO"&&<Button onClick={generate} disabled={busy}><Search/>{busy?ui("Lager liste …"):ui("Hent bedrifter")}</Button>}
+        {country!=="NO"&&<Button onClick={generate} disabled={busy||!sourceReady}><Search/>{busy?ui("Lager liste …"):sourceReady?ui("Hent bedrifter"):ui("Automatisk søk ikke aktivert")}</Button>}
       </section>
       <section className="surface">
         <Tabs
