@@ -96,16 +96,25 @@ export async function GET(request:Request){
   const deals=await db.select().from(outboundDeals).where(and(eq(outboundDeals.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDeals.membershipId,ctx.membershipId))).orderBy(desc(outboundDeals.updatedAt)).limit(400);
   const payments=await db.select().from(outboundDealPayments).where(and(eq(outboundDealPayments.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDealPayments.membershipId,ctx.membershipId))).orderBy(desc(outboundDealPayments.createdAt)).limit(400);
   const attempts=sumCalls(calls);
+  const dealCounts=await db.select({membershipId:outboundDeals.membershipId,pipeline:outboundDeals.pipeline,total:sql<number>`count(*)`}).from(outboundDeals)
+    .where(and(eq(outboundDeals.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDeals.membershipId,ctx.membershipId)))
+    .groupBy(outboundDeals.membershipId,outboundDeals.pipeline);
+  const paymentTotals=await db.select({membershipId:outboundDealPayments.membershipId,currency:outboundDealPayments.currency,
+    paidMinor:sql<number>`coalesce(sum(${outboundDealPayments.paidAmountMinor}),0)`,
+    commissionMinor:sql<number>`coalesce(sum(round(${outboundDealPayments.paidAmountMinor} * ${outboundDealPayments.commissionBps} / 10000.0)),0)`})
+    .from(outboundDealPayments)
+    .where(and(eq(outboundDealPayments.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDealPayments.membershipId,ctx.membershipId)))
+    .groupBy(outboundDealPayments.membershipId,outboundDealPayments.currency);
   const metrics={attempts,uniqueCalled:Number(uniqueCalled),conversations,meetings:sumCalls(calls.filter(c=>c.outcome==='Møte booket')),conversationRate:attempts?Math.round(conversations/attempts*1000)/10:0,weekly:true,
-    stages:Object.fromEntries(stages.map(stage=>[stage,deals.filter(d=>d.pipeline===stage).length]))};
+    stages:Object.fromEntries(stages.map(stage=>[stage,dealCounts.filter(d=>d.pipeline===stage).reduce((sum,d)=>sum+Number(d.total),0)]))};
   const byMember=users.filter(u=>isManager||u.id===ctx.membershipId).map(u=>{
     const mine=calls.filter(c=>c.membershipId===u.id);
-    const ownDeals=deals.filter(d=>d.membershipId===u.id);
-    const ownPayments=payments.filter(p=>p.membershipId===u.id);
-    return {membershipId:u.id,name:u.name,attempts:sumCalls(mine),conversations:sumCalls(mine.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome))),meetings:sumCalls(mine.filter(c=>c.outcome==='Møte booket')),won:ownDeals.filter(d=>d.pipeline==='Kunde').length,
-      commissionsByCurrency:Object.fromEntries([...new Set(ownPayments.map(p=>p.currency))].map(currency=>[currency,ownPayments.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Math.round(p.paidAmountMinor*p.commissionBps/10000),0)]))};
+    const ownDeals=dealCounts.filter(d=>d.membershipId===u.id);
+    const ownPayments=paymentTotals.filter(p=>p.membershipId===u.id);
+    return {membershipId:u.id,name:u.name,attempts:sumCalls(mine),conversations:sumCalls(mine.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome))),meetings:sumCalls(mine.filter(c=>c.outcome==='Møte booket')),won:ownDeals.filter(d=>d.pipeline==='Kunde').reduce((sum,d)=>sum+Number(d.total),0),
+      commissionsByCurrency:Object.fromEntries(ownPayments.map(p=>[p.currency,Number(p.commissionMinor)]))};
   });
-  return publicJson({settings,rows:visible,members:isManager?users:users.filter(u=>u.id===ctx.membershipId),metrics,deals,payments,byMember,
+  return publicJson({settings,rows:visible,members:isManager?users:users.filter(u=>u.id===ctx.membershipId),metrics,deals,payments,paymentTotals,byMember,
    hasMore:rows.length===150,nextOffset:offset+rows.length,canManage:isManager,listId,listCount:lists.length});
  }catch(e){return accessResponse(e);}
 }
