@@ -13,6 +13,8 @@ import { moduleCatalog } from "@/lib/module-catalog";
 import { getDb } from "@/db";
 import {
   auditLogs,
+  callListEntries,
+  outboundDeals,
   memberships,
   moduleLicenses,
   organizationModules,
@@ -186,6 +188,15 @@ export async function POST(request: Request) {
           createdAt: now,
         })
         .returning();
+      // Link a won outbound lead to this newly provisioned paying customer
+      // only when the official registration ID and country match exactly.
+      if(orgNumber){
+        const [won]=await db.select({dealId:outboundDeals.id}).from(outboundDeals)
+          .innerJoin(callListEntries,and(eq(callListEntries.id,outboundDeals.entryId),eq(callListEntries.organizationId,ctx.organizationId)))
+          .where(and(eq(outboundDeals.organizationId,ctx.organizationId),eq(outboundDeals.pipeline,'Kunde'),eq(callListEntries.country,homeCountry),eq(callListEntries.orgNumber,orgNumber)))
+          .orderBy(desc(outboundDeals.id)).limit(1);
+        if(won)await db.update(outboundDeals).set({customerOrganizationId:org.id,updatedAt:now}).where(and(eq(outboundDeals.id,won.dealId),eq(outboundDeals.organizationId,ctx.organizationId)));
+      }
       await db.insert(memberships).values({
         organizationId: org.id,
         userId: `invite:${email}`,
