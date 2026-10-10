@@ -66,3 +66,26 @@ CREATE TABLE outbound_suppression (
  created_at TEXT NOT NULL,
  UNIQUE(organization_id,country,org_number)
 );
+
+CREATE TABLE outbound_company_ownership(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ organization_id INTEGER NOT NULL,
+ country TEXT NOT NULL,
+ org_number TEXT NOT NULL,
+ assigned_membership_id INTEGER NOT NULL,
+ updated_at TEXT NOT NULL,
+ UNIQUE(organization_id,country,org_number)
+);
+CREATE TABLE outbound_deal_payments(
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ organization_id INTEGER NOT NULL,
+ entry_id INTEGER NOT NULL,
+ membership_id INTEGER NOT NULL,
+ payment_reference TEXT NOT NULL,
+ paid_amount_minor INTEGER NOT NULL,
+ currency TEXT NOT NULL,
+ commission_bps INTEGER NOT NULL,
+ created_at TEXT NOT NULL,
+ UNIQUE(organization_id,payment_reference)
+);
+CREATE INDEX outbound_payment_org_member ON outbound_deal_payments(organization_id,membership_id);
