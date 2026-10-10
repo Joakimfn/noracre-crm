@@ -90,7 +90,14 @@ export async function GET(request:Request){
   const payments=await db.select().from(outboundDealPayments).where(and(eq(outboundDealPayments.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDealPayments.membershipId,ctx.membershipId))).orderBy(desc(outboundDealPayments.createdAt)).limit(400);
   const metrics={attempts:calls.length,uniqueCalled:uniqueCalls,conversations:conversations.length,meetings:calls.filter(c=>c.outcome==='Møte booket').length,conversationRate:calls.length?Math.round(conversations.length/calls.length*1000)/10:0,weekly:true,
     stages:Object.fromEntries(stages.map(stage=>[stage,deals.filter(d=>d.pipeline===stage).length]))};
-  return publicJson({settings,rows:visible,members:isManager?users:users.filter(u=>u.id===ctx.membershipId),metrics,deals,payments,
+  const byMember=users.filter(u=>isManager||u.id===ctx.membershipId).map(u=>{
+    const mine=calls.filter(c=>c.membershipId===u.id);
+    const ownDeals=deals.filter(d=>d.membershipId===u.id);
+    const ownPayments=payments.filter(p=>p.membershipId===u.id);
+    return {membershipId:u.id,name:u.name,attempts:mine.length,conversations:mine.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome)).length,meetings:mine.filter(c=>c.outcome==='Møte booket').length,won:ownDeals.filter(d=>d.pipeline==='Kunde').length,
+      commissionsByCurrency:Object.fromEntries([...new Set(ownPayments.map(p=>p.currency))].map(currency=>[currency,ownPayments.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Math.round(p.paidAmountMinor*p.commissionBps/10000),0)]))};
+  });
+  return publicJson({settings,rows:visible,members:isManager?users:users.filter(u=>u.id===ctx.membershipId),metrics,deals,payments,byMember,
    hasMore:rows.length===150,nextOffset:offset+rows.length,canManage:isManager,listId,listCount:lists.length});
  }catch(e){return accessResponse(e);}
 }
