@@ -34,6 +34,10 @@ export function createDemoRuntime(now = new Date()) {
     const companyRows = () => companies.map(c => ({ ...c, searchContacts: contacts.filter(p => p.companyId === c.id) }));
     const refreshNext = (companyId: number) => { const c = companies.find(c => c.id === companyId); if (!c)
         return; const next = activities.filter(a => a.companyId === companyId && !a.completedAt && a.dueAt).sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]; Object.assign(c, { nextAction: next?.note ?? '', nextActionDate: next?.dueAt ?? '', nextContactId: next?.contactId ?? null }); };
+    // Demonstration is completely in-memory: no external lookup, dialing or financial mutation.
+    let outboundEnabled=true;
+    let outboundPitch='Hei, jeg ringer fra Noracre. Vi hjelper B2B-salgsteam med ringelister og oppfølging.';
+    const outboundStates=new Map<number,Row>(),outboundEvents:Row[]=[],outboundDeals=new Map<number,Row>();
     const request: CrmRequest = async (input, init = {}) => {
         if (init.signal?.aborted)
             throw new DOMException('Aborted', 'AbortError');
@@ -52,6 +56,40 @@ export function createDemoRuntime(now = new Date()) {
             return json({ error: 'Ugyldige demodata.' }, 400);
         }
         const id = Number(data.id ?? url.searchParams.get('id')), companyId = Number(data.companyId ?? url.searchParams.get('companyId'));
+        if(path==='/api/outbound'){
+            const demoConfig={enabled:outboundEnabled,currency:'NOK',timezone:'Europe/Oslo',commissionBps:2500,pitch:outboundPitch};
+            if(method==='GET'){
+                const offset=Math.max(0,Math.min(1000,Number(url.searchParams.get('offset')??0)));
+                const selected=calls.slice(offset,offset+150).map(c=>({...c,country:'NO',orgNumber:c.orgNumber||String(900000000+c.id),employeeRange:'',state:outboundStates.get(c.id)??null,assignedMembershipId:outboundStates.get(c.id)?.assignedMembershipId??0,suppressed:Boolean(outboundStates.get(c.id)?.doNotContact)}));
+                const conversations=outboundEvents.filter(e=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(e.outcome));
+                return json({settings:demoConfig,rows:selected,members:members.map(m=>({id:m.id,name:m.name,active:true})),canManage:true,hasMore:offset+150<calls.length,
+                    metrics:{attempts:outboundEvents.length,uniqueCalled:new Set(outboundEvents.map(e=>e.entryId)).size,conversations:conversations.length,meetings:outboundEvents.filter(e=>e.outcome==='Møte booket').length,conversationRate:outboundEvents.length?Math.round(conversations.length/outboundEvents.length*1000)/10:0,stages:Object.fromEntries(['Prospekt','Demo booket','Demo gjennomført','Prøveperiode','Tilbud','Kunde','Tapt'].map(v=>[v,[...outboundDeals.values()].filter(e=>e.pipeline===v).length]))},
+                    deals:[...outboundDeals.values()],payments:[],paymentTotals:[],byMember:members.map(m=>({membershipId:m.id,name:m.name,attempts:outboundEvents.filter(e=>e.membershipId===m.id).length,conversations:0,meetings:0,won:0,commissionsByCurrency:{}}))
+                });
+            }
+            if(method==='POST'){
+                if(data.type==='settings'){outboundEnabled=data.enabled===true;outboundPitch=String(data.pitch??'');return json({settings:{...demoConfig,enabled:outboundEnabled,pitch:outboundPitch}});}
+                const entry=calls.find(c=>c.id===Number(data.entryId));
+                if(!entry)return json({error:'Velg en gyldig demobedrift.'},404);
+                if(data.type==='dial'){
+                    const prev=outboundStates.get(entry.id)??{attempts:0,pipeline:'Prospekt'};
+                    if(prev.doNotContact)return json({error:'Reservert mot kontakt'},409);
+                    const outcome=String(data.outcome??'Ikke svar'),nextCallAt=String(data.nextCallAt|| (outcome==='Ikke svar'?at(2):''));
+                    const updated={...prev,assignedMembershipId:1,attempts:prev.attempts+1,lastOutcome:outcome,lastNote:String(data.note??''),nextCallAt,contactName:String(data.contactName??''),contactPhone:String(data.contactPhone??''),pipeline:outcome==='Møte booket'?'Demo booket':prev.pipeline,doNotContact:outcome==='Reservert mot kontakt'};
+                    outboundStates.set(entry.id,updated);outboundEvents.push({entryId:entry.id,membershipId:1,outcome,createdAt:stamp});
+                    return json({lead:updated});
+                }
+                if(data.type==='stage'){
+                    const current=outboundStates.get(entry.id)??{attempts:0};
+                    outboundStates.set(entry.id,{...current,pipeline:data.pipeline});
+                    outboundDeals.set(entry.id,{id:entry.id,entryId:entry.id,membershipId:1,pipeline:data.pipeline,monthlyAmountMinor:Number(data.monthlyAmountMinor||0),currency:'NOK',commissionBps:2500,note:data.note??''});
+                    return json({ok:true});
+                }
+                if(data.type==='assign'){const current=outboundStates.get(entry.id)??{attempts:0};outboundStates.set(entry.id,{...current,assignedMembershipId:Number(data.membershipId)});return json({assigned:1});}
+                if(data.type==='payment')return json({error:'Betalingsregistrering er deaktivert i demoen.'},403);
+            }
+            return blocked();
+        }
         if (path === '/api/session' && ['GET', 'POST'].includes(method))
             return json({ user: { id: 'demo', displayName: profile.displayName, email: profile.contactEmail }, currentOrganizationId: -1, role: 'Administrator', organizations: [{ id: -1, name: 'Fjord Service AS · demo', isPartner: false }], acceptedTermsAt: stamp, acceptedTermsVersion: '2026-09-09', completedOnboardingAt: stamp });
         if (path === '/api/profile' && ['GET', 'POST'].includes(method)) {
