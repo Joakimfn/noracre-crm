@@ -47,6 +47,8 @@ export function OutboundSalesDesk({organizationId,selectedListId,onShowLegacy,on
  const now=Date.now();
  const filtered=useMemo(()=>state.rows.filter(r=>{
    if(r.suppressed||r.state?.pipeline==="Tapt"||r.state?.pipeline==="Kunde")return false;
+   // Scheduled demos and trials live in the pipeline; return to dialing only for a due callback.
+   if(["Demo booket","Demo gjennomført","Prøveperiode","Tilbud"].includes(r.state?.pipeline??"")&&!r.state?.nextCallAt)return false;
    if(rep!=="all"&&String(r.assignedMembershipId)!==rep)return false;
    if(!showFuture&&r.state?.nextCallAt&&Date.parse(r.state.nextCallAt)>now)return false;
    const term=search.trim().toLowerCase();
