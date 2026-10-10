@@ -174,6 +174,8 @@ export async function POST(request:Request){
    const note=clean(body.note,1000);
    await db.update(outboundLeadState).set({pipeline:stage,lastNote:note||state.lastNote,updatedAt:now}).where(eq(outboundLeadState.id,state.id));
    await db.insert(outboundDeals).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:owner,pipeline:stage,monthlyAmountMinor,currency:org.outboundCurrency,commissionBps:org.outboundCommissionBps,note,createdAt:now,updatedAt:now}).onConflictDoUpdate({target:outboundDeals.entryId,set:{pipeline:stage,monthlyAmountMinor,currency:org.outboundCurrency,note,updatedAt:now}});
+   const legacyStatus=stage==='Kunde'?'Lagt til som kunde':stage==='Tapt'?'Ikke aktuell':stage==='Demo booket'?'Møte booket':stage==='Tilbud'?'Tilbud sendt':stage==='Prøveperiode'||stage==='Demo gjennomført'?'Kontaktet':null;
+   if(legacyStatus)await db.update(callListEntries).set({status:legacyStatus,updatedAt:now}).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.id,entry.id)));
    return publicJson({ok:true});
   }
   if(type==='payment'){
