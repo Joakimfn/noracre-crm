@@ -4,6 +4,7 @@ import {UiText,useUiTranslation} from '@/lib/i18n/ui';
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {SavedCallListManager} from "@/components/saved-call-list-manager";
+import {resolvePublishedLocale} from '@/lib/i18n/config';
 import {HomeCountryPicker} from '@/components/home-country-picker';
 import {registerCountries} from '@/lib/operating-countries';
 import {OperatingCountryPicker} from "@/components/operating-country-picker";
@@ -704,7 +705,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     ]);
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
-    applyOrganizationLocale(ad.language === "en" ? "en" : "nb",orgId);
+    applyOrganizationLocale(resolvePublishedLocale(ad.language),orgId);
     setRolePreview(ad.role ?? "Bruker");
     if(!canViewAdministration(ad.role ?? "Bruker"))setView(current=>current==="admin"?"overview":current);
     setCompanies(c.companies ?? []);
