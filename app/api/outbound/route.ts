@@ -166,7 +166,8 @@ export async function POST(request:Request){
    if(!deal||deal.pipeline!=='Kunde')throw new AccessError(400,'Sett salgsfasen til Kunde før betalingen registreres.');
    const ref=clean(body.reference,100),amount=Number(body.paidAmountMinor);
    if(ref.length<3||!integer(amount,1,10000000000)||body.confirmed!==true)throw new AccessError(400,'Bekreft en faktisk mottatt betaling, beløp og referanse.');
-   await db.insert(outboundDealPayments).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:deal.membershipId,paymentReference:ref,paidAmountMinor:amount,currency:deal.currency,commissionBps:deal.commissionBps,createdAt:now}).onConflictDoNothing();
+   const inserted=await db.insert(outboundDealPayments).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:deal.membershipId,paymentReference:ref,paidAmountMinor:amount,currency:deal.currency,commissionBps:deal.commissionBps,createdAt:now}).onConflictDoNothing().returning({id:outboundDealPayments.id});
+   if(!inserted.length)throw new AccessError(409,'Denne betalingsreferansen er allerede registrert. Betalingen ble ikke lagt til på nytt.');
    return publicJson({ok:true,warning:'Registrert etter administrativ bekreftelse; ingen automatisk betalingskontroll er utført.'});
   }
   throw new AccessError(400,'Ukjent outbound-handling.');
