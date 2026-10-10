@@ -289,3 +289,34 @@ test('loading another filtered queue page preserves the raw server cursor rather
   assert.equal(requests.at(-1).searchParams.get('queue'), 'ready');
   assert.match(text(renderer.root), /Company 1/); assert.match(text(renderer.root), /Company 2/);
 });
+
+test('logging a call resets contact, phone and call link to the next company rather than retaining the previous contact', async () => {
+  const data = fixture();
+  data.rows[0].state.contactName = 'First-company contact';
+  data.rows[0].state.contactPhone = '+33111111111';
+  data.rows[1].state.contactName = 'Second-company contact';
+  data.rows[1].state.contactPhone = '+33222222222';
+  await mount(data);
+  await change(input('Contact person'), 'Edited first-company contact');
+  await change(input('Decision-maker phone'), '+33333333333');
+  await click('Log and continue');
+  assert.equal(input('Contact person').props.value, 'Second-company contact');
+  assert.equal(input('Decision-maker phone').props.value, '+33222222222');
+  assert.equal(renderer.root.findAllByType('a').find(node => String(node.props.href).startsWith('tel:')).props.href, 'tel:+33222222222');
+  await click('Log and continue');
+  const calls = posts.filter(post => post.type === 'dial');
+  assert.equal(calls[0].contactName, 'Edited first-company contact');
+  assert.equal(calls[0].contactPhone, '+33333333333');
+  assert.equal(calls[1].entryId, 2); assert.equal(calls[1].contactName, 'Second-company contact'); assert.equal(calls[1].contactPhone, '+33222222222');
+});
+test('contact drafts follow the recipient market language while controls retain the selected UI language', async () => {
+  await mount(); globalThis.outboundTestLocale = 'nb';
+  await act(async () => renderer.update(React.createElement(OutboundSalesDesk, {organizationId: 1, selectedListId: null, onShowLegacy() {}, onEnabledChange() {}})));
+  assert.ok(button('Logg og gå videre')); assert.match(text(renderer.root), /Bonjour/);
+  await click('Salgsverktøy');
+  assert.match(text(renderer.root), /Bonjour/);
+  const market = labelNode('Marked').findByType('select');
+  await change(market, 'NO'); assert.match(text(renderer.root), /Hei/);
+  await change(labelNode('Marked').findByType('select'), 'GB'); assert.match(text(renderer.root), /Hello/);
+  assert.ok(button('Salgsverktøy'));
+});

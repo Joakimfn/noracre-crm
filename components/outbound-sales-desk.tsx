@@ -155,6 +155,7 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
   const leaseRef = useRef<Lease | null>(null);
   const pendingCall = useRef("");
   const selectedLeadRef = useRef<number | null>(null);
+  const fieldsLeadRef = useRef<number | null>(null);
   const requestSequence = useRef(0);
   const loadedQueue = useRef<ServerQueue | null>(null);
   const requestedQueue: ServerQueue = legacyVisible || tab !== "dial" || queueMode === "all" ? "all" : queueMode === "due" ? "due" : "ready";
@@ -182,7 +183,7 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
   }, [api, organizationId, selectedListId, headers]);
 
   useEffect(() => {
-    generation.current++; loadedQueue.current = null;
+    generation.current++; loadedQueue.current = null; fieldsLeadRef.current = null;
     setLoading(true); setBusy(false); setLoadedOrganization(null); setState(emptyData); setError(""); setActiveId(null); setSearch(""); setRep(0); setTab("dial");
     let live = true;
     void refresh().catch(cause => {if (live) setError(String(cause.message ?? cause));}).finally(() => {if (live) setLoading(false);});
@@ -217,6 +218,7 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
   const leaseReady = !!selected && lease?.entryId === selected.id && Date.parse(lease.expiresAt) > clock;
 
   function selectLead(lead: Lead) {
+    fieldsLeadRef.current = lead.id;
     setActiveId(lead.id); setSelectedRep(""); setOutcome("Ikke svar"); setNote(""); setCallback("");
     setContact(lead.state?.contactName ?? ""); setPhone(lead.state?.contactPhone ?? lead.phone ?? "");
     const deal = state.deals.find(item => item.entryId === lead.id);
@@ -230,7 +232,7 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
     setRefundId(0); setRefundAmount(""); setRefundReference(""); setRefundReceivedAt(dateTimeInZone(new Date().toISOString(), state.settings.timezone)); setRefundConfirmed(false);
     setContactPermission(lead.state?.contactPermission ?? false); setPermissionNote(lead.state?.contactPermissionNote ?? "");
   }
-  useEffect(() => {if (selected && selected.id !== activeId) selectLead(selected);}, [selected?.id, activeId]);
+  useEffect(() => {if (selected && selected.id !== fieldsLeadRef.current) selectLead(selected); else if (!selected) fieldsLeadRef.current = null;}, [selected?.id, activeId]);
   useEffect(() => {setMarket(selected?.country ?? state.settings.country ?? "NO");}, [selected?.country, state.settings.country]);
 
   useEffect(() => {
@@ -383,7 +385,7 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
   }
   const activeMembers = state.members.filter(member => member.active && member.canCall !== false);
   const roleName = (id: number) => state.members.find(member => member.id === id)?.name ?? `${t.noOwner} ${id}`;
-  const playbook = {productInfo: "", ...outboundPlaybook(market, lang), ...Object.fromEntries(Object.entries(state.settings.playbooks?.[market] ?? {}).filter(([, value]) => !!value?.trim()))};
+  const playbook = {productInfo: "", ...outboundPlaybook(market), ...Object.fromEntries(Object.entries(state.settings.playbooks?.[market] ?? {}).filter(([, value]) => !!value?.trim()))};
   const draftPlaybook = draftSettings.playbooks?.[market] ?? {};
   const countryName = (code: string) => {try {return new Intl.DisplayNames([locale], {type: "region"}).of(code) ?? code;} catch {return code;}};
   const script = state.settings.playbooks?.[market]?.phoneScript || state.settings.pitch || playbook.phoneScript;
@@ -490,9 +492,9 @@ export function OutboundSalesDesk({organizationId, selectedListId, legacyVisible
         <div className="outbound-market-defaults"><label>{t.country}<select value={market} onChange={event => setMarket(event.target.value)}>{countries.map(country => <option key={country} value={country}>{countryName(country)} ({country})</option>)}</select></label><Button variant="outline" onClick={() => {const marketConfig = marketDefaults(market); setDraftSettings({...draftSettings, currency: marketConfig.currency, timezone: marketConfig.timeZone});}}>{t.marketDefaults}</Button></div>
         <label>{t.pitch}<Textarea rows={6} maxLength={8000} value={draftSettings.pitch} placeholder={playbook.phoneScript} onChange={event => setDraftSettings({...draftSettings, pitch: event.target.value})}/></label>
         <fieldset className="outbound-rules"><legend>{t.preview} · {market}</legend>
-          <label>{t.pitch}<Textarea rows={4} maxLength={8000} placeholder={outboundPlaybook(market, lang).phoneScript} value={draftPlaybook.phoneScript ?? ""} onChange={event => updatePlaybook("phoneScript", event.target.value)}/></label>
-          <label>{t.emailSubject}<Input maxLength={8000} placeholder={outboundPlaybook(market, lang).emailSubject} value={draftPlaybook.emailSubject ?? ""} onChange={event => updatePlaybook("emailSubject", event.target.value)}/></label>
-          <label>{t.emailTemplate}<Textarea rows={5} maxLength={8000} placeholder={outboundPlaybook(market, lang).emailBody} value={draftPlaybook.emailBody ?? ""} onChange={event => updatePlaybook("emailBody", event.target.value)}/></label>
+          <label>{t.pitch}<Textarea rows={4} maxLength={8000} placeholder={outboundPlaybook(market).phoneScript} value={draftPlaybook.phoneScript ?? ""} onChange={event => updatePlaybook("phoneScript", event.target.value)}/></label>
+          <label>{t.emailSubject}<Input maxLength={8000} placeholder={outboundPlaybook(market).emailSubject} value={draftPlaybook.emailSubject ?? ""} onChange={event => updatePlaybook("emailSubject", event.target.value)}/></label>
+          <label>{t.emailTemplate}<Textarea rows={5} maxLength={8000} placeholder={outboundPlaybook(market).emailBody} value={draftPlaybook.emailBody ?? ""} onChange={event => updatePlaybook("emailBody", event.target.value)}/></label>
           <label>{t.productNotes}<Textarea rows={5} maxLength={8000} value={draftPlaybook.productInfo ?? ""} onChange={event => updatePlaybook("productInfo", event.target.value)}/></label>
         </fieldset>
         <ContactRulesForm value={draftSettings.marketRules ?? defaultOutboundRules()} onChange={marketRules => setDraftSettings({...draftSettings, marketRules})} labels={t}/>
