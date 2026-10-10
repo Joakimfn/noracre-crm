@@ -3570,6 +3570,8 @@ function CallLists({
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
+  const [outboundEnabled,setOutboundEnabled]=useState(false);
+  const [showStandard,setShowStandard]=useState(false);
   const [franceRegion,setFranceRegion]=useState(""),[franceBands,setFranceBands]=useState<string[]>([]);
   const [country,setCountry]=useState<RegisterCountry>("NO"),[selectedListId,setSelectedListId]=useState<number|null>(null),[listRefresh,setListRefresh]=useState(0),[listName,setListName]=useState(""),[internationalQuery,setInternationalQuery]=useState(""),[internationalLocation,setInternationalLocation]=useState(""),[internationalIndustry,setInternationalIndustry]=useState("");
   const [francePage,setFrancePage]=useSearchPage(JSON.stringify([organizationId,country,internationalQuery,internationalLocation,internationalIndustry,franceRegion,franceBands]));
@@ -3941,6 +3943,8 @@ function CallLists({
     );
   return (
     <div className="page-pad call-lists">
+      <OutboundSalesDesk organizationId={organizationId} selectedListId={showStandard?selectedListId:null} onShowLegacy={()=>setShowStandard(v=>!v)} onEnabledChange={setOutboundEnabled}/>
+      {(!outboundEnabled||showStandard)&&<>
       <section className="surface">
         <div className="operations-head">
           <div>
@@ -4333,6 +4337,7 @@ function CallLists({
           </div>
         </DialogContent>
       </Dialog>
+      </>}
     </div>
   );
 }
