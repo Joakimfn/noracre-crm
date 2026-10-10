@@ -74,19 +74,18 @@ export async function GET(request:Request){
   const lists=await accessibleLists(ctx),allowed=lists.map(l=>l.id);
   if(listId)await requireList(ctx,listId);
   const scope=listId?inArray(callListEntries.listId,[Number(listId)]):inArray(callListEntries.listId,allowed.length?allowed:[-1]);
-  const rows=await db.select({entry:callListEntries,state:outboundLeadState,companyOwner:outboundCompanyOwnership})
+  const rows=await db.select({entry:callListEntries,state:outboundLeadState,companyOwner:outboundCompanyOwnership,suppressionId:outboundSuppression.id})
    .from(callListEntries)
    .leftJoin(outboundLeadState,and(eq(outboundLeadState.entryId,callListEntries.id),eq(outboundLeadState.organizationId,ctx.organizationId)))
    .leftJoin(outboundCompanyOwnership,and(eq(outboundCompanyOwnership.organizationId,ctx.organizationId),eq(outboundCompanyOwnership.country,callListEntries.country),eq(outboundCompanyOwnership.orgNumber,callListEntries.orgNumber)))
+   .leftJoin(outboundSuppression,and(eq(outboundSuppression.organizationId,ctx.organizationId),eq(outboundSuppression.country,callListEntries.country),eq(outboundSuppression.orgNumber,callListEntries.orgNumber)))
    .where(and(eq(callListEntries.organizationId,ctx.organizationId),scope,
     isManager?undefined:or(isNull(outboundLeadState.assignedMembershipId),eq(outboundLeadState.assignedMembershipId,0),eq(outboundLeadState.assignedMembershipId,ctx.membershipId)),
     isManager?undefined:or(isNull(outboundCompanyOwnership.assignedMembershipId),eq(outboundCompanyOwnership.assignedMembershipId,ctx.membershipId))
    )).orderBy(desc(callListEntries.id)).limit(150).offset(offset);
-  const ids=rows.map(r=>r.entry.id),countryIds=rows.filter(r=>r.entry.orgNumber).map(r=>r.entry.orgNumber);
-  const suppressed=countryIds.length?await db.select().from(outboundSuppression).where(and(eq(outboundSuppression.organizationId,ctx.organizationId),inArray(outboundSuppression.orgNumber,countryIds))).limit(1000):[];
-  const users=await db.select({id:memberships.id,name:memberships.name,role:memberships.role,active:memberships.active}).from(memberships).where(and(eq(memberships.organizationId,ctx.organizationId),eq(memberships.active,true)));
+   const users=await db.select({id:memberships.id,name:memberships.name,role:memberships.role,active:memberships.active}).from(memberships).where(and(eq(memberships.organizationId,ctx.organizationId),eq(memberships.active,true)));
   const visible=rows.map(r=>({...r.entry,state:r.state,assignedMembershipId:r.companyOwner?.assignedMembershipId??r.state?.assignedMembershipId??0,
-   suppressed:!!r.state?.doNotContact||suppressed.some(s=>s.country===r.entry.country&&s.orgNumber===r.entry.orgNumber)}));
+   suppressed:!!r.state?.doNotContact||!!r.suppressionId}));
   const weekAgo=new Date(Date.now()-7*86400000).toISOString();
   const calls=await db.select({outcome:outboundCallLogs.outcome,membershipId:outboundCallLogs.membershipId,entryId:outboundCallLogs.entryId}).from(outboundCallLogs)
     .where(and(eq(outboundCallLogs.organizationId,ctx.organizationId),gte(outboundCallLogs.createdAt,weekAgo),
