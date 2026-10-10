@@ -88,6 +88,7 @@ export const auditLogs = sqliteTable("audit_logs", {
 });
 
 export const organizations = sqliteTable("organizations", {
+  homeCountry: text("home_country").notNull().default("NO"),
   operatingCountries: text("operating_countries").notNull().default('["NO"]'),
   commissionBps: integer("commission_bps"),
   isPartner: integer("is_partner", {mode:"boolean"}).notNull().default(false),

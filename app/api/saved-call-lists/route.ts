@@ -1,3 +1,4 @@
+import {parseHomeCountry} from '@/lib/home-countries';
 import {and,eq,inArray,desc} from 'drizzle-orm';
 import {env} from 'cloudflare:workers';
 import {getDb} from '@/db';
@@ -14,7 +15,7 @@ export async function GET(request:Request){try{
  const settings=env as unknown as Record<string,unknown>;
  const countries=storedCountries(org.operatingCountries);
  const sources=registerCountries.filter(c=>countries.includes(c.code)||lists.some(l=>l.country===c.code)).map(c=>({...c,ready:c.code==='NO'||c.code==='IE'||c.code==='GB'&&!!settings.COMPANIES_HOUSE_API_KEY||c.code==='AU'&&!!settings.ABN_LOOKUP_GUID||c.code==='NZ'&&!!settings.NZBN_API_KEY&&settings.NZBN_CALL_LISTS_APPROVED==='true'||c.code==='NG'&&!!settings.OPENCORPORATES_API_TOKEN&&settings.OPENCORPORATES_COMMERCIAL_APPROVED==='true',message:c.code==='ZM'?'Zambia kan bruke importerte leverandørlister fra offentlige innkjøpsdata. Automatisk registeroppslag er ikke tilgjengelig; dataene er ikke et komplett foretaksregister.':c.code==='NG'?'Automatisk Nigeriansk registersøk krever kommersiell OpenCorporates API-tilgang. Importer egne bedriftslister inntil da.':c.code==='NZ'?'NZBN krever godkjent API-tilgang og avklart bruk til ringelister.':c.code==='GB'?'Companies House krever API-nøkkel.':c.code==='AU'?'ABN Lookup krever registrert tilgang (GUID).':''}));
- return json({lists,assignments,operatingCountries:countries,sources});
+ return json({lists,assignments,homeCountry:org.homeCountry,operatingCountries:countries,sources});
 }catch(e){return accessResponse(e);}}
 export async function POST(request:Request){try{
  const ctx=await requireTenant(request);if(!canManageModules(ctx.role))await requireModuleAccess(ctx.organizationId,ctx.membershipId,'ringelister');
@@ -22,7 +23,8 @@ export async function POST(request:Request){try{
  if(data.type==='countries'){
  if(!canManageModules(ctx.role))throw new AccessError(403,'Bare administrator kan endre land.');
  let countries;try{countries=parseCountries(data.operatingCountries);}catch(e){throw new AccessError(400,(e as Error).message);}
- await db.update(organizations).set({operatingCountries:JSON.stringify(countries)}).where(eq(organizations.id,ctx.organizationId));return json({ok:true});
+ let homeCountry;try{homeCountry=data.homeCountry===undefined?undefined:parseHomeCountry(data.homeCountry);}catch(e){throw new AccessError(400,(e as Error).message);}
+ await db.update(organizations).set({...(homeCountry?{homeCountry}:{}),operatingCountries:JSON.stringify(countries)}).where(eq(organizations.id,ctx.organizationId));return json({ok:true});
  }
  if(data.type==='acknowledge'){
  if(!Array.isArray(data.ids)||data.ids.length>100||data.ids.some((id:unknown)=>!Number.isSafeInteger(id)))throw new AccessError(400,'Ugyldige varsler.');

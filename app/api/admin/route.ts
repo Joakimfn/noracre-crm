@@ -1,3 +1,5 @@
+import {parseHomeCountry} from '@/lib/home-countries';
+import {organizationLocale} from '@/lib/i18n/country';
 import {parseCountries} from "@/lib/operating-countries";
 import {canViewAdministration} from "@/lib/roles";
 import {parseCommissionPercentage} from "@/lib/commission-percentage";
@@ -32,6 +34,8 @@ export async function GET(request: Request) {
     const ctx = await requireTenant(request),
       db = getDb();
     const prices = await organizationPricing(ctx.organizationId);
+    const [organization]=await db.select({homeCountry:organizations.homeCountry}).from(organizations).where(eq(organizations.id,ctx.organizationId)).limit(1);
+    const language=organizationLocale(organization?.homeCountry??"NO");
     const [activeSupport, modules, licenses] = await Promise.all([
       db
         .select()
@@ -53,6 +57,7 @@ export async function GET(request: Request) {
         .where(eq(moduleLicenses.organizationId, ctx.organizationId)),
     ]);
     if (!canManageModules(ctx.role)) return await actorJson(ctx,{
+      language, homeCountry:organization?.homeCountry??"NO",
       pricing: prices,
       members: [], audit: [], supportRequests: [], activeSupport: false,
       modules: Object.fromEntries(modules.filter(item => item.active && licenses.some(license =>
@@ -61,6 +66,7 @@ export async function GET(request: Request) {
       role: ctx.role, membershipId: ctx.membershipId,
     });
     return await actorJson(ctx,{
+      language, homeCountry:organization?.homeCountry??"NO",
       pricing: prices,
       memberModuleCosts: Object.fromEntries(licenses.map(l => [l.membershipId, licenses.filter(x => x.membershipId === l.membershipId && x.active && modules.some(m => m.moduleKey === x.moduleKey && m.active)).reduce((sum, x) => sum + x.pricePerUser, 0)])),
       members: await db
@@ -134,6 +140,7 @@ export async function POST(request: Request) {
       const [creatorOrganization] = await db.select().from(organizations).where(eq(organizations.id,ctx.organizationId)).limit(1);
       if(ctx.role === "Partner" && !creatorOrganization?.isPartner)throw new AccessError(403,"Bedriften har ikke partnerstatus.");
       let operatingCountries;try{operatingCountries=parseCountries(data.operatingCountries);}catch(e){throw new AccessError(400,(e as Error).message);}
+      let homeCountry;try{homeCountry=parseHomeCountry(data.homeCountry,operatingCountries[0]);}catch(e){throw new AccessError(400,(e as Error).message);}
       const email = String(data.adminEmail ?? "")
         .trim()
         .toLowerCase(),
@@ -159,6 +166,7 @@ export async function POST(request: Request) {
         .insert(organizations)
         .values({
           ...prices,
+          homeCountry,
           operatingCountries: JSON.stringify(operatingCountries),
           isPartner: role === "Partner",
           commissionBps,
@@ -303,6 +311,8 @@ export async function POST(request: Request) {
         );
       if (active && !target.active) {
         const prices = await organizationPricing(ctx.organizationId);
+    const [organization]=await db.select({homeCountry:organizations.homeCountry}).from(organizations).where(eq(organizations.id,ctx.organizationId)).limit(1);
+    const language=organizationLocale(organization?.homeCountry??"NO");
         const [licenses, modules] = await Promise.all([db.select().from(moduleLicenses).where(and(eq(moduleLicenses.organizationId,ctx.organizationId),eq(moduleLicenses.membershipId,id))),db.select().from(organizationModules).where(eq(organizationModules.organizationId,ctx.organizationId))]);
         const extra = licenses.filter(l=>l.active&&modules.some(m=>m.moduleKey===l.moduleKey&&m.active)).reduce((sum,l)=>sum+l.pricePerUser,0);
         confirmPrice(prices.crmPrice == null ? null : prices.crmPrice + extra, data.acceptedPrice);
@@ -377,6 +387,8 @@ export async function POST(request: Request) {
           ),
       ]);
       const prices = await organizationPricing(ctx.organizationId);
+    const [organization]=await db.select({homeCountry:organizations.homeCountry}).from(organizations).where(eq(organizations.id,ctx.organizationId)).limit(1);
+    const language=organizationLocale(organization?.homeCountry??"NO");
       const allowedIds = new Set(eligible.map((member) => member.id));
       if (requestedIds.some((id) => !allowedIds.has(id)))
         return await actorJson(ctx,

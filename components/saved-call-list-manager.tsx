@@ -1,8 +1,11 @@
 "use client";
-import {useCallback,useEffect,useState} from 'react';
+import {useCallback,useEffect,useState,useRef} from 'react';
 import {useCrmApi} from '@/lib/crm-api';
 import {canManageModules} from '@/lib/roles';
 import {type RegisterCountry} from '@/lib/operating-countries';
+import {HomeCountryPicker} from './home-country-picker';
+import {useI18n} from '@/lib/i18n/react';
+import {organizationLocale} from '@/lib/i18n/country';
 import {OperatingCountryPicker} from './operating-country-picker';
 import {Button} from './ui/button';
 import {Input} from './ui/input';
@@ -11,14 +14,18 @@ import {toast} from 'sonner';
 type List={id:number;name:string;country:RegisterCountry;createdByMembershipId:number};
 type Assignment={id:number;listId:number;membershipId:number;assignedBy:string;acknowledgedAt:string};
 type Source={code:RegisterCountry;name:string;source:string;ready:boolean;message:string};
-type Metadata={lists:List[];assignments:Assignment[];operatingCountries:RegisterCountry[];sources:Source[]};
+type Metadata={homeCountry:string;lists:List[];assignments:Assignment[];operatingCountries:RegisterCountry[];sources:Source[]};
 type Member={id:number;name:string;active:boolean};
 export function SavedCallListManager({organizationId,role,members,currentMembershipId,country,onCountryChange,selectedListId,onSelect,refreshKey,onSourceReadyChange}:{organizationId:number;role:string;members:Member[];currentMembershipId:number;country:RegisterCountry;onCountryChange:(c:RegisterCountry)=>void;selectedListId:number|null;onSelect:(id:number|null)=>void;refreshKey:number;onSourceReadyChange?:(ready:boolean)=>void}){
+ const {applyOrganizationLocale}=useI18n();
+ const [homeCountry,setHomeCountry]=useState("NO");
+ const initializedOrganization=useRef<number|null>(null);
  const api=useCrmApi(),[meta,setMeta]=useState<Metadata|null>(null),[open,setOpen]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[names,setNames]=useState<Record<number,string>>({}),[targets,setTargets]=useState<Record<number,string>>({}),[countries,setCountries]=useState<RegisterCountry[]>(['NO']),[pending,setPending]=useState<Assignment[]>([]),[confirmDelete,setConfirmDelete]=useState<number|null>(null);
  const load=useCallback(async()=>{const r=await api('/api/saved-call-lists',{headers:{'x-organization-id':String(organizationId)}}),d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke hente ringelister');return d as Metadata;},[api,organizationId]);
- useEffect(()=>{let cancelled=false;load().then(d=>{if(cancelled)return;setMeta(d);setCountries(d.operatingCountries);setNames(Object.fromEntries(d.lists.map(l=>[l.id,l.name])));setError('');setPending(d.assignments.filter(a=>a.membershipId===currentMembershipId&&!a.acknowledgedAt&&d.lists.some(l=>l.id===a.listId)));}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[load,refreshKey,currentMembershipId]);
+ useEffect(()=>{let cancelled=false;load().then(d=>{if(cancelled)return;if(initializedOrganization.current!==organizationId){initializedOrganization.current=organizationId;onCountryChange(d.operatingCountries.includes(d.homeCountry as RegisterCountry)?d.homeCountry as RegisterCountry:d.operatingCountries[0]);onSelect(null);}
+setHomeCountry(d.homeCountry);setMeta(d);setCountries(d.operatingCountries);setNames(Object.fromEntries(d.lists.map(l=>[l.id,l.name])));setError('');setPending(d.assignments.filter(a=>a.membershipId===currentMembershipId&&!a.acknowledgedAt&&d.lists.some(l=>l.id===a.listId)));}).catch(e=>{if(!cancelled)setError(e.message);});return()=>{cancelled=true;};},[load,refreshKey,currentMembershipId]);
  useEffect(()=>{if(!meta)return;const nextCountry=meta.sources.some(s=>s.code===country)?country:meta.operatingCountries[0];if(nextCountry!==country)onCountryChange(nextCountry);/* Recover available list after country changes. */const list=meta.lists.find(l=>l.id===selectedListId&&l.country===nextCountry);if(!list){const first=meta.lists.filter(l=>l.country===nextCountry).sort((a,b)=>b.id-a.id)[0];if((first?.id??null)!==selectedListId)onSelect(first?.id??null);}},[meta,country,selectedListId,onCountryChange,onSelect]);
- async function mutate(body:Record<string,unknown>){setBusy(true);try{const r=await api('/api/saved-call-lists',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke lagre');const next=await load();setMeta(next);if(body.type==='delete'&&body.listId===selectedListId)onSelect(null);setConfirmDelete(null);return true;}catch(e){toast.error(e instanceof Error?e.message:'Kunne ikke lagre');return false;}finally{setBusy(false);}}
+ async function mutate(body:Record<string,unknown>){setBusy(true);try{const r=await api('/api/saved-call-lists',{method:'POST',headers:{'content-type':'application/json','x-organization-id':String(organizationId)},body:JSON.stringify(body)}),d=await r.json();if(!r.ok)throw Error(d.error||'Kunne ikke lagre');const next=await load();setMeta(next);if(body.type==='countries')applyOrganizationLocale(organizationLocale(next.homeCountry),organizationId);if(body.type==='delete'&&body.listId===selectedListId)onSelect(null);setConfirmDelete(null);return true;}catch(e){toast.error(e instanceof Error?e.message:'Kunne ikke lagre');return false;}finally{setBusy(false);}}
  const source=meta?.sources.find(s=>s.code===country),selected=meta?.lists.find(l=>l.id===selectedListId);
  useEffect(()=>{if(source)onSourceReadyChange?.(source.ready);},[source?.ready,onSourceReadyChange]);
  return <>
@@ -33,7 +40,7 @@ export function SavedCallListManager({organizationId,role,members,currentMembers
  {meta&&!meta.operatingCountries.includes(country)&&<p className="form-hint">Dette landet er ikke lenger valgt for bedriften. Lagrede lister kan fortsatt åpnes.</p>}
  {selected&&<p className="form-hint">Åpen liste: <strong>{selected.name}</strong></p>}
  <Dialog open={open} onOpenChange={setOpen}><DialogContent className="saved-lists-dialog"><DialogHeader><DialogTitle>Lagrede ringelister</DialogTitle><DialogDescription>Åpne, gi nytt navn, slett eller deleger ringelister.</DialogDescription></DialogHeader>
- {canManageModules(role)&&<section><OperatingCountryPicker value={countries} onChange={setCountries}/><Button disabled={busy||!countries.length} onClick={()=>void mutate({type:'countries',operatingCountries:countries})}>Lagre land</Button></section>}
+ {canManageModules(role)&&<section><HomeCountryPicker value={homeCountry} onChange={setHomeCountry}/><OperatingCountryPicker value={countries} onChange={setCountries}/><Button disabled={busy||!countries.length} onClick={()=>void mutate({type:'countries',homeCountry,operatingCountries:countries})}>Lagre land</Button></section>}
  {!meta?.lists.length&&<p>Ingen lagrede lister ennå. Nye og importerte lister lagres automatisk.</p>}
  {meta?.lists.map(list=>{const manage=canManageModules(role)||list.createdByMembershipId===currentMembershipId;return <article className="saved-list-card" key={list.id}>
  <div><strong>{list.name}</strong><small>{meta.sources.find(s=>s.code===list.country)?.name??list.country}</small></div>

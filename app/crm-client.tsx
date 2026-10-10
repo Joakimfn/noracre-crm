@@ -4,6 +4,8 @@ import {UiText,useUiTranslation} from '@/lib/i18n/ui';
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {SavedCallListManager} from "@/components/saved-call-list-manager";
+import {HomeCountryPicker} from '@/components/home-country-picker';
+import {registerCountries} from '@/lib/operating-countries';
 import {OperatingCountryPicker} from "@/components/operating-country-picker";
 import {type RegisterCountry} from "@/lib/operating-countries";
 import {PartnerOverview} from "@/components/partner-overview";
@@ -217,6 +219,7 @@ type Contact = {
 type Organization = { id: number; name: string; status?: string; isPartner?: boolean };
 type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string };
 type NewOrganization = PriceFields & {
+  homeCountry: string;
   operatingCountries: RegisterCountry[];
   name: string;
   orgNumber: string;
@@ -234,6 +237,7 @@ type NewOrganization = PriceFields & {
   referredByPartnerId: string;
 };
 const emptyNewOrganization: NewOrganization = {
+  homeCountry: "NO",
   operatingCountries: ["NO"],
   crmPrice: "", ringPrice: "", marketingPrice: "",
   name: "",
@@ -566,7 +570,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
  const {ui}=useUiTranslation();
  const apiFetch=useCrmApi();
 
- const {t,locale,setLocale}=useI18n();
+ const {t,locale,setLocale,applyOrganizationLocale}=useI18n();
   const [partnerPreview,setPartnerPreview]=useState(false),[partnerPreviewKey,setPartnerPreviewKey]=useState("");
   const [view, setView] = useState<View>("overview"),
     [companies, setCompanies] = useState<Company[]>([]),
@@ -700,6 +704,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     ]);
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
+    applyOrganizationLocale(ad.language === "en" ? "en" : "nb",orgId);
     setRolePreview(ad.role ?? "Bruker");
     if(!canViewAdministration(ad.role ?? "Bruker"))setView(current=>current==="admin"?"overview":current);
     setCompanies(c.companies ?? []);
@@ -5050,6 +5055,7 @@ function SuperadminSettings(p: {
             value={p.newOrg.name}
             onChange={(e) => p.setNewOrg({ ...p.newOrg, name: e.target.value })}
           />
+          <HomeCountryPicker value={p.newOrg.homeCountry} onChange={homeCountry=>p.setNewOrg({...p.newOrg,homeCountry,operatingCountries:registerCountries.some(c=>c.code===homeCountry)?[homeCountry as RegisterCountry]:[]})}/>
           <OperatingCountryPicker value={p.newOrg.operatingCountries} onChange={operatingCountries=>p.setNewOrg({...p.newOrg,operatingCountries})}/>
           <Input
             maxLength={30}

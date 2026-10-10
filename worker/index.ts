@@ -7,6 +7,7 @@ import { guardRequest, secureResponse } from "../lib/request-security";
 import { publicWebsite } from "../lib/public-site";
 import { publicEnquiry } from "../lib/public-enquiries";
 import {resolveLocale} from '../lib/i18n/config';
+import {websiteLocale} from '../lib/i18n/country';
 import {readLanguagePreference} from '../lib/i18n/preference';
 
 interface Env {
@@ -46,7 +47,8 @@ const worker = {
         if(url.pathname==='/sitemap.xml')return secureResponse(request,new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['','/crm','/moduler','/om-noracre','/kontakt','/demo','/bli-kunde','/bli-partner','/personvern'].map(p=>'<url><loc>https://noracre.no'+p+'</loc></url>').join('')+'</urlset>',{headers:{'Content-Type':'application/xml'}}));
         if(isPreview||!url.pathname.match(/\.[a-z0-9]+$/i)){
           const savedLanguage=readLanguagePreference(request.headers.get('cookie'));
-          const locale=resolveLocale(url.searchParams.has('lang')?url.searchParams.get('lang'):savedLanguage);
+          const hasPreference=/(?:^|;\s*)noracre-language=(?:nb|en)(?:;|$)/.test(request.headers.get('cookie')??'');
+          const locale=url.searchParams.has('lang')?resolveLocale(url.searchParams.get('lang')):hasPreference?savedLanguage:websiteLocale((request as Request & {cf?:{country?:string}}).cf?.country);
           const response=publicWebsite(isPreview?url.pathname.slice('/nettside'.length)||'/':url.pathname,isPreview?'/nettside':'',env,locale);
           return secureResponse(request,request.method==='HEAD'?new Response(null,response):response);
         }

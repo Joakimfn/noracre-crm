@@ -849,3 +849,17 @@ test('partner creates a customer with countries and is always its referrer witho
  assert.equal((await route('admin').POST(request(1200,1200,{...data,adminRole:'Partner'}))).status,403);
  assert.equal((await route('admin').POST(request(1200,1200,{...data,operatingCountries:[]}))).status,400);
 });
+
+test('home country is persisted independently of sales markets and sets each tenant language',async()=>{
+ const data={type:'organization',name:'Nigeria based Ireland sales',homeCountry:'NG',operatingCountries:['IE'],adminName:'Agent',adminEmail:'homecountry@test.no',adminRole:'Administrator',crmPrice:199};
+ const created=await route('admin').POST(request(1200,1200,data));assert.equal(created.status,201);
+ const org=(await created.json()).organization;assert.equal(org.homeCountry,'NG');assert.equal(org.operatingCountries,'["IE"]');
+ add('memberships',{id:1700,organization_id:org.id,user_id:'1700',email:'1700@test.no',name:'Foreign admin',role:'Administrator',created_at:'now'});
+ let settings=await (await route('admin').GET(request(1700,org.id))).json();assert.equal(settings.language,'en');assert.equal(settings.homeCountry,'NG');
+ assert.equal((await route('saved-call-lists').POST(request(1700,org.id,{type:'countries',homeCountry:'FR',operatingCountries:['IE','GB']}))).status,200);
+ const markets=await (await route('saved-call-lists').GET(request(1700,org.id))).json();assert.equal(markets.homeCountry,'FR');assert.deepEqual(markets.operatingCountries,['IE','GB']);assert.ok(!markets.sources.some(s=>s.code==='NO'));
+ assert.equal((await route('saved-call-lists').POST(request(1700,org.id,{type:'countries',homeCountry:'invalid',operatingCountries:['IE']}))).status,400);
+ assert.equal((await route('saved-call-lists').POST(request(3,1,{type:'countries',homeCountry:'NG',operatingCountries:['IE']}))).status,403);
+ assert.equal((await route('admin').POST(request(1200,1200,{...data,adminEmail:'invalid-country@test.no',homeCountry:'invalid'}))).status,400);
+ settings=await (await route('admin').GET(request(1,1))).json();assert.equal(settings.language,'nb');
+});
