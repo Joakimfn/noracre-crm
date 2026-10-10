@@ -7,6 +7,7 @@ import {useRegistryLookup} from '@/hooks/use-registry-lookup';
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {SavedCallListManager} from "@/components/saved-call-list-manager";
+import {OutboundSalesDesk} from "@/components/outbound-sales-desk";
 import {locales,resolvePublishedLocale} from '@/lib/i18n/config';
 import {HomeCountryPicker} from '@/components/home-country-picker';
 import {franceEmployeeBands,franceRegions} from '@/lib/france-register-options';
@@ -230,6 +231,7 @@ type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string
 type NewOrganization = PriceFields & {
   homeCountry: string;
   operatingCountries: RegisterCountry[];
+  outboundEnabled:boolean;
   name: string;
   orgNumber: string;
   address: string;
@@ -248,6 +250,7 @@ type NewOrganization = PriceFields & {
 const emptyNewOrganization: NewOrganization = {
   homeCountry: "NO",
   operatingCountries: ["NO"],
+  outboundEnabled:false,
   crmPrice: "", ringPrice: "", marketingPrice: "",
   name: "",
   orgNumber: "",
@@ -5119,6 +5122,7 @@ function SuperadminSettings(p: {
           {p.newOrg.adminRole === "Partner" && <CommissionField value={p.newOrg.commissionPercent} onChange={commissionPercent=>p.setNewOrg({...p.newOrg,commissionPercent})}/>}
           <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
+          <label className="form-hint" style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" checked={p.newOrg.outboundEnabled} onChange={e=>p.setNewOrg({...p.newOrg,outboundEnabled:e.target.checked})}/><UiText text="Denne kunden driver med outbound sales og skal ha salgsarbeidsflaten" /></label>
           <Button onClick={p.addOrg}><UiText text="Opprett kundeorganisasjon" /></Button>
         </div>
       </AdminCard>
