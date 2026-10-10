@@ -69,7 +69,7 @@ export function createDemoRuntime(now = new Date()) {
             }
             if(method==='POST'){
                 if(data.type==='settings'){outboundEnabled=data.enabled===true;outboundPitch=String(data.pitch??'');return json({settings:{...demoConfig,enabled:outboundEnabled,pitch:outboundPitch}});}
-                const entry=calls.find(c=>c.id===Number(data.entryId));
+                const entry=calls.find(c=>c.id===Number(data.entryId??(Array.isArray(data.entryIds)?data.entryIds[0]:null)));
                 if(!entry)return json({error:'Velg en gyldig demobedrift.'},404);
                 if(data.type==='dial'){
                     const prev=outboundStates.get(entry.id)??{attempts:0,pipeline:'Prospekt'};
