@@ -371,6 +371,27 @@ export const outboundDeals = sqliteTable("outbound_deals",{
   updatedAt:text("updated_at").notNull(),
 },t=>[uniqueIndex("outbound_deal_entry_unique").on(t.entryId),index("outbound_deal_org").on(t.organizationId,t.membershipId)]);
 
+export const outboundCompanyOwnership = sqliteTable("outbound_company_ownership",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  country:text("country").notNull(),
+  orgNumber:text("org_number").notNull(),
+  assignedMembershipId:integer("assigned_membership_id").notNull(),
+  updatedAt:text("updated_at").notNull(),
+},t=>[uniqueIndex("outbound_company_owner_unique").on(t.organizationId,t.country,t.orgNumber)]);
+
+export const outboundDealPayments = sqliteTable("outbound_deal_payments",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  entryId:integer("entry_id").notNull(),
+  membershipId:integer("membership_id").notNull(),
+  paymentReference:text("payment_reference").notNull(),
+  paidAmountMinor:integer("paid_amount_minor").notNull(),
+  currency:text("currency").notNull(),
+  commissionBps:integer("commission_bps").notNull(),
+  createdAt:text("created_at").notNull(),
+},t=>[uniqueIndex("outbound_payment_reference_unique").on(t.organizationId,t.paymentReference),index("outbound_payment_org_member").on(t.organizationId,t.membershipId)]);
+
 export const outboundSuppression = sqliteTable("outbound_suppression",{
   id:integer("id").primaryKey({autoIncrement:true}),
   organizationId:integer("organization_id").notNull(),
