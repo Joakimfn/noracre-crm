@@ -168,6 +168,7 @@ export async function POST(request: Request) {
           ...prices,
           homeCountry,
           operatingCountries: JSON.stringify(operatingCountries),
+          outboundEnabled: data.outboundEnabled === true,
           isPartner: role === "Partner",
           commissionBps,
           referredByPartnerId,
