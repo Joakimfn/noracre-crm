@@ -1,5 +1,6 @@
 import {entryScope,requireList,countryFor,createList} from "@/lib/saved-call-lists";
 import {searchInternationalRegister,registerSource} from "@/lib/international-registers";
+import {searchFranceRegisterPage} from '@/lib/france-register';
 import {parseCallListFilters,expandLocations,matchesCallListCompany} from '@/lib/call-list-filters';
 import {getCallListOptions} from '@/lib/call-list-options';
 import {validateReminderMinutes} from "@/lib/followup-reminder";
@@ -65,18 +66,23 @@ function values(
   organizationId: number,
   source: string,
   now: string,
+  country?:string,
 ) {
   return {
     organizationId,
-    orgNumber: normalizeRegistryId(row.orgNumber ?? row.organisasjonsnummer),
+    orgNumber: normalizeRegistryId(row.orgNumber ?? row.organisasjonsnummer ?? row.siren ?? row.siret,country),
     name: String(row.name ?? row.navn ?? "").trim(),
     industry: String(row.industry ?? row.bransje ?? ""),
     city: String(row.city ?? row.sted ?? ""),
+    address: String(row.address ?? ""),
+    postalCode: String(row.postalCode ?? ""),
     employees: row.employees == null || row.employees === ""
       ? null
       : Number.isSafeInteger(Number(row.employees)) && Number(row.employees)>=0 && Number(row.employees)<=1000000
         ? Number(row.employees)
         : null,
+    employeeRange: String(row.employeeRange ?? "").slice(0,40),
+    employeeRangeYear: /^\d{4}$/.test(String(row.employeeRangeYear??""))?String(row.employeeRangeYear):"",
     phone: String(row.phone ?? row.telefon ?? ""),
     email: String(row.email ?? row.epost ?? ""),
     website: String(row.website ?? row.nettside ?? ""),
@@ -95,8 +101,8 @@ function values(
 
 async function insertListRows(list:typeof savedCallLists.$inferSelect,rows:(typeof callListEntries.$inferInsert)[],removeOnFailure=true){
  const db=getDb(),batches=[];
- // Each entry binds 21 columns. D1 allows at most 100 bound parameters per query:
- // five rows need 105 parameters and fail; four stay at 84.
+ // Each entry binds 25 columns. D1 permits 100 bound parameters per query,
+ // so four rows fit exactly; five rows would fail.
  const rowsPerInsert=4;
  for(let i=0;i<rows.length;i+=rowsPerInsert)batches.push(db.insert(callListEntries).values(rows.slice(i,i+rowsPerInsert).map(row=>({...row,listId:list.id,country:list.country}))).returning());
  try{return (await db.batch(batches as [typeof batches[number],...typeof batches[number][]])).flat() as typeof callListEntries.$inferSelect[];}
@@ -238,7 +244,7 @@ export async function POST(request: Request) {
               .where(
                 and(
                   eq(companies.organizationId, ctx.organizationId),
-                  eq(companies.orgNumber, current.orgNumber),
+                  eq(sql`UPPER(REPLACE(${companies.orgNumber}, ' ', ''))`, normalizeRegistryId(current.orgNumber,current.country)),
                   eq(companies.country, current.country),
                 ),
               )
@@ -256,7 +262,11 @@ export async function POST(request: Request) {
               email: contactEmail || current.email,
               industry: current.industry,
               city: current.city,
+              address: current.address,
+              postalCode: current.postalCode,
               employees: current.employees,
+              employeeRange: current.employeeRange,
+              employeeRangeYear: current.employeeRangeYear,
               stage:
                 status === "Møte booket"
                   ? "Møte avtalt"
@@ -404,25 +414,41 @@ export async function POST(request: Request) {
         ? (data.rows as Record<string, unknown>[])
             .slice(0, 100)
             .map((row) =>
-              values(row, ctx.organizationId, "Importert ringeliste", now),
+              values(row, ctx.organizationId, "Importert ringeliste", now,country),
             )
             .filter((row) => row.name)
         : [];
       if(!rows.length)throw new AccessError(400,"Importfilen inneholder ingen bedrifter.");
       const list=data.listId?await requireList(ctx,data.listId,true):await createList(ctx,country,data.listName??"Importert ringeliste",now);
       if(list.country!==country)throw new AccessError(400,"Listen og importen må ha samme land.");
-      const inserted = await insertListRows(list,rows,!data.listId);
+      let importedRows=rows;
+      if(country==='FR'){
+        const previous=data.listId?await db.select({orgNumber:callListEntries.orgNumber}).from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.listId,list.id))):[];
+        const seen=new Set(previous.map(row=>normalizeRegistryId(row.orgNumber,country)).filter(Boolean));
+        importedRows=rows.filter(row=>{if(!row.orgNumber)return true;if(seen.has(row.orgNumber))return false;seen.add(row.orgNumber);return true;});
+      }
+      const inserted = importedRows.length?await insertListRows(list,importedRows,!data.listId):[];
       return await actorJson(ctx,
         { entries: inserted, added: inserted.length, list },
         { status: 201 },
       );
     }
     if(country !== "NO"){
-      const candidates=(await searchInternationalRegister(country,data)).filter(row=>row.name&&row.orgNumber);
+      const excludedIds=new Set<string>();
+      if(country==='FR'){
+        const [listed,customers]=await Promise.all([
+          db.select({orgNumber:callListEntries.orgNumber}).from(callListEntries).where(and(eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.country,country))),
+          db.select({orgNumber:companies.orgNumber}).from(companies).where(and(eq(companies.organizationId,ctx.organizationId),eq(companies.country,country))),
+        ]);
+        for(const row of [...listed,...customers])if(row.orgNumber)excludedIds.add(normalizeRegistryId(row.orgNumber,country));
+      }
+      const frenchPage=country==='FR'?await searchFranceRegisterPage(data,excludedIds):undefined;
+      const candidates=(frenchPage?.rows??await searchInternationalRegister(country,data,excludedIds)).filter(row=>row.name&&row.orgNumber);
+      if(!candidates.length&&frenchPage?.hasMore)return await actorJson(ctx,{entries:[],added:0,nextPage:frenchPage.nextPage,hasMore:true,message:'Ingen nye bedrifter på disse sidene. Flere registersider er tilgjengelige.'});
       if(!candidates.length)throw new AccessError(404,"Fant ingen bedrifter. Prøv andre søkeord.");
       const list=await createList(ctx,country,data.listName,now);
-      const inserted=await insertListRows(list,candidates.map(row=>values(row as unknown as Record<string,unknown>,ctx.organizationId,registerSource(country),now)));
-      return await actorJson(ctx,{entries:inserted,added:inserted.length,list});
+      const inserted=await insertListRows(list,candidates.map(row=>values(row as unknown as Record<string,unknown>,ctx.organizationId,registerSource(country),now,country)));
+      return await actorJson(ctx,{entries:inserted,added:inserted.length,list,...(frenchPage?{nextPage:frenchPage.nextPage,hasMore:frenchPage.hasMore}:{})});
     }
     const parsed=parseCallListFilters(data);
     if(!parsed.success)throw new AccessError(400,parsed.error.issues[0].message);

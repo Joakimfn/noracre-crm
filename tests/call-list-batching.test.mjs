@@ -26,7 +26,7 @@ test('importing 5 or more prospects stays below the D1 100-bound-parameter limit
  const batchSize=Number(match[1]);
  assert.ok(batchSize>=1);
  assert.ok(rowFields*batchSize<=100,`D1 supports at most 100 bind parameters, got ${rowFields*batchSize}`);
- assert.equal(rowFields,21,'update this test if insert column count changes');
+ assert.equal(rowFields,25,'update this test if insert column count changes');
  assert.ok(route.includes('i+=rowsPerInsert'));
  assert.ok(route.includes('rows.slice(i,i+rowsPerInsert)'));
 });

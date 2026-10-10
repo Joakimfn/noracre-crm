@@ -28,7 +28,7 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<{name:string;companyName:string;email:string;invitationSent:boolean;modules:string[]}|null>(null);
   const [reload, setReload] = useState(0);
   const locked = useRef(false);
   useEffect(() => {
@@ -38,17 +38,17 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       .then(async response => {
         const data = await response.json();
         if (!response.ok) throw Error(data.error || "Kunne ikke hente bedriftene.");
-        if (!cancelled) { setCompanies(data.organizations); setError(ui("")); }
-      }).catch(error => { if (!cancelled) setError(ui(error.message)); })
+        if (!cancelled) { setCompanies(data.organizations); setError(""); }
+      }).catch(error => { if (!cancelled) setError(error.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [organizationId, refreshKey, reload]);
+  }, [organizationId, refreshKey, reload, apiFetch]);
   const activeCompanies = companies.filter(company => company.status === "Aktiv" && (!company.scheduledDisableAt || company.scheduledDisableAt > new Date().toISOString()));
   const selected = activeCompanies.find(company => company.id === draft.organizationId);
   async function create() {
     if (!review || locked.current) return;
     locked.current = true;
-    setBusy(true); setError(ui("")); setResult("");
+    setBusy(true); setError(""); setResult(null);
     try {
       const response = await apiFetch("/api/admin", {
         method: "POST",
@@ -59,22 +59,20 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       });
       const data = await response.json();
       if (!response.ok) throw Error(data.error || "Kunne ikke opprette brukeren.");
-      const modulesText = review.draft.moduleKeys.length ? ` Tildelte moduler: ${moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => module.name).join(", ")}.` : "";
-      setResult((data.invitationSent
-        ? `${review.draft.name} er opprettet i ${review.company.name}. Invitasjonen er sendt til ${review.draft.email}.`
-        : `${review.draft.name} er opprettet i ${review.company.name}, men invitasjonen kunne ikke sendes. Del https://crm.noracre.no manuelt. Brukeren må registrere seg med ${review.draft.email}.`) + modulesText);
+      setResult({name:review.draft.name,companyName:review.company.name,email:review.draft.email,invitationSent:Boolean(data.invitationSent),
+        modules:moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => module.name)});
       setDraft({ ...emptyDraft, organizationId: review.draft.organizationId });
       setReview(null);
       onCreated();
     } catch (error) {
-      setError(ui(error instanceof Error ? error.message : "Sendingen kunne ikke bekreftes. Kontroller brukerlisten før du prøver igjen."));
+      setError(error instanceof Error ? error.message : "Sendingen kunne ikke bekreftes. Kontroller brukerlisten før du prøver igjen.");
     } finally { locked.current = false; setBusy(false); }
   }
   return <>
     <p><UiText text="Opprett tilgang for en bruker i en eksisterende bedrift. Nye brukere velger selv passord via innloggingssiden." /></p>
     <form className="organization-form" onSubmit={event => {
       event.preventDefault();
-      if (selected && selected.crmPrice != null) { setError(ui("")); setResult(""); setReview({ draft: { ...draft, name: draft.name.trim(), email: draft.email.trim().toLowerCase() }, company: selected }); }
+      if (selected && selected.crmPrice != null) { setError(""); setResult(null); setReview({ draft: { ...draft, name: draft.name.trim(), email: draft.email.trim().toLowerCase() }, company: selected }); }
     }}>
       <Label htmlFor="customer-user-company"><UiText text="Bedrift" /></Label>
       <Select value={draft.organizationId ? String(draft.organizationId) : ""} onValueChange={value => setDraft({ ...draft, organizationId: Number(value), role: "Bruker", moduleKeys: [] })} disabled={loading || busy}>
@@ -90,28 +88,32 @@ export function CompanyUserCreate({ organizationId, refreshKey, onCreated }: {
       <Label htmlFor="customer-user-role"><UiText text="Rolle" /></Label>
       <Select value={draft.role} onValueChange={role => setDraft({ ...draft, role })}>
         <SelectTrigger id="customer-user-role"><SelectValue /></SelectTrigger>
-        <SelectContent><SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem><SelectItem value="Administrator">Administrator</SelectItem>{selected?.isPartner&&<SelectItem value="Partner">Partner</SelectItem>}</SelectContent>
+        <SelectContent><SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem><SelectItem value="Administrator"><UiText text="Administrator" /></SelectItem>{selected?.isPartner&&<SelectItem value="Partner"><UiText text="Partner" /></SelectItem>}</SelectContent>
       </Select>
       <fieldset className="company-user-modules" disabled={!selected || loading || busy}>
         <legend><UiText text="Tilleggsmoduler (valgfritt)" /></legend>
         {moduleCatalog.map(module => <label key={module.key}>
           <input type="checkbox" checked={draft.moduleKeys.includes(module.key)} disabled={!selected || selected[module.priceKey] == null}
             onChange={event => setDraft({ ...draft, moduleKeys: event.target.checked ? [...draft.moduleKeys, module.key] : draft.moduleKeys.filter(key => key !== module.key) })} />
-          <span><strong>{module.name}</strong><small>{!selected ? ui("Velg bedrift først") : selected[module.priceKey] == null ? ui("Avtal pris under Drift for å aktivere") : ui("{0} kr per måned",{"0":selected[module.priceKey]})}</small></span>
+          <span><strong>{ui(module.name)}</strong><small>{!selected ? ui("Velg bedrift først") : selected[module.priceKey] == null ? ui("Avtal pris under Drift for å aktivere") : ui("{0} kr per måned",{"0":selected[module.priceKey]})}</small></span>
         </label>)}
       </fieldset>
       <p className="form-hint">{selected ? selected.crmPrice == null ? ui("Avtal CRM-pris under Drift før brukeren opprettes.") : ui("CRM: {0} kr. Totalt for denne brukeren: {1} kr per måned eks. mva.",{"0":selected.crmPrice,"1":totalPrice(selected, draft)}) : ui("Velg bedriften brukeren skal ha tilgang til.")}</p>
       <Button type="submit" disabled={loading || busy || !selected || selected.crmPrice == null || !draft.name.trim() || !draft.email.trim()}><UiText text="Opprett bedriftsbruker" /></Button>
-      {error && !review && <p role="alert">{error}</p>}
+      {error && !review && <p role="alert">{ui(error)}</p>}
       {!loading && !companies.length && <Button type="button" variant="outline" onClick={() => setReload(value => value + 1)}><UiText text="Hent bedrifter på nytt" /></Button>}
-      {result && <p role="status">{result}</p>}
+      {result && <p role="status">{ui(result.invitationSent
+        ? "{0} er opprettet i {1}. Invitasjonen er sendt til {2}."
+        : "{0} er opprettet i {1}, men invitasjonen kunne ikke sendes. Del https://crm.noracre.no manuelt. Brukeren må registrere seg med {2}.",
+        {"0":result.name,"1":result.companyName,"2":result.email})}
+        {result.modules.length ? " "+ui("Tildelte moduler: {0}.",{"0":result.modules.map(module=>ui(module)).join(", ")}) : ""}</p>}
     </form>
     <Dialog open={Boolean(review)} onOpenChange={open => { if (!open && !busy) setReview(null); }}>
       <DialogContent>
         <DialogHeader><DialogTitle><UiText text="Opprett bruker i " />{review?.company.name}?</DialogTitle><DialogDescription>{review?.draft.name} · {review?.draft.email} · {ui(review?.draft.role)}</DialogDescription></DialogHeader>
-        <p><UiText text="Tilgang: CRM" />{review && moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => ` + ${module.name}`).join("")}.</p>
+        <p><UiText text="Tilgang: CRM" />{review && moduleCatalog.filter(module => review.draft.moduleKeys.includes(module.key)).map(module => ` + ${ui(module.name)}`).join("")}.</p>
         <p><UiText text="Bedriftens abonnement øker med " />{review ? totalPrice(review.company, review.draft) : 0}<UiText text=" kr per måned eks. mva. En invitasjon sendes til e-postadressen over." /></p>
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{ui(error)}</p>}
         <Button disabled={busy} onClick={create}>{busy ? ui("Oppretter …") : ui("Opprett bruker og send invitasjon")}</Button>
       </DialogContent>
     </Dialog>

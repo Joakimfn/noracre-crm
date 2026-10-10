@@ -1,5 +1,4 @@
 import type {MessageKey,Message} from '../types';
-// Draft catalogue: English is not enabled for customers until the remaining screens are translated.
 export const en = {
   "commission.label": "Commission (%)",
   "commission.help": "Percentage of payments received for CRM and modules, excluding VAT.",

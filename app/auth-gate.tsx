@@ -1,5 +1,6 @@
 "use client";
 import {UiText,useUiTranslation} from '@/lib/i18n/ui';
+import {useI18n} from '@/lib/i18n/react';
 
 
 import { FormEvent, useEffect, useState } from "react";
@@ -12,6 +13,7 @@ type AuthMode = "login" | "signup" | "reset";
 
 export default function AuthGate() {
  const {ui}=useUiTranslation();
+ const {locale,setLocale}=useI18n();
   const [config, setConfig] = useState<AuthConfig | null>(null);
   const [checking, setChecking] = useState(true);
   const [ready, setReady] = useState(false);
@@ -133,27 +135,33 @@ export default function AuthGate() {
     if (!config?.url || !config.anonKey) return;
     setBusy(true);
     setMessage(ui(""));
-    const session = JSON.parse(
-      localStorage.getItem(supabaseSessionKey) ?? "{}",
-    ) as { access_token?: string };
-    const response = await fetch(`${config.url}/auth/v1/user`, {
-      method: "PUT",
-      headers: {
-        apikey: config.anonKey,
-        Authorization: `Bearer ${session.access_token ?? ""}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ password }),
-    });
-    if (response.ok) {
-      const access = await apiFetch("/api/session");
-      if (access.ok) setReady(true);
-      else {
-        setMode("login");
-        setMessage(ui("Passordet er oppdatert. Logg inn for å fortsette."));
-      }
-    } else setMessage(ui("Kunne ikke oppdatere passordet. Be om en ny lenke."));
-    setBusy(false);
+    try {
+      const session = JSON.parse(
+        localStorage.getItem(supabaseSessionKey) ?? "{}",
+      ) as { access_token?: string };
+      const response = await fetch(`${config.url}/auth/v1/user`, {
+        method: "PUT",
+        headers: {
+          apikey: config.anonKey,
+          Authorization: `Bearer ${session.access_token ?? ""}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (response.ok) {
+        const access = await apiFetch("/api/session");
+        if (access.ok) setReady(true);
+        else {
+          setMode("login");
+          setMessage(ui("Passordet er oppdatert. Logg inn for å fortsette."));
+        }
+      } else setMessage(ui("Kunne ikke oppdatere passordet. Be om en ny lenke."));
+    } catch {
+      setMessage(ui("Noe gikk galt."));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (checking) return <main className="session-loading" role="status" aria-live="polite" aria-label={ui("Åpner Noracre CRM")}><img src="/noracre-logo-primary.svg" alt="Noracre"/><span><UiText text="Gjør klart arbeidsområdet ditt …" /></span></main>;
@@ -161,6 +169,9 @@ export default function AuthGate() {
   return (
     <main className="login-page">
       <section className="login-card">
+        <nav aria-label={ui("Språk")} style={{display:"flex",justifyContent:"flex-end",flexWrap:"wrap",gap:12,marginBottom:16}}>
+          {([['nb','Norsk','no'],['en','English','gb'],['fr','Français','fr']] as const).map(([language,label,flag])=><button key={language} className="login-link" type="button" onClick={()=>setLocale(language)} aria-pressed={locale===language} lang={language} style={{display:"inline-flex",alignItems:"center",gap:5,margin:0,fontWeight:locale===language?700:400}}><img src={`/flags/${flag}.svg`} width="20" height="14" alt="" style={{width:20,height:14}}/>{label}</button>)}
+        </nav>
         <img className="login-logo" src="/noracre-logo-primary.svg" alt="Noracre" />
         <p className="eyebrow">NORACRE CRM</p>
         <h1>

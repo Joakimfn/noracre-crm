@@ -33,8 +33,8 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
       const r=await apiFetch("/api/social/connections",{headers});const d=await r.json();
       if(!r.ok)throw Error(d.error);
       if(g!==generation.current)return;
-      setData(d);onChange(d);setError(ui(""));setConnectionError(d.connectionError??"");
-    }catch{if(g===generation.current)setError(ui("Kunne ikke hente kontotilkoblingene. Prøv å åpne modulen på nytt."));}
+      setData(d);onChange(d);setError("");setConnectionError(d.connectionError??"");
+    }catch{if(g===generation.current)setError("Kunne ikke hente kontotilkoblingene. Prøv å åpne modulen på nytt.");}
     finally{if(g===generation.current)setLoading(false);}
   }
   useEffect(()=>{
@@ -117,15 +117,15 @@ export function SocialConnections({organizationId,role,onChange}:{organizationId
   async function disconnect(){
     const connection=data.connections.find(c=>c.id===disconnectId);
     if(!connection||busy)return;setBusy(true);
-    try{const r=await apiFetch(`/api/social/connections?id=${connection.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success(ui(`${connection.platform} er koblet fra CRM-et.`));}
-    catch{toast.error(ui(`Kunne ikke logge av ${connection.platform}. Prøv igjen.`));}finally{setBusy(false);}
+    try{const r=await apiFetch(`/api/social/connections?id=${connection.id}`,{method:"DELETE",headers});if(!r.ok)throw Error();setDisconnectId(null);await load();toast.success(ui("{0} er koblet fra CRM-et.",{"0":connection.platform}));}
+    catch{toast.error(ui("Kunne ikke logge av {0}. Prøv igjen.",{"0":connection.platform}));}finally{setBusy(false);}
   }
   const chosen=pages.find(p=>p.id===pageId);
   const disconnecting=data.connections.find(c=>c.id===disconnectId);
   return <section className="surface">
     <div className="surface-head"><h3><UiText text="Kanaler" /></h3></div>
-    <p className="form-hint">{loading?ui("Henter kontotilkoblinger …"):error||(!data.ready?ui("Kontotilkoblingene venter på at Noracre fullfører oppsettet."):ui("Koble til bedriftens kontoer på Facebook, Instagram og LinkedIn. Kun administratorer kan endre tilkoblingene."))}</p>
-    {connectionError&&<p role="alert" className="form-hint" style={{color:"var(--destructive)"}}>{connectionError}</p>}
+    <p className="form-hint">{loading?ui("Henter kontotilkoblinger …"):error?ui(error):!data.ready?ui("Kontotilkoblingene venter på at Noracre fullfører oppsettet."):ui("Koble til bedriftens kontoer på Facebook, Instagram og LinkedIn. Kun administratorer kan endre tilkoblingene.")}</p>
+    {connectionError&&<p role="alert" className="form-hint" style={{color:"var(--destructive)"}}>{ui(connectionError)}</p>}
     {busy&&!pending&&!linkedinPending&&!disconnectId&&<Button variant="ghost" onClick={()=>{generation.current++;if(timer.current)clearTimeout(timer.current);popup.current?.close();setBusy(false);}}><UiText text="Avbryt venting" /></Button>}
     <div className="channel-grid social-connections">
       {SOCIAL_CHANNELS.map(channel=>{

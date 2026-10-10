@@ -17,7 +17,10 @@ export function I18nProvider({children,locale=DEFAULT_LOCALE,timeZone=DEFAULT_TI
   organizationId.current=id;
   let selected=next;
   try{const saved=localStorage.getItem("noracre-language:org:"+id);if(saved&&publishedLocales.includes(saved as PublishedLocale))selected=resolveLocale(saved);}catch{}
-  updateLocale(resolveLocale(selected));
+  const safe=resolveLocale(selected);
+  // Server-rendered settings and legal pages must use the active organisation's language too.
+  document.cookie=languagePreferenceCookie(safe,location.protocol==='https:');
+  updateLocale(safe);
  }}),[selectedLocale,timeZone,currency]);
  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

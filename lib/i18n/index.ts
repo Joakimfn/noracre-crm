@@ -1,10 +1,11 @@
 import {nb} from './messages/nb';
 import {en} from './messages/en';
+import {fr} from './messages/fr';
 import {DEFAULT_LOCALE,DEFAULT_TIME_ZONE,DEFAULT_CURRENCY,locales,type Locale} from './config';
 import type {Message,MessageKey,MessageValues} from './types';
 export * from './config';
 export type {MessageKey,Message,MessageValues} from './types';
-const catalogues:Record<Locale,Partial<Record<MessageKey,Message>>>={nb,en};
+const catalogues:Record<Locale,Record<MessageKey,Message>>={nb,en,fr};
 export function createI18n(locale:Locale=DEFAULT_LOCALE,settings:{timeZone?:string;currency?:string}={}){
  const intlLocale=locales[locale].intl,timeZone=settings.timeZone??DEFAULT_TIME_ZONE,currency=settings.currency??DEFAULT_CURRENCY;
  const number=(value:number,options:Intl.NumberFormatOptions={})=>new Intl.NumberFormat(intlLocale,options).format(value);

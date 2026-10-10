@@ -1,0 +1,32 @@
+import {test,after} from 'node:test';
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+const dir=await mkdtemp(path.join(tmpdir(),'noracre-french-import-'));
+await build({stdin:{contents:"export * from './lib/data-import';export {translateUi} from './lib/i18n/ui';",resolveDir:process.cwd()},bundle:true,format:'esm',platform:'node',outfile:path.join(dir,'app.mjs')});
+const app=await import(pathToFileURL(path.join(dir,'app.mjs')));
+after(()=>rm(dir,{recursive:true,force:true}));
+test('official French CSV columns map country, legal company identity and historical employee bands',()=>{
+ const headers=['nom_complet','siret','pays','adresse','code_postal','tranche_effectif_salarie','annee_tranche_effectif_salarie'];
+ const mapped=app.mapImportRow(['ACME','35600000000048','France','1 rue Test','75001','11','2024'],app.guessColumns(headers,'customers'));
+ assert.equal(mapped.name,'ACME');assert.equal(mapped.orgNumber,'35600000000048');assert.equal(app.parseImportCountry(mapped.country),'FR');
+ assert.equal(mapped.employeeRange,'11');assert.equal(mapped.employeeRangeYear,'2024');assert.equal(mapped.postalCode,'75001');
+ for(const name of ['France','Frankrike','FR','fr'])assert.equal(app.parseImportCountry(name),'FR');
+ assert.equal(app.parseImportCountry(undefined,'FR'),'FR');assert.throws(()=>app.parseImportCountry('Bogus'));
+});
+test('French importer fields and validation details have complete translations',async()=>{
+ const catalogue=JSON.parse(await readFile('lib/i18n/ui-fr.json','utf8'));
+ for(const field of app.importFields)assert.ok(Object.hasOwn(catalogue,field.label),field.label);
+ assert.equal(app.translateUi('Rad 3: Land må være en gyldig landskode eller et landnavn.','fr'),'Ligne 3 : Saisissez un code pays ou un nom de pays valide.');
+ assert.equal(app.translateUi('Rad 4: ugyldig antall ansatte.','fr'),'Ligne 4 : nombre de salariés non valide.');
+ assert.equal(app.translateUi('Rad 5: År for ansattgruppe må ha fire sifre.','fr'),'Ligne 5 : L’année de la tranche d’effectif doit comporter quatre chiffres.');
+ assert.equal(app.translateUi('Rad 6: Bedriftsnavn mangler.','fr'),'Ligne 6 : Le nom de l’entreprise est manquant.');
+ assert.equal(app.translateUi('Rad 7: feltet Land er for langt.','fr'),'Ligne 7 : le champ Pays est trop long.');
+ assert.equal(app.translateUi('Rad 8 er ugyldig.','fr'),'La ligne 8 n’est pas valide.');
+ assert.equal(app.translateUi('Rad 9: ACME {0}','fr'),'Rad 9: ACME {0}');
+ assert.equal(app.translateUi('Rad 4: ugyldig antall ansatte.','en'),'Row 4: invalid employee count.');
+ assert.equal(app.translateUi('Rad 4: ugyldig antall ansatte.','nb'),'Rad 4: ugyldig antall ansatte.');
+});

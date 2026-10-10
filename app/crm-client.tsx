@@ -1,11 +1,15 @@
 "use client";
 import {UiText,useUiTranslation} from '@/lib/i18n/ui';
 
+import {createConfirmedCustomer} from '@/lib/customer-create';
+import {useSearchPage} from '@/hooks/use-search-page';
+import {useRegistryLookup} from '@/hooks/use-registry-lookup';
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {SavedCallListManager} from "@/components/saved-call-list-manager";
-import {resolvePublishedLocale} from '@/lib/i18n/config';
+import {locales,resolvePublishedLocale} from '@/lib/i18n/config';
 import {HomeCountryPicker} from '@/components/home-country-picker';
+import {franceEmployeeBands,franceRegions} from '@/lib/france-register-options';
 import {registerCountries} from '@/lib/operating-countries';
 import {OperatingCountryPicker} from "@/components/operating-country-picker";
 import {type RegisterCountry} from "@/lib/operating-countries";
@@ -18,6 +22,7 @@ import {CallListMultiPicker} from '@/components/call-list-multi-picker';
 import {NorwegianDateInput} from '@/components/norwegian-date-input';
 import {mapProspectRows,mapHeadcountRows} from '@/lib/prospect-import';
 import {NormalizedNumberInput} from '@/components/normalized-number-input';
+import {matchesEmployeeCount,employeeRangeText} from '@/lib/employee-count';
 import {defaultCallListFilters} from '@/lib/call-list-filters';
 
 import { ModuleShowcase } from "@/components/module-showcase";
@@ -178,6 +183,9 @@ type Company = {
   industry?: string;
   city?: string;
   employees?: number | null;
+  employeeRange?: string;
+  employeeRangeYear?: string;
+  country?: RegisterCountry;
   revenue?: number | null;
   source?: string;
   assignedTo?: string;
@@ -342,6 +350,9 @@ type Prospect = {
   industry: string;
   city: string;
   employees: number | null;
+  employeeRange?: string;
+  employeeRangeYear?: string;
+  country?: RegisterCountry;
   phone: string;
   email: string;
   website: string;
@@ -585,9 +596,9 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     [contactKind, setContactKind] = useState("Telefon"),
     [contactNote, setContactNote] = useState(""),
     [nextAt, setNextAt] = useState(""),
+    [lookupCountry,setLookupCountry] = useState<RegisterCountry>("NO"),
     [lookupQuery, setLookupQuery] = useState(""),
-    [lookupBusy, setLookupBusy] = useState(false),
-    [lookupResults, setLookupResults] = useState<Partial<Company>[]>([]),
+    [companySaving,setCompanySaving] = useState(false),
     [draft, setDraft] = useState<Partial<Company>>({
       stage: "Ny kunde",
       customerType: "Bedrift",
@@ -645,6 +656,8 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     } | null>(null),
     [sessionReady, setSessionReady] = useState(false);
   const [profileReady, setProfileReady] = useState(false);
+  const companySavePending=useRef(false);
+  const {results:lookupResults,busy:lookupBusy,search:searchLookup,clear:clearLookup}=useRegistryLookup<Partial<Company>>(apiFetch,lookupCountry,lookupQuery,activeOrgId);
   const profileSaveValue = JSON.stringify({ displayName: profile.displayName, contactEmail: profile.contactEmail, theme: profile.theme, avatarX: profile.avatarX, avatarY: profile.avatarY, avatarZoom: profile.avatarZoom, browserNotifications: profile.browserNotifications, avatarFile: profileAvatar ? `${profileAvatar.name}:${profileAvatar.size}:${profileAvatar.lastModified}` : null });
   const profileAutosave = useAutosave({ value: profileSaveValue, enabled: profileReady && !cropOpen, save: saveProfile });
   const [pricing, setPricing] = useState<{crmPrice:number|null;ringPrice:number|null;marketingPrice:number|null}>({crmPrice:null,ringPrice:null,marketingPrice:null});
@@ -706,6 +719,9 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     if (c.error || a.error || ad.error)
       throw new Error(c.error || a.error || ad.error);
     applyOrganizationLocale(resolvePublishedLocale(ad.language),orgId);
+    const defaultRegisterCountry=registerCountries.some(c=>c.code===ad.homeCountry)?ad.homeCountry:ad.operatingCountries?.[0]??"NO";
+    setLookupCountry(defaultRegisterCountry);
+    clearLookup();
     setRolePreview(ad.role ?? "Bruker");
     if(!canViewAdministration(ad.role ?? "Bruker"))setView(current=>current==="admin"?"overview":current);
     setCompanies(c.companies ?? []);
@@ -886,8 +902,8 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         const due = new Date(activity.dueAt).getTime();
         const key = `noracre-reminder:${user.id}:${activeOrgId}:${activity.id}:${activity.dueAt}:${offset}`;
         if (localStorage.getItem(key)) continue;
-        const notification = new Notification("Kommende oppfølging", {
-          body: `${activity.companyName}: ${activity.note || ui("Følg opp")} – ${locale==='en'?'at':'kl.'} ${new Date(due).toLocaleString(locale==='en'?'en-GB':'nb-NO', {day:"2-digit",month:"2-digit",hour: "2-digit", minute: "2-digit"})}`,
+        const notification = new Notification(ui("Kommende oppfølging"), {
+          body: `${activity.companyName}: ${activity.note || ui("Følg opp")} – ${ui("kl.")} ${new Date(due).toLocaleString(locales[locale].intl, {day:"2-digit",month:"2-digit",hour: "2-digit", minute: "2-digit"})}`,
           tag: key,
         });
         notification.onclick = () => { window.focus(); setView("followup"); notification.close(); };
@@ -986,26 +1002,13 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         })
         .catch(() => setOperations(null));
   }, [view]);
-  async function lookup() {
-    if (!lookupQuery.trim()) return;
-    setLookupBusy(true);
-    try {
-      const r = await apiFetch(
-          `/api/company-lookup?q=${encodeURIComponent(lookupQuery)}`,
-        ),
-        d = await r.json();
-      setLookupResults(d.companies ?? []);
-      if (!r.ok)
-        toast.error(ui(d.error ?? "Kunne ikke søke i Brønnøysundregistrene"));
-    } catch {
-      setLookupResults([]);
-      toast.error(ui("Kunne ikke søke i Brønnøysundregistrene"));
-    } finally {
-      setLookupBusy(false);
-    }
+  async function lookup():Promise<boolean> {
+    try{return await searchLookup();}
+    catch(error){toast.error(ui(error instanceof Error?error.message:"Kunne ikke søke i foretaksregisteret"));return false;}
   }
   async function saveCompany() {
-    if (!draft.name) return;
+    if (!draft.name?.trim()||companySavePending.current) return;
+    companySavePending.current=true;setCompanySaving(true);
     const isPerson = draft.customerType === "Person",
       c: Company = {
         id: Date.now(),
@@ -1022,25 +1025,24 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         industry: draft.industry,
         city: draft.city,
         employees: draft.employees,
+        employeeRange: draft.employeeRange,
+        employeeRangeYear: draft.employeeRangeYear,
+        country: draft.country??lookupCountry,
+        address: draft.address,
+        postalCode: draft.postalCode,
         revenue: draft.revenue,
         source: isPerson ? "Manuelt" : draft.source,
         assignedTo: user.displayName,
       };
     try {
-      const r = await api("/api/companies", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(c),
-      });
-      if (r.ok) c.id = (await r.json()).company.id;
-    } catch {}
-    setCompanies((x) => [c, ...x]);
-    setSelectedId(c.id);
-    setDraft({ stage: "Ny kunde", customerType: "Bedrift" });
-    setLookupResults([]);
-    setLookupQuery("");
-    setAddOpen(false);
-    toast.success(ui("Kunden er lagt til"));
+      const saved=await createConfirmedCustomer(api,c);
+      setCompanies((x) => [saved, ...x]);
+      setSelectedId(saved.id);
+      setDraft({ stage: "Ny kunde", customerType: "Bedrift" });
+      clearLookup();setLookupQuery("");setAddOpen(false);
+      toast.success(ui("Kunden er lagt til"));
+    }catch(error){toast.error(ui(error instanceof Error?error.message:"Kunne ikke legge til kunden"));}
+    finally{companySavePending.current=false;setCompanySaving(false);}
   }
   async function uploadAttachment(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -1103,7 +1105,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
             contactId,
             companyName: before.name,
             kind,
-            note: `Følg opp etter ${kind.toLowerCase()}`,
+            note: ui("Følg opp etter {0}",{"0":ui(kind).toLocaleLowerCase(locale)}),
             dueAt: due,
             reminderMinutes: JSON.stringify(nextReminders),
             completedAt: "",
@@ -1128,7 +1130,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     setContactOpen(false);
     setContactNote("");
     setNextAt("");
-    toast.success(ui(`${kind} er registrert`));
+    toast.success(ui("{0} er registrert",{"0":ui(kind)}));
     try {
       const r = await api("/api/activities", {
         method: "POST",
@@ -1183,7 +1185,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
   async function refresh(c: Company) {
     if (!c.orgNumber) return toast.error(ui("Organisasjonsnummer mangler"));
     const d = await (
-        await apiFetch(`/api/company-lookup?q=${encodeURIComponent(c.orgNumber)}`)
+        await apiFetch(`/api/company-lookup?q=${encodeURIComponent(c.orgNumber)}&country=${c.country??lookupCountry}`)
       ).json(),
       f = d.companies?.[0];
     if (!f) return toast.error(ui("Fant ikke bedriften"));
@@ -1206,8 +1208,8 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     if (pricing.crmPrice == null) return toast.error(ui("Pris er ikke avtalt. Oppgi pris under Drift først."));
     if (!confirmed)
       return setConfirmation({
-        title: "Aktiver ny bruker?",
-        description: `${newMember.name} opprettes som aktiv bruker. Abonnementet øker med ${pricing.crmPrice} kr per måned eks. mva.`,
+        title: ui("Aktiver ny bruker?"),
+        description: ui("{0} opprettes som aktiv bruker. Abonnementet øker med {1} NOK per måned eks. mva.",{"0":newMember.name,"1":pricing.crmPrice}),
         confirm: () => {
           setConfirmation(null);
           void addMember(true);
@@ -1242,10 +1244,10 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
     if(!active&&!confirmed)return setDeactivation({id:member.id,name:member.name,kind:'member'});
     if (!confirmed)
       return setConfirmation({
-        title: active ? "Aktiver bruker?" : "Deaktiver bruker?",
+        title: active ? ui("Aktiver bruker?") : ui("Deaktiver bruker?"),
         description: active
-          ? member.active ? `Planlagt deaktivering av ${member.name} avbrytes. Ingen nye kostnader.` : `${member.name} får tilgang igjen. Abonnementet øker med ${(pricing.crmPrice ?? 0) + (memberModuleCosts[member.id] ?? 0)} kr per måned eks. mva., inkludert eventuelle eksisterende modullisenser.`
-          : `${member.name} mister tilgangen umiddelbart. Dataene slettes ikke.`,
+          ? member.active ? ui("Planlagt deaktivering av {0} avbrytes. Ingen nye kostnader.",{"0":member.name}) : ui("{0} får tilgang igjen. Abonnementet øker med {1} NOK per måned eks. mva., inkludert eventuelle eksisterende modullisenser.",{"0":member.name,"1":(pricing.crmPrice ?? 0) + (memberModuleCosts[member.id] ?? 0)})
+          : ui("{0} mister tilgangen umiddelbart. Dataene slettes ikke.",{"0":member.name}),
         confirm: () => {
           setConfirmation(null);
           void setMemberStatus(member, active, true);
@@ -1527,7 +1529,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         </nav>
         <div className="sidebar-bottom">
         {rolePreview === "Superadmin" && (
-          <nav className="super-nav" aria-label="Superadmin">
+          <nav className="super-nav" aria-label={ui("Superadmin")}>
             <Nav
               a={view === "operations"}
               click={() => setView("operations")}
@@ -1548,7 +1550,7 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
         {rolePreview === "Partner" && organizations.find(o=>o.id===activeOrgId)?.isPartner && <nav className="super-nav" aria-label={t("nav.partner")}><Nav a={view === "partner"} click={()=>setView("partner")} ico={<Building2 size={20}/>} text={t("nav.partner")}/></nav>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="sidebar-foot account-trigger" title={user.displayName} aria-label={`Konto: ${user.displayName}`}>
+            <button className="sidebar-foot account-trigger" title={user.displayName} aria-label={ui("Konto: {0}",{"0":user.displayName})}>
               <div className="avatar">
                 {hasAvatar && (
                   <img
@@ -1674,12 +1676,12 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                 setProfile({ ...profile, contactEmail: e.target.value })
               }
             />
-            <Label htmlFor="profile-language">{locale==='nb'?'Språk':'Language'}</Label>
-            <Select value={locale} onValueChange={value=>setLocale(value==='en'?'en':'nb')}>
+            <Label htmlFor="profile-language"><UiText text="Språk" /></Label>
+            <Select value={locale} onValueChange={value=>setLocale(resolvePublishedLocale(value))}>
               <SelectTrigger id="profile-language"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="nb"><img src="/flags/no.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> Norsk</SelectItem><SelectItem value="en"><img src="/flags/gb.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> English</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="nb"><img src="/flags/no.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> Norsk</SelectItem><SelectItem value="en"><img src="/flags/gb.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> English</SelectItem><SelectItem value="fr"><img src="/flags/fr.svg" alt="" width="20" height="14" style={{width:20,height:14,objectFit:'fill',display:'inline-block',verticalAlign:'middle',flexShrink:0}}/> Français</SelectItem></SelectContent>
             </Select>
-            <p className="form-hint">{locale==='nb'?'Språkvalget huskes i denne nettleseren.':'Your language preference is remembered in this browser.'}</p>
+            <p className="form-hint"><UiText text="Språkvalget huskes i denne nettleseren." /></p>
             <Label><UiText text="Tema" /></Label>
             <Select
               value={profile.theme}
@@ -1758,7 +1760,10 @@ export default function Home({demoMode=false,onDemoClose,onDemoReset}:{demoMode?
                 q={lookupQuery}
                 setQ={setLookupQuery}
                 busy={lookupBusy}
+                saving={companySaving}
                 lookup={lookup}
+                country={lookupCountry}
+                setCountry={country=>{setLookupCountry(country);clearLookup();setLookupQuery("");setDraft({stage:"Ny kunde",customerType:"Bedrift",country});}}
                 results={lookupResults}
                 draft={draft}
                 setDraft={setDraft}
@@ -2132,13 +2137,17 @@ function Add(p: {
   q: string;
   setQ: (v: string) => void;
   busy: boolean;
-  lookup: () => Promise<void>;
+  lookup: () => Promise<boolean>;
+  saving:boolean;
+  country:RegisterCountry;
+  setCountry:(country:RegisterCountry)=>void;
   results: Partial<Company>[];
   draft: Partial<Company>;
   setDraft: (v: Partial<Company>) => void;
   save: () => void;
 }) {
  const {ui}=useUiTranslation();
+ const {locale}=useI18n(),countryNames=new Intl.DisplayNames([locale],{type:"region"});
   const [searched, setSearched] = useState(false),
     [manual, setManual] = useState(false),
     person = p.draft.customerType === "Person",
@@ -2155,8 +2164,7 @@ function Add(p: {
   const search = async () => {
     if (!p.q.trim()) return;
     setManual(false);
-    await p.lookup();
-    setSearched(true);
+    if(await p.lookup())setSearched(true);
   };
   const close = (open: boolean) => {
     p.setOpen(open);
@@ -2204,6 +2212,7 @@ function Add(p: {
           </div>
           {!person && (
             <>
+              <label className="form-field"><UiText text="Registerland" /><select aria-label={ui("Registerland")} value={p.country} onChange={e=>{p.setCountry(e.target.value as RegisterCountry);resetSearch();}}>{registerCountries.map(country=><option key={country.code} value={country.code}>{countryNames.of(country.code)??country.name} · {country.source}</option>)}</select></label>
               <div className="lookup-row">
                 <Input
                   value={p.q}
@@ -2220,7 +2229,7 @@ function Add(p: {
                   {p.busy ? ui("Søker …") : ui("Søk")}
                 </Button>
               </div>
-              <p className="form-hint"><UiText text="Søket viser bedrifter fra Brønnøysundregistrene. Enkeltpersonforetak med personnavn vises ikke." /></p>
+              <p className="form-hint">{p.country==="NO"?<UiText text="Søket viser bedrifter fra Brønnøysundregistrene. Enkeltpersonforetak med personnavn vises ikke." />:ui("Søket viser bedrifter fra {0}. Du kan også legge inn bedriften manuelt.",{"0":registerCountries.find(c=>c.code===p.country)?.source})}</p>
               {p.results.length > 0 && !manual && (
                 <div className="lookup-results">
                   {p.results.map((r) => (
@@ -2305,7 +2314,7 @@ function Add(p: {
                   />
                 </div>
               </div>
-              <Button disabled={!p.draft.name?.trim()} onClick={p.save}><UiText text="Legg til kunden" /></Button>
+              <Button disabled={p.saving||!p.draft.name?.trim()} onClick={p.save}><UiText text="Legg til kunden" /></Button>
             </>
           )}
         </DialogContent>
@@ -2332,7 +2341,7 @@ function Overview(p: {
         <div>
           <p className="eyebrow"><UiText text="DIN ARBEIDSDAG" /></p>
           <h2><UiText text="God dag, " />{p.displayName}.</h2>
-          <p>{tasks.length ? `Du har ${tasks.length} ${tasks.length === 1 ? ui("oppfølging som trenger") : ui("oppfølginger som trenger")} deg.` : ui("Alt er fulgt opp. Her er kundene og avtalene dine.")}</p>
+          <p>{tasks.length ? ui("Du har {0} oppfølginger som trenger din oppmerksomhet.",{"0":tasks.length}) : ui("Alt er fulgt opp. Her er kundene og avtalene dine.")}</p>
         </div>
         <Button variant="outline" onClick={() => p.go("followup")}><UiText text="Se all oppfølging " /><ChevronRight /></Button>
       </section>
@@ -2385,9 +2394,9 @@ function OfferComposer({
     [templateId, setTemplateId] = useState("new"),
     [contactId, setContactId] = useState("none"),
     [selectedAttachmentIds, setSelectedAttachmentIds] = useState<number[]>([]),
-    [subject, setSubject] = useState(`Tilbud til ${company.name}`),
+    [subject, setSubject] = useState(ui("Tilbud til {0}",{"0":company.name})),
     [body, setBody] = useState(
-      `Hei,\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`,
+      ui("Hei,\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til {0}.\n\nVennlig hilsen",{"0":company.name}),
     );
   useEffect(() => {
     let cancelled=false;
@@ -2408,7 +2417,7 @@ function OfferComposer({
       ? contactId
       : "none",
     contact = contacts.find((item) => String(item.id) === effectiveContactId),
-    contactName = contact?.name || company.contactName || "der",
+    contactName = contact?.name || company.contactName || "",
     email = contact?.email || company.email,
     fill = (value: string) =>
       value
@@ -2424,8 +2433,8 @@ function OfferComposer({
   useEffect(() => {
     const first=templates[0];
     setTemplateId(first?String(first.id):"new");
-    setSubject(first?.subject ?? `Tilbud til ${company.name}`);
-    setBody(first?.body ?? `Hei ${contactName},\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til ${company.name}.\n\nVennlig hilsen`);
+    setSubject(first?.subject ?? ui("Tilbud til {0}",{"0":company.name}));
+    setBody(first?.body ?? (contactName?ui("Hei {0},\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til {1}.\n\nVennlig hilsen",{"0":contactName,"1":company.name}):ui("Hei,\n\nTakk for hyggelig dialog. Vedlagt følger tilbudet til {0}.\n\nVennlig hilsen",{"0":company.name})));
   }, [company.id, templates]);
   function selectTemplate(id: string) {
     setTemplateId(id);
@@ -2471,7 +2480,7 @@ function OfferComposer({
                   (item) => String(item.id) === templateId,
                 );
                 if (template) {
-                  const name = next?.name || company.contactName || "der";
+                  const name = next?.name || company.contactName || "";
                   setSubject(
                     template.subject
                       .replace(/{{\s*bedrift\s*}}/gi, company.name)
@@ -2713,7 +2722,7 @@ function Customers(p: {
           ))}
         </div>
         <div className="status-row">
-          <span>STATUS</span>
+          <span><UiText text="STATUS" /></span>
           <Select value={c.stage} onValueChange={(v) => p.update({ stage: v })}>
             <SelectTrigger>
               <SelectValue />
@@ -2748,7 +2757,7 @@ function Customers(p: {
               <span>
                 <Building2 size={18} /><UiText text="Bedriftsdata" /></span>
               <strong>
-                {[c.city, c.employees != null ? `${c.employees} ansatte` : ""]
+                {[c.city, c.employees != null ? ui("{0} ansatte",{"0":c.employees}) : c.employeeRange ? ui("{0} ansatte",{"0":employeeRangeText(c.employeeRange,number)}) : ""]
                   .filter(Boolean)
                   .join(" · ") || ui("Vis detaljer")}
               </strong>
@@ -2764,7 +2773,7 @@ function Customers(p: {
               </div>
               <div>
                 <span><UiText text="Ansatte" /></span>
-                <strong>{c.employees ?? "–"}</strong>
+                <strong>{c.employees != null?number(c.employees):c.employeeRange?employeeRangeText(c.employeeRange,number):"–"}{c.employeeRangeYear&&<small>{ui("Referanseår: {0}",{"0":c.employeeRangeYear})}</small>}</strong>
               </div>
               <div>
                 <span><UiText text="Dager siden sist kontakt" /></span>
@@ -2994,7 +3003,7 @@ function Group(p: {
   return (
     <section className={`surface task-group ${p.tone ?? ""}`}>
       <div className="surface-head">
-        <h3>{p.title}</h3>
+        <h3><UiText text={p.title} /></h3>
         <span>{p.items.length}</span>
       </div>
       {p.items.length ? (
@@ -3174,7 +3183,7 @@ function Reports(p: {
         <div className="report-rows">
           {labels.map((l, i) => (
             <div key={l}>
-              <span>{l}</span>
+              <span>{ui(l)}</span>
               <div className="bar-track">
                 <i
                   style={{ width: `${Math.max(4, (vals[i] / max) * 100)}%` }}
@@ -3318,7 +3327,7 @@ function Admin(p: {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem>
-              <SelectItem value="Administrator">Administrator</SelectItem>
+              <SelectItem value="Administrator"><UiText text="Administrator" /></SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={p.addMember}><UiText text="Aktiver" /></Button>
@@ -3403,7 +3412,7 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
           <Label><UiText text="Melding" /></Label>
           <Textarea
             value={message}
-            onChange={(e) => setMessage(ui(e.target.value))}
+            onChange={(e) => setMessage(e.target.value)}
             rows={4}
             placeholder={ui("Skriv meldingen …")}
           />
@@ -3417,7 +3426,7 @@ function BulkEmail({ companies, organizationId, onSent }: { companies: Company[]
         <div className="full email-timing"><Label><UiText text="Sendetidspunkt" /></Label><Select value={sendLater?"later":"now"} onValueChange={v=>{setSendLater(v==="later");setEmailAt("");}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="now"><UiText text="Send nå" /></SelectItem><SelectItem value="later"><UiText text="Planlegg til senere" /></SelectItem></SelectContent></Select>{sendLater&&<><DateTimePicker label={ui("Send e-post")} value={emailAt} onChange={setEmailAt}/><p className="form-hint"><UiText text="Velg dato og tid. E-posten sendes automatisk selv om CRM-et er lukket. Tidssone: " />{Intl.DateTimeFormat().resolvedOptions().timeZone}.</p></>}</div>
         <div className="bulk-email-foot">
           <span>{emails.length}<UiText text=" mottakere med e-postadresse" /></span>
-          <EmailSend organizationId={organizationId} companyIds={sendLater&&!emailAt?[]:targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk scheduledAt={sendLater?emailAt:undefined} onSent={onSent} recipientLabel={`${emails.length} mottakere · ${segment === "all"?"Alle kunder":segment}`} />
+          <EmailSend organizationId={organizationId} companyIds={sendLater&&!emailAt?[]:targets.map(c=>c.id)} files={files} subject={subject} message={message} bulk scheduledAt={sendLater?emailAt:undefined} onSent={onSent} recipientLabel={ui("{0} mottakere · {1}",{"0":emails.length,"1":segment==="all"?ui("Alle kunder"):segment==="active"?ui("Kunder under oppfølging"):ui(segment)})} />
         </div>
       </div>
 
@@ -3430,8 +3439,8 @@ function OfferTemplateManager({ organizationId }: { organizationId: number }) {
   const blank = {
     id: 0,
     name: "",
-    subject: "Tilbud til {{bedrift}}",
-    body: "Hei {{kontaktperson}},\n\nHer kommer tilbudet til {{bedrift}}.\n\nVennlig hilsen",
+    subject: ui("Tilbud til {{bedrift}}"),
+    body: ui("Hei {{kontaktperson}},\n\nHer kommer tilbudet til {{bedrift}}.\n\nVennlig hilsen"),
   };
   const [templates, setTemplates] = useState<OfferTemplate[]>([]),
     [draft, setDraft] = useState(blank);
@@ -3552,12 +3561,15 @@ function CallLists({
   onGoToCustomer: (company: Company) => void;
 }) {
  const {ui}=useUiTranslation();
+ const {number}=useI18n();
  const apiFetch=useCrmApi();
 
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
+  const [franceRegion,setFranceRegion]=useState(""),[franceBands,setFranceBands]=useState<string[]>([]);
   const [country,setCountry]=useState<RegisterCountry>("NO"),[selectedListId,setSelectedListId]=useState<number|null>(null),[listRefresh,setListRefresh]=useState(0),[listName,setListName]=useState(""),[internationalQuery,setInternationalQuery]=useState(""),[internationalLocation,setInternationalLocation]=useState(""),[internationalIndustry,setInternationalIndustry]=useState("");
+  const [francePage,setFrancePage]=useSearchPage(JSON.stringify([organizationId,country,internationalQuery,internationalLocation,internationalIndustry,franceRegion,franceBands]));
   const [entries, setEntries] = useState<CallListEntry[]>(
       [],
     ),
@@ -3606,9 +3618,7 @@ function CallLists({
   const visibleEntries=entries.filter(entry=>{
     if(listCityQuery&&!entry.city.toLowerCase().includes(listCityQuery.trim().toLowerCase()))return false;
     if(listIndustryQuery&&!entry.industry.toLowerCase().includes(listIndustryQuery.trim().toLowerCase()))return false;
-    if(!hasEmployeeBounds)return true;
-    if(entry.employees==null)return includeUnknownEmployees;
-    return (employeeListMin===""||entry.employees>=Number(employeeListMin))&&(employeeListMax===""||entry.employees<=Number(employeeListMax));
+    return matchesEmployeeCount(entry,employeeListMin,employeeListMax,includeUnknownEmployees);
   });
   async function fetchAllListRows(listId:number,view:"queue"|"history"="queue"){
     const collected:CallListEntry[]=[];
@@ -3624,7 +3634,7 @@ function CallLists({
     throw new Error("Ringelisten er for stor for denne visningen.");
   }
   useEffect(()=>{if(!active)return;let cancelled=false;apiFetch("/api/call-list-options",{headers:{"x-organization-id":String(organizationId)}}).then(async r=>{if(!r.ok)throw Error("Kunne ikke hente filtrene");return r.json();}).then(d=>{if(!cancelled&&Array.isArray(d.counties)&&Array.isArray(d.municipalities)&&Array.isArray(d.industries))setOptions({...d,organizationForms:Array.isArray(d.organizationForms)&&d.organizationForms.length?d.organizationForms:organizationFormFallbackOptions});}).catch(()=>undefined);return()=>{cancelled=true;};},[active,organizationId]);
-  useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);fetchAllListRows(selectedListId).then(rows=>{if(!cancelled)setEntries(rows);}).catch(e=>{if(!cancelled)toast.error(e.message);}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
+  useEffect(()=>{let cancelled=false;setEntries([]);setHistory([]);setHistoryLoaded(false);if(!active||!selectedListId){setLoadingEntries(false);setHistoryLoaded(true);return;}setLoadingEntries(true);fetchAllListRows(selectedListId).then(rows=>{if(!cancelled)setEntries(rows);}).catch(e=>{if(!cancelled)toast.error(ui(e.message));}).finally(()=>{if(!cancelled)setLoadingEntries(false);});return()=>{cancelled=true;};},[active,organizationId,selectedListId]);
   useEffect(() => {
     if (!purchaseOpen || !canManageModules(role)) return;
     apiFetch("/api/admin", {
@@ -3670,13 +3680,16 @@ function CallLists({
               query:internationalQuery,
               location:internationalLocation,
               industry:internationalIndustry,
+              ...(country==="FR"?{employeeBands:franceBands,region:franceRegion,page:francePage}:{}),
               establishedFrom:country==="GB"||country==="IE"?filters.establishedFrom:"",
               establishedTo:country==="GB"||country==="IE"?filters.establishedTo:"",
             }),
           }),
         }),
-        d = await r.json().catch(()=>({error:`Serveren svarte med HTTP ${r.status}. Prøv igjen senere.`}));
+        d = await r.json().catch(()=>({error:ui("Serveren svarte med HTTP {0}. Prøv igjen senere.",{"0":r.status})}));
       if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke lage ringelisten"));
+      if(country==="FR"&&Number.isInteger(d.nextPage))setFrancePage(d.nextPage);
+      if(country==="FR"&&d.added===0&&d.hasMore){toast.info(ui(d.message??"Ingen nye bedrifter på disse sidene. Flere registersider er tilgjengelige."));return;}
       setSelectedListId(d.list?.id??null);setListRefresh(n=>n+1);
       setEntries(d.entries ?? []);
       callListCache.set(organizationId, {
@@ -3684,8 +3697,8 @@ function CallLists({
         options,
         loadedAt: Date.now(),
       });
-      toast.success(ui(`Ny ringeliste med ${d.added ?? 0} bedrifter er klar`));
-      if(d.added<filters.count)toast.info(ui(`Fant ${d.added} av ${filters.count} ønskede bedrifter. Du kan utvide filtrene for flere treff.`));
+      toast.success(ui("Ny ringeliste med {0} bedrifter er klar",{"0":d.added??0}));
+      if(d.added<filters.count)toast.info(ui("Fant {0} av {1} ønskede bedrifter. Du kan utvide filtrene for flere treff.",{"0":d.added,"1":filters.count}));
     } catch(error) { toast.error(ui(error instanceof Error?error.message:"Kunne ikke hente bedriftene.")); } finally {
       setBusy(false);
     }
@@ -3713,9 +3726,9 @@ function CallLists({
       }
       setSelectedListId(listId);setListRefresh(n=>n+1);setEntries(allRows);
       callListCache.delete(organizationId);
-      toast.success(ui(`${imported} bedrifter ble importert`));
+      toast.success(ui("{0} bedrifter ble importert",{"0":imported}));
       if(raw.length===1000)toast.info(ui("Filen ble begrenset til de første 1 000 radene."));
-    }catch(error){if(listId){setSelectedListId(listId);setListRefresh(n=>n+1);callListCache.delete(organizationId);}toast.error(ui((error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?`${imported} bedrifter ble allerede lagret i listen.`:"")));}
+    }catch(error){if(listId){setSelectedListId(listId);setListRefresh(n=>n+1);callListCache.delete(organizationId);}toast.error(ui(error instanceof Error?error.message:"Kunne ikke importere")+" "+(imported?ui("{0} bedrifter ble allerede lagret i listen.",{"0":imported}):""));}
     finally{setBusy(false);}
   }
   async function importHeadcountFile(e: ChangeEvent<HTMLInputElement>){
@@ -3737,8 +3750,8 @@ function CallLists({
       }
       setEntries(await fetchAllListRows(selectedListId));
       callListCache.delete(organizationId);
-      toast.success(ui(`${updated} bedriftsoppføringer fikk oppdatert ansattall.`));
-      if(unmatched)toast.info(ui(`${unmatched} registreringsnumre fra filen finnes ikke i denne listen.`));
+      toast.success(ui("{0} bedriftsoppføringer fikk oppdatert ansattall.",{"0":updated}));
+      if(unmatched)toast.info(ui("{0} registreringsnumre fra filen finnes ikke i denne listen.",{"0":unmatched}));
     }catch(error){toast.error(ui(error instanceof Error?error.message:"Kunne ikke importere ansattall."));}
     finally{setBusy(false);}
   }
@@ -3914,9 +3927,9 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
+                {licensedMemberIds.length === 1 ? ui("bruker") : <UiText text=" brukere" />}
               </span>
-              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
+              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : ui("{0} NOK/mnd.",{"0":licensedMemberIds.length * unitPrice})}</strong>
             </div>
             <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Bekreft kjøp og aktiver" /></Button>
           </DialogContent>
@@ -3937,7 +3950,7 @@ function CallLists({
                 <UsersRound /><UiText text="Administrer brukere" /></Button>
             )}
             <Button variant="outline" disabled={busy} onClick={()=>callListImportRef.current?.click()}><Upload size={18}/><UiText text="Importer egen liste" /></Button>
-            <Button variant="outline" disabled={busy||!selectedListId} onClick={()=>headcountImportRef.current?.click()}><Upload size={18}/>Oppdater ansatte fra CSV/Excel</Button>
+            <Button variant="outline" disabled={busy||!selectedListId} onClick={()=>headcountImportRef.current?.click()}><Upload size={18}/><UiText text="Oppdater ansatte fra CSV/Excel" /></Button>
             <input ref={callListImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importFile}/>
             <input ref={headcountImportRef} hidden type="file" accept=".xlsx,.xls,.csv" onChange={importHeadcountFile}/>
 
@@ -3990,16 +4003,28 @@ function CallLists({
             <div className="module-purchase-total">
               <span>
                 {licensedMemberIds.length}{" "}
-                {licensedMemberIds.length === 1 ? "bruker" : <UiText text=" brukere" />}
+                {licensedMemberIds.length === 1 ? ui("bruker") : <UiText text=" brukere" />}
               </span>
-              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensedMemberIds.length * unitPrice} kr/mnd.`}</strong>
+              <strong>{unitPrice == null ? ui("Pris ikke avtalt") : ui("{0} NOK/mnd.",{"0":licensedMemberIds.length * unitPrice})}</strong>
             </div>
             <Button onClick={activate} disabled={purchaseBusy || unitPrice == null || !licensedMemberIds.length}><UiText text="Lagre og bekreft pris" /></Button>
           </DialogContent>
         </Dialog>
         <SavedCallListManager organizationId={organizationId} role={role} members={members} currentMembershipId={currentMembershipId} country={country} onCountryChange={setCountry} selectedListId={selectedListId} onSelect={setSelectedListId} refreshKey={listRefresh} onSourceReadyChange={setSourceReady}/>
-        <div className="call-filter-grid"><div><Label htmlFor="new-list-name">Navn på ny ringeliste</Label><Input id="new-list-name" value={listName} maxLength={120} placeholder="F.eks. Byggfirmaer i London" onChange={e=>setListName(e.target.value)}/></div></div>
-        {country!=="NO"&&<div className="call-filter-grid"><div><Label>Bedriftsnavn / søkeord</Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>{country!=="NZ"&&country!=="NG"&&<div><Label>{country==="AU"?"Delstat eller postnummer":"Sted"}</Label><Input value={internationalLocation} onChange={e=>setInternationalLocation(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<div><Label>{country==="GB"?"SIC-kode":"NACE-kode"}</Label><Input value={internationalIndustry} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}{(country==="GB"||country==="IE")&&<><div><Label>Etablert fra</Label><Input aria-label="Internasjonalt etablert fra" type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label>Etablert til</Label><Input aria-label="Internasjonalt etablert til" type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}<div><Label>Antall bedrifter</Label><NormalizedNumberInput type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div></div>}
+        <div className="call-filter-grid"><div><Label htmlFor="new-list-name"><UiText text="Navn på ny ringeliste" /></Label><Input id="new-list-name" value={listName} maxLength={120} placeholder={ui("F.eks. Byggfirmaer i London")} onChange={e=>setListName(e.target.value)}/></div></div>
+        {country!=="NO"&&<div className="call-filter-grid">
+          <div><Label><UiText text="Bedriftsnavn / søkeord" /></Label><Input value={internationalQuery} onChange={e=>setInternationalQuery(e.target.value)}/></div>
+          {country!=="NZ"&&country!=="NG"&&<div><Label>{country==="AU"?ui("Delstat eller postnummer"):country==="FR"?ui("Departement eller postnummer"):ui("Sted")}</Label><Input value={internationalLocation} placeholder={country==="FR"?ui("F.eks. 75 eller 75001"):undefined} onChange={e=>setInternationalLocation(e.target.value)}/></div>}
+          {(country==="GB"||country==="IE"||country==="FR")&&<div><Label>{country==="GB"?ui("SIC-kode"):country==="FR"?ui("NAF-kode eller sektor (A–U)"):ui("NACE-kode")}</Label><Input value={internationalIndustry} placeholder={country==="FR"?ui("F.eks. 62.01Z eller J"):undefined} onChange={e=>setInternationalIndustry(e.target.value)}/></div>}
+          {country==="FR"&&<>
+            <div><Label htmlFor="france-region"><UiText text="Region" /></Label><select id="france-region" value={franceRegion} onChange={e=>setFranceRegion(e.target.value)}><option value=""><UiText text="Alle regioner" /></option>{franceRegions.map(region=><option key={region.value} value={region.value}>{region.label}</option>)}</select></div>
+            <div><Label><UiText text="Ansattintervaller (INSEE)" /></Label><CallListMultiPicker values={franceBands} onChange={setFranceBands} groups={[{heading:ui("Ansattintervaller"),options:franceEmployeeBands.map(band=>({...band,label:employeeRangeText(band.label,number)}))}]} placeholder={ui("Velg ansattintervaller")} allLabel={ui("Alle ansattintervaller")} noun={ui("intervaller")}/></div>
+            <div><Label htmlFor="france-page"><UiText text="Startside i registeret" /></Label><NormalizedNumberInput id="france-page" type="number" min={1} max={400} value={francePage} onChange={e=>setFrancePage(Number(e.target.value))}/></div>
+            <p className="form-hint"><UiText text="Frankrike oppgir historiske ansattintervaller, ikke eksakte nåværende ansattall. Etableringsdato og kontaktinformasjon kan ikke filtreres i dette registeret." /></p>
+          </>}
+          {(country==="GB"||country==="IE")&&<><div><Label><UiText text="Etablert fra" /></Label><Input aria-label={ui("Internasjonalt etablert fra")} type="date" value={filters.establishedFrom} onChange={e=>setFilters({...filters,establishedFrom:e.target.value})}/></div><div><Label><UiText text="Etablert til" /></Label><Input aria-label={ui("Internasjonalt etablert til")} type="date" value={filters.establishedTo} onChange={e=>setFilters({...filters,establishedTo:e.target.value})}/></div></>}
+          <div><Label><UiText text="Antall bedrifter" /></Label><NormalizedNumberInput type="number" min={1} max={100} value={filters.count} onChange={e=>setFilters({...filters,count:Number(e.target.value)})}/></div>
+        </div>}
         <fieldset className="call-filter-fields" hidden={country!=="NO"} disabled={busy||country!=="NO"}><legend className="sr-only"><UiText text="Søkefiltre" /></legend><div className="call-filter-grid">
           <div>
             <Label><UiText text="Min. ansatte" /></Label>
@@ -4089,14 +4114,14 @@ function CallLists({
             <TabsTrigger value="history"><UiText text="Historikk" /></TabsTrigger>
           </TabsList>
           <TabsContent value="queue">
-            <div className="call-filter-grid" aria-label="Filtrer bedrifter som allerede er i ringelisten">
-              <div><Label htmlFor="list-employee-min">Min. ansatte i listen</Label><NormalizedNumberInput id="list-employee-min" type="number" min="0" value={employeeListMin} placeholder="Ingen grense" onChange={e=>setEmployeeListMin(e.target.value)}/></div>
-              <div><Label htmlFor="list-employee-max">Maks ansatte i listen</Label><NormalizedNumberInput id="list-employee-max" type="number" min="0" value={employeeListMax} placeholder="Ingen grense" onChange={e=>setEmployeeListMax(e.target.value)}/></div>
-              <div><Label htmlFor="list-city">By / fylke / provins</Label><Input id="list-city" value={listCityQuery} onChange={e=>setListCityQuery(e.target.value)} placeholder="F.eks. Dublin eller Lusaka"/></div>
-              <div><Label htmlFor="list-industry">Bransje / sektor</Label><Input id="list-industry" value={listIndustryQuery} onChange={e=>setListIndustryQuery(e.target.value)} placeholder="F.eks. construction eller 6201"/></div>
-              {hasEmployeeBounds&&<label className="form-hint"><input type="checkbox" checked={includeUnknownEmployees} onChange={e=>setIncludeUnknownEmployees(e.target.checked)}/> Vis også bedrifter med ukjent antall ansatte</label>}
+            <div className="call-filter-grid" aria-label={ui("Filtrer bedrifter som allerede er i ringelisten")}>
+              <div><Label htmlFor="list-employee-min"><UiText text="Min. ansatte i listen" /></Label><NormalizedNumberInput id="list-employee-min" type="number" min="0" value={employeeListMin} placeholder={ui("Ingen grense")} onChange={e=>setEmployeeListMin(e.target.value)}/></div>
+              <div><Label htmlFor="list-employee-max"><UiText text="Maks ansatte i listen" /></Label><NormalizedNumberInput id="list-employee-max" type="number" min="0" value={employeeListMax} placeholder={ui("Ingen grense")} onChange={e=>setEmployeeListMax(e.target.value)}/></div>
+              <div><Label htmlFor="list-city"><UiText text="By / fylke / provins" /></Label><Input id="list-city" value={listCityQuery} onChange={e=>setListCityQuery(e.target.value)} placeholder={ui("F.eks. Dublin eller Lusaka")}/></div>
+              <div><Label htmlFor="list-industry"><UiText text="Bransje / sektor" /></Label><Input id="list-industry" value={listIndustryQuery} onChange={e=>setListIndustryQuery(e.target.value)} placeholder={ui("F.eks. construction eller 6201")}/></div>
+              {hasEmployeeBounds&&<label className="form-hint"><input type="checkbox" checked={includeUnknownEmployees} onChange={e=>setIncludeUnknownEmployees(e.target.checked)}/><UiText text=" Vis også bedrifter med ukjent antall ansatte" /></label>}
             </div>
-            {hasListFilters&&<p className="form-hint">Viser {visibleEntries.length} av {entries.length} bedrifter. Filteret bruker bare ansattall som finnes i ringelisten, for eksempel fra en importert fil. Bedrifter uten oppgitt ansattall blir skjult med mindre du velger å vise dem.</p>}
+            {hasListFilters&&<p className="form-hint">{ui("Viser {0} av {1} bedrifter. Filteret bruker ansattall eller intervaller som finnes i ringelisten. Intervaller som overlapper grensene vises. Bedrifter uten ansattdata skjules med mindre du velger å vise dem.",{"0":visibleEntries.length,"1":entries.length})}</p>}
             {loadingEntries ? (
               <div className="list-skeleton">
                 <i />
@@ -4316,6 +4341,7 @@ function ProspectRows({
   update: (row: CallListEntry, status: string) => void;
 }) {
  const {ui}=useUiTranslation();
+ const {number}=useI18n();
   return (
     <div className="prospect-list">
       {rows.map((row) => (
@@ -4327,7 +4353,8 @@ function ProspectRows({
           </div>
           <div>
             <span>{row.industry || ui("Ukjent bransje")}</span>
-            <small>{row.employees == null ? ui("Ansatte: ikke oppgitt") : `${row.employees} ansatte`}</small>
+            <small>{row.employees == null ? row.employeeRange ? ui("{0} ansatte",{"0":employeeRangeText(row.employeeRange,number)}) : ui("Ansatte: ikke oppgitt") : ui("{0} ansatte",{"0":row.employees})}</small>
+            {row.employeeRangeYear&&<small>{ui("Referanseår: {0}",{"0":row.employeeRangeYear})}</small>}
           </div>
           <div className="prospect-contact">
             {row.phone ? (
@@ -4343,7 +4370,7 @@ function ProspectRows({
             {row.status !== "Ny" && (
               <small>
                 {(row as CallListEntry).handledBy
-                  ? `Behandlet av ${(row as CallListEntry).handledBy}`
+                  ? ui("Behandlet av {0}",{"0":(row as CallListEntry).handledBy})
                   : ui("Medarbeider ikke registrert på eldre aktivitet")}
               </small>
             )}
@@ -4403,9 +4430,7 @@ function Prospects() {
       if (!r.ok) return toast.error(ui(d.error ?? "Kunne ikke hente prospekter"));
       setRows(d.prospects ?? []);
       toast.success(
-        ui(d.added
-          ? `${d.added} nye prospekter er hentet`
-          : "Dagens liste er klar"),
+        d.added ? ui("{0} nye prospekter er hentet",{"0":d.added}) : ui("Dagens liste er klar"),
       );
     } finally {
       setBusy(false);
@@ -4800,7 +4825,7 @@ function Marketing({
         </div>
         <div className="module-purchase-total">
           <span>{licensed.length}<UiText text=" brukere" /></span>
-          <strong>{unitPrice == null ? ui("Pris ikke avtalt") : `${licensed.length * unitPrice} kr/mnd.`}</strong>
+          <strong>{unitPrice == null ? ui("Pris ikke avtalt") : ui("{0} NOK/mnd.",{"0":licensed.length * unitPrice})}</strong>
         </div>
         <Button disabled={purchaseBusy || unitPrice == null || !licensed.length} onClick={activate}><UiText text="Lagre og bekreft pris" /></Button>
       </DialogContent>
@@ -4848,7 +4873,7 @@ function Marketing({
             <div className="marketing-image-previews">
               {imagePreviews.map(({ file, url }, index) => (
                 <div key={`${file.name}-${file.lastModified}-${index}`}>
-                  <img src={url} alt={`Forhåndsvisning av ${file.name}`} />
+                  <img src={url} alt={ui("Forhåndsvisning av {0}",{"0":file.name})} />
                   <button
                     type="button"
                     aria-label={ui("Fjern {0}",{"0":file.name})}
@@ -4870,7 +4895,7 @@ function Marketing({
           <legend><UiText text="Velg kanaler" /></legend>
           <div className="channel-picks social-channel-picks">
             {channels.map((channel) => (
-              <label key={channel} className={`social-channel-choice${social.connections.some(c=>c.platform===channel&&!c.expired)?"":" is-unavailable"}`} title={social.connections.some(c=>c.platform===channel&&!c.expired)?channel:`${channel} er ikke tilkoblet`}>
+              <label key={channel} className={`social-channel-choice${social.connections.some(c=>c.platform===channel&&!c.expired)?"":" is-unavailable"}`} title={social.connections.some(c=>c.platform===channel&&!c.expired)?channel:ui("{0} er ikke tilkoblet",{"0":channel})}>
                 <input
                   type="checkbox"
                   className="social-channel-input"
@@ -4926,7 +4951,7 @@ function Marketing({
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(detailPost)} onOpenChange={open=>{if(!open)setDetailId(null);}}><DialogContent className="content-plan-detail"><DialogHeader><DialogTitle>{detailPost?.kind==="email"?detailPost.subject:<UiText text="Innlegg" />}</DialogTitle><DialogDescription>{ui(detailPost?.status)} · {detailPost ? JSON.parse(detailPost.platforms).join(', ') : ''}</DialogDescription></DialogHeader>
-        {detailPost&&<>{detailPost.kind!=="email"&&detailPost.error&&<p role="alert">{detailPost.error}</p>}{detailPost.kind==="email"&&<><p><UiText text="Fra: " />{detailPost.sender} · {detailPost.recipientCount}<UiText text=" mottakere" /></p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint"><UiText text="Vedlegg: " />{f.filename}</p>)}{detailPost.error&&<p role="alert">{detailPost.error}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint"><UiText text="Planlagt tidspunkt: " />{date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?<UiText text="Publisert" />:delivery.error||ui("Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.")}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}><UiText text="Tilbake til innholdsplanen" /></Button></>}
+        {detailPost&&<>{detailPost.kind!=="email"&&detailPost.error&&<p role="alert">{ui(detailPost.error)}</p>}{detailPost.kind==="email"&&<><p><UiText text="Fra: " />{detailPost.sender} · {detailPost.recipientCount}<UiText text=" mottakere" /></p>{detailPost.files?.map((f,i)=><p key={i} className="form-hint"><UiText text="Vedlegg: " />{f.filename}</p>)}{detailPost.error&&<p role="alert">{ui(detailPost.error)}</p>}</>}<p className="content-plan-full-text">{detailPost.content}</p>{detailPost.scheduledAt&&<p className="form-hint"><UiText text="Planlagt tidspunkt: " />{date(detailPost.scheduledAt,true)}</p>}<div className="marketing-post-images">{detailPost.images?.map(image=><MarketingPostImage key={image.id} id={image.id} filename={image.filename} organizationId={organizationId}/>)}</div>{detailPost.deliveries?.map(delivery=><p className="form-hint" key={delivery.platform}>{delivery.platform}: {delivery.status==='published'?<UiText text="Publisert" />:ui(delivery.error)||ui("Publiseringsforsøk pågår. Kontroller kontoen hvis statusen ikke endres.")}</p>)}<Button variant="outline" onClick={()=>setDetailId(null)}><UiText text="Tilbake til innholdsplanen" /></Button></>}
       </DialogContent></Dialog>
       <Dialog open={Boolean(publishPost)} onOpenChange={open=>{if(!open&&!publishing)setPublishId(null);}}>
         <DialogContent><DialogHeader><DialogTitle>{publishMode==='schedule'?<UiText text="Planlegg publisering" />:ui("Publiser innlegget nå?")}</DialogTitle><DialogDescription>{publishMode==='schedule'?ui("Innlegget publiseres automatisk på kontoene nedenfor til valgt tidspunkt, også når CRM er lukket."):ui("Innlegget blir synlig på kontoene nedenfor med en gang.")}</DialogDescription></DialogHeader>
@@ -4963,25 +4988,12 @@ function SuperadminSettings(p: {
 
   const {t}=useI18n();
   const [companyQuery, setCompanyQuery] = useState("");
-  const [companyResults, setCompanyResults] = useState<Partial<Company>[]>([]);
-  const [companySearchBusy, setCompanySearchBusy] = useState(false);
-  const [companySearched, setCompanySearched] = useState(false);
+  const {results:companyResults,busy:companySearchBusy,searched:companySearched,search:searchOrganizationCompany,clear:clearCompanySearch}=useRegistryLookup<Partial<Company>>(apiFetch,p.newOrg.homeCountry,companyQuery,p.activeOrgId,true);
   async function searchCompany() {
     if (companyQuery.trim().length < 2) return;
-    setCompanySearchBusy(true);
-    setCompanySearched(false);
-    try {
-      const response = await apiFetch(
-        `/api/company-lookup?q=${encodeURIComponent(companyQuery)}&includeEnk=1`,
-      );
-      const data = await response.json();
-      if (!response.ok)
-        return toast.error(ui(data.error ?? "Kunne ikke søke etter bedriften"));
-      setCompanyResults(data.companies ?? []);
-      setCompanySearched(true);
-    } finally {
-      setCompanySearchBusy(false);
-    }
+    if(!registerCountries.some(c=>c.code===p.newOrg.homeCountry))return toast.info(ui("Dette landet har ikke automatisk foretaksoppslag. Fyll inn bedriften manuelt."));
+    try{await searchOrganizationCompany();}
+    catch(error){toast.error(ui(error instanceof Error?error.message:"Kunne ikke søke etter bedriften"));}
   }
   function chooseCompany(company: Partial<Company>) {
     p.setNewOrg({
@@ -4996,8 +5008,8 @@ function SuperadminSettings(p: {
       organizationEmail: company.email ?? "",
     });
     setCompanyQuery(company.name ?? "");
-    setCompanyResults([]);
-    setCompanySearched(false);
+    clearCompanySearch();
+
   }
   return (
     <div className="page-pad admin-grid">
@@ -5013,8 +5025,8 @@ function SuperadminSettings(p: {
               value={companyQuery}
               onChange={(event) => {
                 setCompanyQuery(event.target.value);
-                setCompanyResults([]);
-                setCompanySearched(false);
+                clearCompanySearch();
+
               }}
               onKeyDown={(event) =>
                 event.key === "Enter" && void searchCompany()
@@ -5026,7 +5038,7 @@ function SuperadminSettings(p: {
               disabled={companySearchBusy}
               onClick={searchCompany}
             >
-              {companySearchBusy ? ui("Søker …") : ui("Søk i Brreg")}
+              {companySearchBusy ? ui("Søker …") : ui("Søk i foretaksregisteret")}
             </Button>
           </div>
           {companyResults.length > 0 && (
@@ -5098,9 +5110,9 @@ function SuperadminSettings(p: {
               <SelectValue placeholder={ui("Velg rolle")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Administrator">Administrator</SelectItem>
+              <SelectItem value="Administrator"><UiText text="Administrator" /></SelectItem>
               <SelectItem value="Bruker"><UiText text="Bruker" /></SelectItem>
-              <SelectItem value="Partner">Partner</SelectItem>
+              <SelectItem value="Partner"><UiText text="Partner" /></SelectItem>
             </SelectContent>
           </Select>
           {p.newOrg.adminRole === "Partner" && <p className="form-hint">{t('partner.newHint')}</p>}
@@ -5362,15 +5374,15 @@ function Operations(p: {
                 ) : null}
               </div>
               <span>
-                {o.activeUsers}<UiText text=" aktive" />{o.lostUsers ? ` · ${o.lostUsers} deaktiverte` : ""}
+                {o.activeUsers}<UiText text=" aktive" />{o.lostUsers ? ui(" · {0} deaktiverte",{"0":o.lostUsers}) : ""}
               </span>
               <span>
                 {[
                   o.ringModuleActive
-                    ? `Ringelister (${o.ringModuleUsers})`
+                    ? ui("Ringelister ({0})",{"0":o.ringModuleUsers})
                     : "",
                   o.marketingModuleActive
-                    ? `Markedsføring (${o.marketingModuleUsers})`
+                    ? ui("Markedsføring ({0})",{"0":o.marketingModuleUsers})
                     : "",
                 ]
                   .filter(Boolean)
@@ -5559,8 +5571,8 @@ function Card(p: {
     <section className="surface">
       <div className="surface-head">
         <div>
-          <p className="eyebrow">{p.eye}</p>
-          <h3>{p.title}</h3>
+          <p className="eyebrow"><UiText text={p.eye} /></p>
+          <h3><UiText text={p.title} /></h3>
         </div>
         {p.ico}
       </div>
@@ -5579,8 +5591,8 @@ function AdminCard(p: {
     <details className="surface admin-card" open={p.open}>
       <summary>
         <div>
-          {p.eye && <p className="eyebrow">{p.eye}</p>}
-          <h3>{p.title}</h3>
+          {p.eye && <p className="eyebrow"><UiText text={p.eye} /></p>}
+          <h3><UiText text={p.title} /></h3>
         </div>
         <span>
           {p.ico}

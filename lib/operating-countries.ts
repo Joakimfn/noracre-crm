@@ -2,6 +2,7 @@ export const registerCountries = [
   {code:'NO',name:'Norge',source:'Brønnøysundregistrene'},
   {code:'GB',name:'Storbritannia',source:'Companies House'},
   {code:'IE',name:'Irland',source:'Companies Registration Office'},
+  {code:'FR',name:'Frankrike',source:'Annuaire des Entreprises (INSEE / Sirene)'},
   {code:'AU',name:'Australia',source:'ABN Lookup'},
   {code:'NZ',name:'New Zealand',source:'NZBN'},
   {code:'NG',name:'Nigeria',source:'OpenCorporates (CAC records)'},

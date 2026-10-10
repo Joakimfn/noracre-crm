@@ -1,6 +1,9 @@
 "use client"
 
 import * as React from "react"
+import {nb,enGB,fr} from "date-fns/locale"
+import {useI18n} from "@/lib/i18n/react"
+import {locales} from "@/lib/i18n/config"
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -23,11 +26,19 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  labels,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const {locale} = useI18n()
+  const intlLocale=locales[locale].intl
+  const calendarWords={
+    nb:{nav:"Kalendernavigasjon",next:"Gå til neste måned",previous:"Gå til forrige måned",month:"Velg måned",year:"Velg år",today:"I dag",selected:"valgt",week:"Uke",weeks:"Ukenumre"},
+    en:{nav:"Calendar navigation",next:"Go to next month",previous:"Go to previous month",month:"Choose month",year:"Choose year",today:"Today",selected:"selected",week:"Week",weeks:"Week numbers"},
+    fr:{nav:"Navigation du calendrier",next:"Mois suivant",previous:"Mois précédent",month:"Choisir le mois",year:"Choisir l’année",today:"Aujourd’hui",selected:"sélectionné",week:"Semaine",weeks:"Numéros de semaine"},
+  }[locale]
 
   return (
     <DayPicker
@@ -39,9 +50,25 @@ function Calendar({
         className
       )}
       captionLayout={captionLayout}
+      locale={locale==='fr'?fr:locale==='en'?enGB:nb}
+      labels={{
+        labelNav:()=>calendarWords.nav,
+        labelNext:()=>calendarWords.next,
+        labelPrevious:()=>calendarWords.previous,
+        labelMonthDropdown:()=>calendarWords.month,
+        labelYearDropdown:()=>calendarWords.year,
+        labelWeekNumberHeader:()=>calendarWords.weeks,
+        labelWeekNumber:week=>`${calendarWords.week} ${week}`,
+        labelDayButton:(date,modifiers)=>[
+          modifiers.today?calendarWords.today:'',
+          date.toLocaleDateString(intlLocale,{weekday:'long',day:'numeric',month:'long',year:'numeric'}),
+          modifiers.selected?calendarWords.selected:'',
+        ].filter(Boolean).join(', '),
+        ...labels,
+      }}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString(intlLocale, { month: "short" }),
         ...formatters,
       }}
       classNames={{

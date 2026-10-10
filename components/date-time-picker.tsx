@@ -1,9 +1,10 @@
 "use client";
+import {locales} from '@/lib/i18n/config';
 import {useI18n} from '@/lib/i18n/react';
 import {UiText,useUiTranslation} from '@/lib/i18n/ui';
 
 import { useState } from "react";
-import { nb,enGB } from "date-fns/locale";
+import { nb,enGB,fr } from "date-fns/locale";
 import { CalendarDays, Clock3, ChevronDown } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,14 +29,14 @@ export function DateTimePicker({value="",onChange,label,showNow=false}:{value?:s
   function apply(){if(!selected||!validTime)return;selected.setHours(Number(hour),Number(minute),0,0);onChange(localValue(selected));setOpen(false);}
   return <div className="noracre-datetime">
     <Popover modal open={open} onOpenChange={openPicker}>
-      <PopoverTrigger asChild><Button type="button" variant="outline" className="noracre-datetime-trigger" aria-label={`${label}: ${validCurrent?validCurrent.toLocaleString(locale==='en'?'en-GB':'nb-NO'):ui("Velg dato og tid")}`}>
+      <PopoverTrigger asChild><Button type="button" variant="outline" className="noracre-datetime-trigger" aria-label={`${label}: ${validCurrent?validCurrent.toLocaleString(locales[locale].intl):ui("Velg dato og tid")}`}>
         <span className="noracre-date-icon"><CalendarDays size={20}/></span>
-        <span className="noracre-date-caption"><strong>{validCurrent?validCurrent.toLocaleDateString(locale==='en'?'en-GB':'nb-NO',{day:"numeric",month:"long",year:"numeric"}):ui("Velg dato")}</strong><span><Clock3 size={13}/>{validCurrent?`${locale==='en'?'at':'kl.'} ${pad(validCurrent.getHours())}:${pad(validCurrent.getMinutes())}`:ui("og klokkeslett")}</span></span><ChevronDown size={16}/>
+        <span className="noracre-date-caption"><strong>{validCurrent?validCurrent.toLocaleDateString(locales[locale].intl,{day:"numeric",month:"long",year:"numeric"}):ui("Velg dato")}</strong><span><Clock3 size={13}/>{validCurrent?`${ui("kl.")} ${pad(validCurrent.getHours())}:${pad(validCurrent.getMinutes())}`:ui("og klokkeslett")}</span></span><ChevronDown size={16}/>
       </Button></PopoverTrigger>
       <PopoverContent collisionPadding={12} align="start" className="noracre-date-panel" aria-label={label}>
         <div className="noracre-date-shortcuts">{[0,1].map(offset=><Button type="button" key={offset} variant="secondary" size="sm" onClick={()=>{const d=new Date();d.setDate(d.getDate()+offset);choose(d);}}>{offset?ui("I morgen"):<UiText text="I dag" />}</Button>)}</div>
         <div className="noracre-date-fields"><label><UiText text="Dato" /><Input aria-label={ui("Dato, dag.måned.år")} value={date} placeholder={ui("dd.mm.åååå")} onChange={e=>{setDate(e.target.value);const d=parseDate(e.target.value);if(d)setMonth(d);}}/></label><fieldset><legend><UiText text="Klokkeslett" /></legend><div><Input aria-label={ui("Time")} inputMode="numeric" maxLength={2} value={hour} onChange={e=>setHour(e.target.value.replace(/\D/g,""))}/><span>:</span><Input aria-label={ui("Minutt")} inputMode="numeric" maxLength={2} value={minute} onChange={e=>setMinute(e.target.value.replace(/\D/g,""))}/></div></fieldset></div>
-        <Calendar mode="single" locale={locale==='en'?enGB:nb} weekStartsOn={1} selected={selected} month={month} onMonthChange={setMonth} onSelect={d=>{if(d)choose(d);}} className="noracre-calendar"/>
+        <Calendar mode="single" locale={locale==='fr'?fr:locale==='en'?enGB:nb} weekStartsOn={1} selected={selected} month={month} onMonthChange={setMonth} onSelect={d=>{if(d)choose(d);}} className="noracre-calendar"/>
         {(!selected||!validTime)&&<p className="noracre-date-error" role="status"><UiText text="Skriv en gyldig dato og et klokkeslett mellom 00:00 og 23:59." /></p>}
         <div className="noracre-date-footer"><Button type="button" variant="ghost" onClick={()=>{onChange("");setOpen(false);}}><UiText text="Fjern tidspunkt" /></Button><Button type="button" disabled={!selected||!validTime} onClick={apply}><UiText text="Velg tidspunkt" /></Button></div>
       </PopoverContent>

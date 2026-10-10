@@ -9,17 +9,20 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 const root=path.resolve(import.meta.dirname,'..'),dir=await mkdtemp(path.join(tmpdir(),'noracre-i18n-'));
 await symlink(path.join(root,'node_modules'),path.join(dir,'node_modules'),process.platform==='win32'?'junction':'dir');
-await build({stdin:{contents:"export * from './lib/i18n';export * from './lib/i18n/react';export {nb} from './lib/i18n/messages/nb';export {en} from './lib/i18n/messages/en';",resolveDir:root},bundle:true,format:'esm',platform:'node',packages:'external',outfile:path.join(dir,'i18n.mjs')});
+await build({stdin:{contents:"export * from './lib/i18n';export * from './lib/i18n/react';export {nb} from './lib/i18n/messages/nb';export {en} from './lib/i18n/messages/en';export {fr} from './lib/i18n/messages/fr';",resolveDir:root},bundle:true,format:'esm',platform:'node',packages:'external',outfile:path.join(dir,'i18n.mjs')});
 const app=await import(pathToFileURL(path.join(dir,'i18n.mjs')));
 test('published language selection accepts English and Norwegian with a safe fallback',()=>{
  for(const value of ['nb-NO','no','de','__proto__',null])assert.equal(app.resolvePublishedLocale(value),'nb');
  assert.equal(app.resolvePublishedLocale('en-GB'),'en');
+ assert.equal(app.resolvePublishedLocale('fr-FR'),'fr');
  assert.equal(app.resolveLocale('EN-us'),'en');assert.equal(app.resolveLocale('no-NO'),'nb');
 });
 test('catalogues have matching keys, placeholders and plural structure',()=>{
- assert.deepEqual(Object.keys(app.en).sort(),Object.keys(app.nb).sort());
+ for(const catalogue of [app.en,app.fr]){
+ assert.deepEqual(Object.keys(catalogue).sort(),Object.keys(app.nb).sort());
  const params=s=>[...s.matchAll(/\{(\w+)\}/g)].map(m=>m[1]).sort();
- for(const key of Object.keys(app.nb)){const nb=app.nb[key],en=app.en[key];assert.equal(typeof en,typeof nb,key);if(typeof nb==='string')assert.deepEqual(params(en),params(nb),key);else{assert.ok(en.other);for(const form of Object.keys(en))assert.deepEqual(params(en[form]),params(nb.other),key);}}
+ for(const key of Object.keys(app.nb)){const nb=app.nb[key],en=catalogue[key];assert.equal(typeof en,typeof nb,key);if(typeof nb==='string')assert.deepEqual(params(en),params(nb),key);else{assert.ok(en.other);for(const form of Object.keys(en))assert.deepEqual(params(en[form]),params(nb.other),key);}}
+ }
 });
 test('messages interpolate variables once, support plural forms and reject missing values',()=>{
  const nb=app.createI18n('nb'),en=app.createI18n('en');

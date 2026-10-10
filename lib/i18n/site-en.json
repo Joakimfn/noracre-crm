@@ -305,5 +305,22 @@
   "Velg et ledig tidspunkt for en demo. Du får bekreftelsen og møtedetaljene fra Google.": "Choose an available demo time. Google sends the confirmation and meeting details.",
   "Velg tidspunkt i Google Kalender": "Choose a time in Google Calendar",
   "Vil du heller avtale på e-post?": "Prefer to arrange it by email?",
-  "Kontakt oss": "Contact us"
+  "Kontakt oss": "Contact us",
+  "Vedlegg": "Attachments",
+  "Metoden er ikke tillatt.": "Method not allowed.",
+  "Send skjemaet fra Noracre-nettsiden.": "Submit the form from the Noracre website.",
+  "Ugyldig format.": "Invalid format.",
+  "Henvendelsen er for stor.": "The enquiry is too large.",
+  "Skjemaet mangler.": "The form is missing.",
+  "Skjemaet kunne ikke leses.": "The form could not be read.",
+  "Kontroller feltene og prøv igjen.": "Check the fields and try again.",
+  "Skjemaet kunne ikke sendes.": "The form could not be sent.",
+  "Skjemaet er midlertidig utilgjengelig. Kontakt jfn@noracre.no.": "The form is temporarily unavailable. Contact jfn@noracre.no.",
+  "Skjemaet er endret. Last siden på nytt og prøv igjen.": "The form has changed. Reload the page and try again.",
+  "Kontakt jfn@noracre.no for å følge opp henvendelsen.": "Contact jfn@noracre.no to follow up your enquiry.",
+  "Du har sendt flere henvendelser på kort tid. Prøv igjen senere eller kontakt jfn@noracre.no.": "You have sent several enquiries in a short time. Try again later or contact jfn@noracre.no.",
+  "Henvendelsen behandles allerede. Vent litt før du prøver igjen.": "Your enquiry is already being processed. Wait a moment before trying again.",
+  "Kunne ikke bekrefte sendingen. Prøv igjen, eller send e-post til jfn@noracre.no.": "We could not confirm the submission. Try again or email jfn@noracre.no.",
+  "Henvendelsen kunne ikke bekreftes. Prøv igjen, eller kontakt jfn@noracre.no.": "Your enquiry could not be confirmed. Try again or contact jfn@noracre.no.",
+  "Bedriftsdata fra offentlige registre og oppfølging i samme arbeidsflyt": "Company data from official business registers and follow-up in one workflow"
 }

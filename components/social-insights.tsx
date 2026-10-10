@@ -31,7 +31,7 @@ export function SocialInsights({organizationId, connections, revision}:{organiza
   const [refresh,setRefresh] = useState(0), [updated,setUpdated] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);setError(ui(""));setEntries([]);setUpdated("");
+    setLoading(true);setError("");setEntries([]);setUpdated("");
     void (async () => {
       try {
         const all = new Map<number,Entry>(); let cursor = 0, until = "";
@@ -47,7 +47,7 @@ export function SocialInsights({organizationId, connections, revision}:{organiza
           cursor = data.nextCursor ?? 0;
         } while (cursor && !controller.signal.aborted);
         if (!controller.signal.aborted) {setEntries([...all.values()]);setUpdated(new Date().toISOString());}
-      } catch (e) {if (!controller.signal.aborted) setError(ui(e instanceof Error ? e.message : "Kunne ikke hente statistikken."));}
+      } catch (e) {if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Kunne ikke hente statistikken.");}
       finally {if (!controller.signal.aborted) setLoading(false);}
     })();
     return () => controller.abort();
@@ -60,11 +60,11 @@ export function SocialInsights({organizationId, connections, revision}:{organiza
       {[{label:"Visninger",...views},{label:"Engasjement",...engagement}].map(item => <div className="metric" key={item.label}><span>{ui(item.label)}</span><strong>{loading || error ? "—" : number(item.value)}</strong><small>{loading ? ui("Henter fra kanalene …") : error ? ui("Kunne ikke hentes") : entries.length && item.available < entries.length ? ui("Delvis statistikk · {0} av {1} publiseringer",{"0":item.available,"1":entries.length}) : item.label === "Visninger" ? ui("Antall ganger innholdet er vist") : ui("Reaksjoner, kommentarer, delinger og lagringer")}</small></div>)}
       <div className="metric"><span><UiText text="Publiseringer" /></span><strong>{loading || error ? "—" : number(entries.length)}</strong><small><UiText text="Siste 30 dager · fordelt på kanaler" /></small></div>
     </div>
-    {error && <p role="alert" className="form-hint">{error}</p>}
+    {error && <p role="alert" className="form-hint">{ui(error)}</p>}
     {!loading && !error && <>
       {!entries.length ? <p className="form-hint"><UiText text="Ingen innlegg er publisert gjennom CRM-et de siste 30 dagene." /></p> : <details className="social-insights-details"><summary><UiText text="Se tall og status per kanal" /></summary><div className="social-insights-table"><table><thead><tr><th><UiText text="Kanal" /></th><th><UiText text="Publiseringer" /></th><th><UiText text="Visninger" /></th><th><UiText text="Engasjement" /></th></tr></thead><tbody>{SOCIAL_CHANNELS.map(platform => {
         const rows = entries.filter(entry => entry.platform === platform); if (!rows.length) return null;
-        return <tr key={platform}><th scope="row">{platform}</th><td>{rows.length}</td>{(["views","engagement"] as const).map(name => {const result=total(rows,name);return <td key={name}>{number(result.value)}{result.available < rows.length && <small>{result.available}<UiText text=" av " />{rows.length}<UiText text=" med tall" /></small>}</td>;})}</tr>;
+        return <tr key={platform}><th scope="row">{platform}</th><td>{number(rows.length)}</td>{(["views","engagement"] as const).map(name => {const result=total(rows,name);return <td key={name}>{number(result.value)}{result.available < rows.length && <small>{number(result.available)}<UiText text=" av " />{number(rows.length)}<UiText text=" med tall" /></small>}</td>;})}</tr>;
       })}</tbody></table></div><p className="form-hint"><UiText text="Visninger er ikke unike personer. Kanalene teller ulikt. Facebook: reaksjoner, kommentarer og delinger. Instagram inkluderer også lagringer. LinkedIn viser organiske visninger og reaksjoner, kommentarer og delinger." /></p></details>}
       {problems.map(problem => {const [platform,reason] = problem.split("|");return <p className="form-hint social-insights-notice" key={problem}><strong>{platform}:</strong> {ui(reasons[reason as InsightReason])}</p>;})}
       <p className="form-hint social-insights-updated"><UiText text="Hentet " />{i18n.date(new Date(updated),{hour:'2-digit',minute:'2-digit'})}<UiText text=". Kanalene kan rapportere tall med forsinkelse." /></p>

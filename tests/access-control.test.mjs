@@ -863,3 +863,67 @@ test('home country is persisted independently of sales markets and sets each ten
  assert.equal((await route('admin').POST(request(1200,1200,{...data,adminEmail:'invalid-country@test.no',homeCountry:'invalid'}))).status,400);
  settings=await (await route('admin').GET(request(1,1))).json();assert.equal(settings.language,'nb');
 });
+
+test('France generation persists official ranges, continues without duplicates and never matches Norway by a shared numeric ID',async()=>{
+ add('organizations',{id:1800,name:'French sales',home_country:'FR',operating_countries:'["NO","FR"]',created_at:'now'});
+ add('memberships',{id:1800,organization_id:1800,user_id:'1800',email:'1800@test.no',name:'France admin',role:'Administrator',created_at:'now'});
+ add('organization_modules',{organization_id:1800,module_key:'ringelister',active:1,price_per_user:0,activated_at:'now'});
+ add('module_licenses',{organization_id:1800,membership_id:1800,module_key:'ringelister',active:1,activated_at:'now'});
+ add('companies',{id:1800,organization_id:1800,name:'Norwegian company with same numeric ID',country:'NO',org_number:'000000001'});
+ const authFetch=globalThis.fetch;
+ globalThis.fetch=async(url,init)=>{
+  if(new URL(url).hostname!=='recherche-entreprises.api.gouv.fr')return authFetch(url,init);
+  const page=Number(url.searchParams.get('page'));
+  return Response.json({results:Array.from({length:25},(_,i)=>{const n=(page-1)*25+i+1;return {siren:String(n).padStart(9,'0'),nom_complet:'French company '+n,etat_administratif:'A',statut_diffusion:'O',tranche_effectif_salarie:'11',annee_tranche_effectif_salarie:'2024',activite_principale:'62.01Z',siege:{adresse:'10 RUE DE PARIS 75001 PARIS',code_postal:'75001',libelle_commune:'PARIS',etat_administratif:'A',statut_diffusion_etablissement:'O'}}}),total_pages:20});
+ };
+ try{
+  const generate=()=>route('call-lists').POST(request(1800,1800,{type:'generate',country:'FR',count:2}));
+  const firstResponse=await generate();assert.equal(firstResponse.status,200);const first=await firstResponse.json();
+  assert.deepEqual(first.entries.map(row=>row.orgNumber),['000000001','000000002']);assert.equal(first.nextPage,1);assert.equal(first.hasMore,true);
+  assert.equal(first.entries[0].country,'FR');assert.equal(first.entries[0].employees,null);assert.equal(first.entries[0].employeeRange,'10–19');assert.equal(first.entries[0].employeeRangeYear,'2024');assert.equal(first.entries[0].postalCode,'75001');
+  const second=await (await generate()).json();assert.deepEqual(second.entries.map(row=>row.orgNumber),['000000003','000000004']);
+  const converted=await route('call-lists').POST(request(1800,1800,{type:'addCustomer',id:first.entries[0].id}));assert.equal(converted.status,200);const customer=(await converted.json()).company;
+  assert.equal(customer.country,'FR');assert.notEqual(customer.id,1800);assert.equal(customer.employeeRange,'10–19');assert.equal(customer.employeeRangeYear,'2024');assert.equal(customer.address,'10 RUE DE PARIS 75001 PARIS');assert.equal(customer.employees,null);
+  const patched=await route('companies').PATCH(request(1800,1800,{id:customer.id,name:'Updated French company'}));assert.equal(patched.status,200);const edited=(await patched.json()).company;
+  assert.equal(edited.country,'FR');assert.equal(edited.employeeRange,'10–19');assert.equal(edited.employeeRangeYear,'2024');assert.equal(edited.address,customer.address);assert.equal(edited.source,customer.source);
+  const listing=await (await route('saved-call-lists').GET(request(1800,1800))).json();assert.equal(listing.sources.find(source=>source.code==='FR').ready,true);
+  for(let n=5;n<=200;n++)add('companies',{organization_id:1800,name:'Already saved '+n,country:'FR',org_number:String(n).padStart(9,'0')});
+  const before=sql.prepare('SELECT count(*) n FROM saved_call_lists WHERE organization_id=1800').get().n;
+  const exhaustedWindow=await route('call-lists').POST(request(1800,1800,{type:'generate',country:'FR',count:25,page:1}));assert.equal(exhaustedWindow.status,200);const continuation=await exhaustedWindow.json();assert.equal(continuation.added,0);assert.equal(continuation.nextPage,9);assert.equal(continuation.hasMore,true);assert.equal(continuation.list,undefined);
+  assert.equal(sql.prepare('SELECT count(*) n FROM saved_call_lists WHERE organization_id=1800').get().n,before);
+  const nextWindow=await route('call-lists').POST(request(1800,1800,{type:'generate',country:'FR',count:25,page:continuation.nextPage}));assert.equal(nextWindow.status,200);const continued=await nextWindow.json();assert.equal(continued.added,25);assert.equal(continued.entries[0].orgNumber,'000000201');assert.equal(continued.nextPage,10);
+ }finally{globalThis.fetch=authFetch;}
+});
+
+test('France call-list imports normalize establishment SIRETs to SIREN and deduplicate across chunks',async()=>{
+ const first=await route('call-lists').POST(request(1800,1800,{type:'import',country:'FR',listName:'French CSV',rows:[{name:'La Poste',orgNumber:'356 000 000 00048'},{name:'Same legal company',orgNumber:'356.000.000'}]}));
+ assert.equal(first.status,201);const saved=await first.json();assert.equal(saved.added,1);assert.equal(saved.entries[0].orgNumber,'356000000');assert.equal(saved.entries[0].country,'FR');
+ const second=await route('call-lists').POST(request(1800,1800,{type:'import',country:'FR',listId:saved.list.id,rows:[{name:'Same company next CSV chunk',orgNumber:'35600000000066'},{name:'New company',orgNumber:'849239587'}]}));
+ assert.equal(second.status,201);const result=await second.json();assert.equal(result.added,1);assert.equal(result.entries[0].orgNumber,'849239587');
+ const ids=sql.prepare('SELECT org_number FROM call_list_entries WHERE list_id=? ORDER BY id').all(saved.list.id).map(row=>row.org_number);assert.deepEqual(ids,['356000000','849239587']);
+});
+
+test('advanced France imports infer official CSV columns and preserve country, SIREN, addresses and employee bands',async()=>{
+ const headers=['nom_complet','SIRET','pays','adresse','code_postal','tranche_effectif_salarie','annee_tranche_effectif_salarie'];
+ const mapping=app.guessColumns(headers,'customers');assert.equal(mapping.name,0);assert.equal(mapping.orgNumber,1);assert.equal(mapping.country,2);assert.equal(mapping.address,3);assert.equal(mapping.postalCode,4);assert.equal(mapping.employeeRange,5);assert.equal(mapping.employeeRangeYear,6);
+ const row=app.mapImportRow(['Import France SAS','12345678900001','France','10 RUE DE PARIS','75001','11','2024'],mapping);
+ add('companies',{organization_id:1800,country:'NO',org_number:'123456789',name:'Norway counterpart'});
+ const create=rows=>app.importRoute.POST(request(1800,1800,{mode:'customers',source:'French CSV',requestId:crypto.randomUUID()+'-0',rows}));
+ const first=await create([row]);assert.equal(first.status,201);assert.equal((await first.json()).customers,1);
+ const company=sql.prepare("SELECT * FROM companies WHERE organization_id=1800 AND country='FR' AND org_number='123456789'").get();assert.equal(company.name,'Import France SAS');assert.equal(company.address,'10 RUE DE PARIS');assert.equal(company.postal_code,'75001');assert.equal(company.employee_range,'10–19');assert.equal(company.employee_range_year,'2024');assert.equal(company.employees,null);
+ const duplicate=await create([{name:'Another establishment',orgNumber:'123 456 789 00002',country:'FR'}]);assert.equal(duplicate.status,201);assert.equal((await duplicate.json()).customers,0);
+ const defaultCountry=await create([{name:'French tenant default',orgNumber:'98765432100001'}]);assert.equal(defaultCountry.status,201);assert.equal(sql.prepare("SELECT country,org_number FROM companies WHERE name='French tenant default'").get().country,'FR');
+ const invalid=await create([{name:'Invalid country',orgNumber:'111111111',country:'ZZ'}]);assert.equal(invalid.status,400);assert.equal(sql.prepare("SELECT count(*) n FROM companies WHERE name='Invalid country'").get().n,0);
+});
+
+test('advanced imports retain international alphanumeric IDs and link foreign contacts without digit collisions',async()=>{
+ const create=rows=>app.importRoute.POST(request(1800,1800,{mode:'customers',source:'International CSV',requestId:crypto.randomUUID()+'-0',rows}));
+ const first=await create([{name:'UK Scotland','orgNumber':' sc 001234 ','country':'GB'},{name:'UK Wales',orgNumber:'WC001234',country:'GB'}]);assert.equal(first.status,201);assert.equal((await first.json()).customers,2);
+ const firms=sql.prepare("SELECT id,org_number,country FROM companies WHERE organization_id=1800 AND name IN ('UK Scotland','UK Wales') ORDER BY name").all();assert.deepEqual(firms.map(f=>f.org_number),['SC001234','WC001234']);
+ const duplicate=await create([{name:'Duplicate UK','orgNumber':'SC001234',country:'GB'}]);assert.equal((await duplicate.json()).customers,0);
+ const contacts=await app.importRoute.POST(request(1800,1800,{mode:'contacts',source:'International CSV',requestId:crypto.randomUUID()+'-0',rows:[{companyReference:'sc 001234',contactName:'Foreign reference contact'}]}));assert.equal(contacts.status,201);assert.equal((await contacts.json()).contacts,1);
+ assert.equal(sql.prepare("SELECT company_id FROM contacts WHERE name='Foreign reference contact'").get().company_id,firms[0].id);
+ const frenchContact=await app.importRoute.POST(request(1800,1800,{mode:'contacts',source:'French CSV',requestId:crypto.randomUUID()+'-0',rows:[{companyReference:'12345678900002',country:'FR',contactName:'French SIRET contact'}]}));assert.equal(frenchContact.status,201);const linked=sql.prepare("SELECT c.country,c.org_number FROM contacts p JOIN companies c ON p.company_id=c.id WHERE p.name='French SIRET contact'").get();assert.equal(linked.country,'FR');assert.equal(linked.org_number,'123456789');
+ const norwegian=await create([{name:'Norwegian VAT format',orgNumber:'NO 555-444-333 MVA',country:'NO'}]);assert.equal(norwegian.status,201);assert.equal((await norwegian.json()).customers,1);assert.equal(sql.prepare("SELECT org_number FROM companies WHERE name='Norwegian VAT format'").get().org_number,'555444333');
+ const norwegianDuplicate=await create([{name:'Formatted existing Norway',orgNumber:'NO 123.456.789 MVA',country:'NO'}]);assert.equal((await norwegianDuplicate.json()).customers,0);
+});
