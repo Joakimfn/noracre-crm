@@ -153,9 +153,10 @@ export async function POST(request:Request){
    if(closed&&orgNumber)await db.insert(outboundSuppression).values({organizationId:ctx.organizationId,country:entry.country,orgNumber,name:entry.name,createdByMembershipId:ctx.membershipId,reason:clean(body.note,500),createdAt:now}).onConflictDoNothing();
    const pipeline=outcome==='Møte booket'?'Demo booket':closed||outcome==='Ikke interessert'?'Tapt':state.pipeline;
    const [updated]=await db.update(outboundLeadState).set({lastOutcome:outcome,lastNote:clean(body.note,1500),nextCallAt:nextAt,attempts:sql`${outboundLeadState.attempts}+1`,doNotContact:closed||state.doNotContact,pipeline,contactName:clean(body.contactName,120)||state.contactName,contactPhone:clean(body.contactPhone,40)||state.contactPhone,updatedAt:now}).where(eq(outboundLeadState.id,state.id)).returning();
+   if(closed||outcome==='Ikke interessert')await db.update(outboundDeals).set({pipeline:'Tapt',updatedAt:now}).where(and(eq(outboundDeals.organizationId,ctx.organizationId),eq(outboundDeals.entryId,entry.id)));
    if(outcome==='Møte booket')await db.insert(outboundDeals).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:ctx.membershipId,pipeline:'Demo booket',monthlyAmountMinor:0,currency:org.outboundCurrency,commissionBps:org.outboundCommissionBps,createdAt:now,updatedAt:now}).onConflictDoUpdate({target:outboundDeals.entryId,set:{pipeline:'Demo booket',updatedAt:now}});
    await db.insert(outboundCallLogs).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:ctx.membershipId,outcome,note:clean(body.note,1500),nextCallAt:nextAt,createdAt:now});
-   await db.update(callListEntries).set({handledBy:ctx.user.displayName,updatedAt:now,status:closed?'Ikke aktuell':outcome==='Møte booket'?'Møte booket':outcome==='Ikke svar'?'Ringte – ikke svar':'Kontaktet'}).where(and(eq(callListEntries.id,entry.id),eq(callListEntries.organizationId,ctx.organizationId)));
+   await db.update(callListEntries).set({handledBy:ctx.user.displayName,updatedAt:now,status:closed||outcome==='Ikke interessert'?'Ikke aktuell':outcome==='Møte booket'?'Møte booket':outcome==='Ikke svar'?'Ringte – ikke svar':'Kontaktet'}).where(and(eq(callListEntries.id,entry.id),eq(callListEntries.organizationId,ctx.organizationId)));
    return publicJson({lead:updated});
   }
   if(type==='stage'){
