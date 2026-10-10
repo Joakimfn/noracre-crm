@@ -27,8 +27,7 @@ function localizedHref(href:string,locale:Locale,base:string):string{
 }
 /** Only developer-authored website copy is translated. Form values and scripts are untouched. */
 export function localizePublicHtml(html:string,locale:Locale,base:string):string{
- if(locale==='nb')return html.replace(/\bhref="(https:\/\/crm\.noracre\.no(?:\/[^\"]*)?)"/g,(_all,href)=>`href="${localizedHref(href,locale,base)}"`);
- const catalog=catalogs[locale];
+ const catalog:Record<string,string>=locale==='nb'?{}:catalogs[locale];
  const escapedCatalog=Object.fromEntries(Object.entries(catalog).map(([key,value])=>[escape(key),escape(value)]));
  const translate=(value:string)=>{const key=value.trim();const translated=Object.hasOwn(catalog,key)?escape(catalog[key]):Object.hasOwn(escapedCatalog,key)?escapedCatalog[key]:undefined;return translated===undefined?value:value.replace(key,()=>translated);};
  return html.split(/(<(?:script|style)\b[^>]*>[\s\S]*?<\/(?:script|style)>|<[^>]*>)/gi).map(part=>{
