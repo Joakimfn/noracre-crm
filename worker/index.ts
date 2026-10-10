@@ -6,9 +6,9 @@ import handler from "vinext/server/app-router-entry";
 import { guardRequest, secureResponse } from "../lib/request-security";
 import { publicWebsite } from "../lib/public-site";
 import { publicEnquiry } from "../lib/public-enquiries";
-import {publishedLocales,resolvePublishedLocale} from '../lib/i18n/config';
-import {websiteLocale,organizationLocale} from '../lib/i18n/country';
-import {readLanguagePreference,languagePreferenceCookie} from '../lib/i18n/preference';
+import {publishedLocales,type Locale} from '../lib/i18n/config';
+import {LANGUAGE_COOKIE,languagePreferenceCookie,activeLanguageCookie} from '../lib/i18n/preference';
+import {requestLanguage} from '../lib/i18n/request';
 
 interface Env {
   ASSETS: Fetcher;
@@ -50,11 +50,11 @@ const worker = {
           return secureResponse(request,new Response('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">'+entries+'</urlset>',{headers:{'Content-Type':'application/xml'}}));
         }
         if(isPreview||!url.pathname.match(/\.[a-z0-9]+$/i)){
-          const savedLanguage=readLanguagePreference(request.headers.get('cookie'));
-          const preference=request.headers.get('cookie')?.split(';').map(part=>part.trim()).find(part=>part.startsWith('noracre-language='))?.slice('noracre-language='.length);
-          const hasPreference=publishedLocales.some(locale=>locale===preference);
-          const locale=url.searchParams.has('lang')?resolvePublishedLocale(url.searchParams.get('lang')):hasPreference?savedLanguage:websiteLocale((request as Request & {cf?:{country?:string}}).cf?.country);
+          const {locale,explicit}=requestLanguage(request);
           const response=publicWebsite(isPreview?url.pathname.slice('/nettside'.length)||'/':url.pathname,isPreview?'/nettside':'',env,locale);
+          response.headers.set('Cache-Control','private, no-store');
+          // Save valid manual choices even with JavaScript disabled.
+          if(explicit)response.headers.append('Set-Cookie',languagePreferenceCookie(explicit,url.protocol==='https:'));
           return secureResponse(request,request.method==='HEAD'?new Response(null,response):response);
         }
         return secureResponse(request,await env.ASSETS.fetch(request));
@@ -63,13 +63,16 @@ const worker = {
       // so an explicit language link is carried across to the CRM subdomain.
       const isCrmPage=['GET','HEAD'].includes(request.method)&&!url.pathname.startsWith('/api/')&&!url.pathname.match(/\.[a-z0-9]+$/i);
       let incoming=request;
-      let crmLocale:ReturnType<typeof organizationLocale>|undefined;
+      let crmLocale:Locale|undefined;
+      let explicitLocale:Locale|undefined;
       if(isCrmPage){
-        const preference=request.headers.get('cookie')?.split(';').map(part=>part.trim()).find(part=>part.startsWith('noracre-language='))?.slice('noracre-language='.length);
-        crmLocale=url.searchParams.has('lang')?resolvePublishedLocale(url.searchParams.get('lang')):publishedLocales.some(locale=>locale===preference)?readLanguagePreference(request.headers.get('cookie')):organizationLocale((request as Request & {cf?:{country?:string}}).cf?.country);
+        const selected=requestLanguage(request,true);
+        crmLocale=selected.locale;
+        explicitLocale=selected.explicit;
         const headers=new Headers(request.headers);
-        const otherCookies=(headers.get('cookie')??'').split(';').map(part=>part.trim()).filter(part=>part&&!part.startsWith('noracre-language='));
-        headers.set('cookie',[...otherCookies,'noracre-language='+crmLocale].join('; '));
+        const otherCookies=(headers.get('cookie')??'').split(';').map(part=>part.trim()).filter(part=>part&&!part.startsWith(LANGUAGE_COOKIE+'='));
+        // RootLayout and legal-page metadata consume this resolved request cookie.
+        headers.set('cookie',[...otherCookies,LANGUAGE_COOKIE+'='+crmLocale].join('; '));
         incoming=new Request(request,{headers});
       }
       const guarded = await guardRequest(incoming);
@@ -78,7 +81,10 @@ const worker = {
       if(crmLocale){
         response.headers.set('Content-Language',crmLocale);
         response.headers.set('Cache-Control','private, no-store');
-        if(url.searchParams.has('lang'))response.headers.append('Set-Cookie',languagePreferenceCookie(crmLocale,url.protocol==='https:'));
+        if(explicitLocale){
+          response.headers.append('Set-Cookie',languagePreferenceCookie(explicitLocale,url.protocol==='https:'));
+          response.headers.append('Set-Cookie',activeLanguageCookie(explicitLocale,url.protocol==='https:'));
+        }
       }
       return response;
     } catch {

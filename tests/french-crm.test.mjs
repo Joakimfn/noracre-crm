@@ -47,7 +47,8 @@ test('French copy interpolates once and leaves customer content and prototype st
 test('French language choice survives reload and stays isolated by organisation',async()=>{
  const originals=Object.fromEntries(['document','localStorage','location','IS_REACT_ACT_ENVIRONMENT'].map(k=>[k,Object.getOwnPropertyDescriptor(globalThis,k)])),saved=new Map();let current,tree;
  try{
-  Object.defineProperty(globalThis,'document',{value:{cookie:'',documentElement:{lang:''}},configurable:true});
+  const cookies=new Map();
+  Object.defineProperty(globalThis,'document',{value:{get cookie(){return [...cookies].map(([k,v])=>k+'='+v).join('; ');},set cookie(value){const [k,v]=value.split(';')[0].split('=');cookies.set(k,v);},documentElement:{lang:''}},configurable:true});
   Object.defineProperty(globalThis,'localStorage',{value:{setItem:(k,v)=>saved.set(k,v),getItem:k=>saved.get(k)??null},configurable:true});
   Object.defineProperty(globalThis,'location',{value:{protocol:'https:'},configurable:true});
   globalThis.IS_REACT_ACT_ENVIRONMENT=true;
@@ -55,7 +56,7 @@ test('French language choice survives reload and stays isolated by organisation'
   const mount=()=>act(()=>{tree=create(React.createElement(app.I18nProvider,{locale:'en'},React.createElement(Harness)));});
   await mount();await act(()=>current.applyOrganizationLocale('en',41));await act(()=>current.setLocale('fr'));
   assert.equal(current.locale,'fr');assert.equal(document.documentElement.lang,'fr');assert.equal(saved.get('noracre-language:org:41'),'fr');assert.equal(app.readLanguagePreference(document.cookie),'fr');
-  await act(()=>current.applyOrganizationLocale('nb',42));assert.equal(current.locale,'nb');assert.equal(app.readLanguagePreference(document.cookie),'nb');
+  await act(()=>current.applyOrganizationLocale('nb',42));assert.equal(current.locale,'nb');assert.equal(app.storedLanguagePreference(document.cookie,app.ACTIVE_LANGUAGE_COOKIE),'nb');assert.equal(app.readLanguagePreference(document.cookie),'fr');
   await act(()=>current.applyOrganizationLocale('en',41));assert.equal(current.locale,'fr');assert.equal(app.readLanguagePreference(document.cookie),'fr');
   await act(()=>tree.unmount());tree=null;
   await mount();await act(()=>current.applyOrganizationLocale('en',41));assert.equal(current.locale,'fr');assert.equal(app.readLanguagePreference(document.cookie),'fr');
