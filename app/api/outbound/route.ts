@@ -87,20 +87,22 @@ export async function GET(request:Request){
   const visible=rows.map(r=>({...r.entry,state:r.state,assignedMembershipId:r.companyOwner?.assignedMembershipId??r.state?.assignedMembershipId??0,
    suppressed:!!r.state?.doNotContact||!!r.suppressionId}));
   const weekAgo=new Date(Date.now()-7*86400000).toISOString();
-  const calls=await db.select({outcome:outboundCallLogs.outcome,membershipId:outboundCallLogs.membershipId,entryId:outboundCallLogs.entryId}).from(outboundCallLogs)
-    .where(and(eq(outboundCallLogs.organizationId,ctx.organizationId),gte(outboundCallLogs.createdAt,weekAgo),
-    isManager?undefined:eq(outboundCallLogs.membershipId,ctx.membershipId))).limit(10000);
-  const conversations=calls.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome));
-  const uniqueCalls=new Set(calls.map(c=>c.entryId)).size;
+  const callScope=and(eq(outboundCallLogs.organizationId,ctx.organizationId),gte(outboundCallLogs.createdAt,weekAgo),isManager?undefined:eq(outboundCallLogs.membershipId,ctx.membershipId));
+  const calls=await db.select({outcome:outboundCallLogs.outcome,membershipId:outboundCallLogs.membershipId,total:sql<number>`count(*)`}).from(outboundCallLogs)
+    .where(callScope).groupBy(outboundCallLogs.membershipId,outboundCallLogs.outcome);
+  const [{uniqueCalled}]=await db.select({uniqueCalled:sql<number>`count(distinct ${outboundCallLogs.entryId})`}).from(outboundCallLogs).where(callScope);
+  const sumCalls=(rows:typeof calls)=>rows.reduce((total,row)=>total+Number(row.total),0);
+  const conversations=sumCalls(calls.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome)));
   const deals=await db.select().from(outboundDeals).where(and(eq(outboundDeals.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDeals.membershipId,ctx.membershipId))).orderBy(desc(outboundDeals.updatedAt)).limit(400);
   const payments=await db.select().from(outboundDealPayments).where(and(eq(outboundDealPayments.organizationId,ctx.organizationId),isManager?undefined:eq(outboundDealPayments.membershipId,ctx.membershipId))).orderBy(desc(outboundDealPayments.createdAt)).limit(400);
-  const metrics={attempts:calls.length,uniqueCalled:uniqueCalls,conversations:conversations.length,meetings:calls.filter(c=>c.outcome==='Møte booket').length,conversationRate:calls.length?Math.round(conversations.length/calls.length*1000)/10:0,weekly:true,
+  const attempts=sumCalls(calls);
+  const metrics={attempts,uniqueCalled:Number(uniqueCalled),conversations,meetings:sumCalls(calls.filter(c=>c.outcome==='Møte booket')),conversationRate:attempts?Math.round(conversations/attempts*1000)/10:0,weekly:true,
     stages:Object.fromEntries(stages.map(stage=>[stage,deals.filter(d=>d.pipeline===stage).length]))};
   const byMember=users.filter(u=>isManager||u.id===ctx.membershipId).map(u=>{
     const mine=calls.filter(c=>c.membershipId===u.id);
     const ownDeals=deals.filter(d=>d.membershipId===u.id);
     const ownPayments=payments.filter(p=>p.membershipId===u.id);
-    return {membershipId:u.id,name:u.name,attempts:mine.length,conversations:mine.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome)).length,meetings:mine.filter(c=>c.outcome==='Møte booket').length,won:ownDeals.filter(d=>d.pipeline==='Kunde').length,
+    return {membershipId:u.id,name:u.name,attempts:sumCalls(mine),conversations:sumCalls(mine.filter(c=>['Beslutningstaker kontaktet','Interessert','Ikke interessert','Møte booket'].includes(c.outcome))),meetings:sumCalls(mine.filter(c=>c.outcome==='Møte booket')),won:ownDeals.filter(d=>d.pipeline==='Kunde').length,
       commissionsByCurrency:Object.fromEntries([...new Set(ownPayments.map(p=>p.currency))].map(currency=>[currency,ownPayments.filter(p=>p.currency===currency).reduce((sum,p)=>sum+Math.round(p.paidAmountMinor*p.commissionBps/10000),0)]))};
   });
   return publicJson({settings,rows:visible,members:isManager?users:users.filter(u=>u.id===ctx.membershipId),metrics,deals,payments,byMember,
