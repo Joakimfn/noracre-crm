@@ -13,7 +13,7 @@ type Config={enabled:boolean;currency:string;timezone:string;commissionBps:numbe
 type Lead={id:number;name:string;country:string;orgNumber:string;city:string;industry:string;employees:number|null;employeeRange:string;phone:string;website:string;email:string;status:string;assignedMembershipId:number;suppressed:boolean;state:{assignedMembershipId:number;attempts:number;pipeline:string;nextCallAt:string;lastOutcome:string;lastNote:string;contactName:string;contactPhone:string;doNotContact:boolean}|null};
 type Deal={id:number;entryId:number;pipeline:string;membershipId:number;monthlyAmountMinor:number;currency:string;commissionBps:number;note:string};
 type Payment={id:number;entryId:number;membershipId:number;paidAmountMinor:number;currency:string;commissionBps:number;paymentReference:string};
-type ResponseData={settings:Config;rows:Lead[];hasMore:boolean;metrics:{attempts:number;uniqueCalled:number;conversations:number;meetings:number;conversationRate:number;stages:Record<string,number>}|null;deals:Deal[];payments:Payment[];byMember?:{membershipId:number;name:string;attempts:number;conversations:number;meetings:number;won:number;commissionsByCurrency:Record<string,number>}[];members:{id:number;name:string;active:boolean}[];canManage:boolean;error?:string};
+type ResponseData={settings:Config;rows:Lead[];hasMore:boolean;metrics:{attempts:number;uniqueCalled:number;conversations:number;meetings:number;conversationRate:number;stages:Record<string,number>}|null;deals:Deal[];payments:Payment[];paymentTotals?:{membershipId:number;currency:string;paidMinor:number;commissionMinor:number}[];byMember?:{membershipId:number;name:string;attempts:number;conversations:number;meetings:number;won:number;commissionsByCurrency:Record<string,number>}[];members:{id:number;name:string;active:boolean}[];canManage:boolean;error?:string};
 const defaults:Config={enabled:false,currency:"NOK",timezone:"Europe/Oslo",commissionBps:0,pitch:""};
 const outcomes=["Ikke svar","Sentralbord","Feil nummer","Beslutningstaker kontaktet","Interessert","Ikke interessert","Møte booket","Reservert mot kontakt"];
 const stages=["Prospekt","Demo booket","Demo gjennomført","Prøveperiode","Tilbud","Kunde","Tapt"];
@@ -104,7 +104,7 @@ export function OutboundSalesDesk({organizationId,selectedListId,onShowLegacy,on
  }
  const money=(minor:number,currency=state.settings.currency)=>formatMoney(minor,currency,locale);
  const roleName=(id:number)=>state.members.find(u=>u.id===id)?.name??String(id);
- const assignments=state.payments.reduce((acc,p)=>{const key=p.currency;const prev=acc[key]??{paid:0,commission:0};prev.paid+=p.paidAmountMinor;prev.commission+=Math.round(p.paidAmountMinor*p.commissionBps/10000);acc[key]=prev;return acc;},{} as Record<string,{paid:number;commission:number}>);
+ const assignments=(state.paymentTotals??[]).reduce((acc,p)=>{const key=p.currency;const prev=acc[key]??{paid:0,commission:0};prev.paid+=Number(p.paidMinor);prev.commission+=Number(p.commissionMinor);acc[key]=prev;return acc;},{} as Record<string,{paid:number;commission:number}>);
  const totals=Object.entries(assignments);
  if(loading)return <div className="outbound-desk outbound-load" role="status"><RefreshCw size={18}/> {lang==="en"?"Loading outbound workspace…":lang==="fr"?"Chargement de la prospection…":"Laster outbound-arbeidsflaten …"}</div>;
  if(error)return <div className="outbound-desk"><p role="alert">{error}</p><Button onClick={()=>void refresh().catch(e=>setError(e.message))}>{lang==="en"?"Retry":lang==="fr"?"Réessayer":"Prøv igjen"}</Button></div>;
