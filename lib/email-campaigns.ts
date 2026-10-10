@@ -1,6 +1,10 @@
 import {env} from "cloudflare:workers";
 import {AccessError} from "@/lib/tenant";
 import {getMailAccount,sendFromMailbox,sealMail,unsealMail,digest,type MailAccount} from "@/lib/user-mail";
+import {getDb} from '@/db';
+import {companies} from '@/db/schema';
+import {and,eq,inArray} from 'drizzle-orm';
+import {requireOutboundCompaniesContact} from '@/lib/outbound-access';
 const runtime=()=>env as unknown as {DB:D1Database;BUCKET:R2Bucket};
 // Additive, idempotent initialization also supports deployments without a migration hook.
 export const campaignDDL=`CREATE TABLE IF NOT EXISTS email_campaigns (
@@ -51,17 +55,22 @@ export async function dispatchCampaign(id:number,now=new Date().toISOString()){
  if(!row)return;
  let attempted=false;
  try{
-  const access=await db.prepare(`SELECT m.id FROM memberships m JOIN organizations o ON o.id=m.organization_id
+  const access=await db.prepare(`SELECT m.id,m.name,m.email,m.user_id,m.role FROM memberships m JOIN organizations o ON o.id=m.organization_id
    JOIN organization_modules om ON om.organization_id=o.id AND om.module_key='markedsforing' AND om.active=1
    JOIN module_licenses ml ON ml.organization_id=o.id AND ml.membership_id=m.id AND ml.module_key='markedsforing' AND ml.active=1
    WHERE m.id=? AND m.organization_id=? AND m.active=1 AND o.status='Aktiv'
-   AND (m.scheduled_disable_at='' OR m.scheduled_disable_at>?) AND (o.scheduled_disable_at='' OR o.scheduled_disable_at>?)`).bind(row.membership_id,row.organization_id,now,now).first();
+   AND (m.scheduled_disable_at='' OR m.scheduled_disable_at>?) AND (o.scheduled_disable_at='' OR o.scheduled_disable_at>?)`).bind(row.membership_id,row.organization_id,now,now).first<{id:number;name:string;email:string;user_id:string;role:string}>();
   if(!access)throw new AccessError(403,"Avsenderen har ikke lenger tilgang til bedriften eller markedsføringsmodulen.");
   const account=await getMailAccount(row.organization_id,row.membership_id);
   if(!account||account.email!==row.sender||account.provider!==row.provider)throw new AccessError(409,"Avsenderkontoen er koblet fra eller endret. Opprett utsendingen på nytt etter tilkobling.");
   const ids=JSON.parse(row.company_ids) as number[];
-  const customers=await db.prepare(`SELECT count(*) n FROM companies WHERE organization_id=? AND id IN (${ids.map(()=>'?').join(',')})`).bind(row.organization_id,...ids).first<{n:number}>();
-  if(customers?.n!==ids.length)throw new AccessError(409,"En av de valgte kundene er slettet. Opprett utsendingen på nytt.");
+  if(!Array.isArray(ids)||!ids.length||ids.length>500||ids.some(id=>!Number.isSafeInteger(id)||id<1)||new Set(ids).size!==ids.length)throw new AccessError(409,'Utsendingen har et ugyldig kundeutvalg.');
+  const orm=getDb(),customers:Pick<typeof companies.$inferSelect,'id'|'country'|'orgNumber'|'industry'|'city'|'address'>[]=[];
+  for(let i=0;i<ids.length;i+=75)customers.push(...await orm.select({id:companies.id,country:companies.country,orgNumber:companies.orgNumber,industry:companies.industry,city:companies.city,address:companies.address}).from(companies).where(and(eq(companies.organizationId,row.organization_id),inArray(companies.id,ids.slice(i,i+75)))));
+  if(customers.length!==ids.length)throw new AccessError(409,"En av de valgte kundene er slettet. Opprett utsendingen på nytt.");
+  // Check current ownership, opt-outs and market restrictions immediately before delivery,
+  // including campaigns created before a customer reserved against contact.
+  await requireOutboundCompaniesContact({organizationId:row.organization_id,membershipId:row.membership_id,role:access.role,user:{id:access.user_id,displayName:access.name,email:access.email,fullName:null},isSuperadmin:false,memberships:[]},customers,new Date(now));
   const object=await bucket.get(row.payload_key);if(!object)throw new Error('Missing payload');
   const payload=await unsealMail<Payload>(await object.text(),payloadContext(row.organization_id,row.membership_id,row.payload_key));
   attempted=true;

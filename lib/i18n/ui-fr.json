@@ -1178,5 +1178,6 @@
   "Kontaktpersonens navn mangler": "Le nom du contact est manquant",
   "Aktivitetstekst mangler": "Le texte de l’activité est manquant",
   "Datoen finnes ikke i kalenderen.": "Cette date n’existe pas dans le calendrier.",
-  "Bruk datoformat ÅÅÅÅ-MM-DD eller DD.MM.ÅÅÅÅ, eventuelt med klokkeslett.": "Utilisez le format AAAA-MM-JJ ou JJ.MM.AAAA, éventuellement avec une heure."
+  "Bruk datoformat ÅÅÅÅ-MM-DD eller DD.MM.ÅÅÅÅ, eventuelt med klokkeslett.": "Utilisez le format AAAA-MM-JJ ou JJ.MM.AAAA, éventuellement avec une heure.",
+  "Denne kunden driver med outbound sales og skal ha salgsarbeidsflaten": "Ce client pratique la prospection commerciale et souhaite utiliser cet espace de vente"
 }

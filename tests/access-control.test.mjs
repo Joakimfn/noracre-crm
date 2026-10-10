@@ -864,6 +864,22 @@ test('home country is persisted independently of sales markets and sets each ten
  settings=await (await route('admin').GET(request(1,1))).json();assert.equal(settings.language,'nb');
 });
 
+test('outbound customer creation uses local defaults and preserves paid customer attribution',async()=>{
+ const owner=sql.prepare("SELECT organization_id,id FROM memberships WHERE user_id='owner'").get();
+ for(const [id,paid] of [[9911,false],[9912,true]]){
+  const number=paid?'552199912':'552199911';
+  add('call_list_entries',{id,organization_id:owner.organization_id,name:'French outbound prospect '+id,country:'FR',org_number:number,created_at:'now',updated_at:'now'});
+  add('outbound_deals',{id,organization_id:owner.organization_id,entry_id:id,membership_id:owner.id,pipeline:'Kunde',customer_company_id:paid?id:null,created_at:'now',updated_at:'now'});
+  if(paid)add('outbound_deal_payments',{organization_id:owner.organization_id,entry_id:id,membership_id:owner.id,payment_reference:'Frozen customer receipt',paid_amount_minor:100,currency:'EUR',commission_bps:0,created_at:'now'});
+  const response=await route('admin').POST(request('owner',owner.organization_id,{type:'organization',name:'French outbound customer '+id,homeCountry:'FR',operatingCountries:['FR'],orgNumber:number+'00013',adminName:'Test admin',adminEmail:`outbound-${id}@test.no`,adminRole:'Administrator',crmPrice:199,outboundEnabled:true}));
+  const result=await response.json();assert.equal(response.status,201,JSON.stringify(result));
+  assert.equal(result.organization.orgNumber,number);assert.equal(result.organization.outboundEnabled,true);assert.equal(result.organization.outboundCurrency,'EUR');assert.equal(result.organization.outboundTimezone,'Europe/Paris');
+  const deal=sql.prepare('SELECT customer_organization_id,customer_company_id,subscription_activated_at FROM outbound_deals WHERE id=?').get(id);
+  assert.equal(deal.customer_organization_id,paid?null:result.organization.id);assert.equal(deal.customer_company_id,paid?id:null);assert.equal(deal.subscription_activated_at,'');
+  assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM memberships WHERE organization_id=?').get(result.organization.id).n,1);
+ }
+});
+
 test('France generation persists official ranges, continues without duplicates and never matches Norway by a shared numeric ID',async()=>{
  add('organizations',{id:1800,name:'French sales',home_country:'FR',operating_countries:'["NO","FR"]',created_at:'now'});
  add('memberships',{id:1800,organization_id:1800,user_id:'1800',email:'1800@test.no',name:'France admin',role:'Administrator',created_at:'now'});

@@ -1,3 +1,4 @@
+import {requireOutboundCompany,requireOwnRegistryAssignment} from "@/lib/outbound-company-access";
 import {and,eq,sql} from 'drizzle-orm';
 import {getDb} from '@/db';
 import {companies,contacts,activities,dataImports,organizations} from '@/db/schema';
@@ -52,7 +53,8 @@ export async function POST(request:Request){try{
   if(matches.length>1)throw new AccessError(400,`Rad ${index+1}: Flere kunder passer. Bruk organisasjonsnummer eller kunde-ID.`);
   let company=matches[0];let changed=false;
   if(!company&&data.mode!=='customers')throw new AccessError(400,`Rad ${index+1}: Fant ikke bedriften «${row.companyReference}». Importer bedriftene først og bruk samme kilde for kunde-ID.`);
-  if(!company){const record={id:id(),organizationId:ctx.organizationId,country,name:row.name!,orgNumber,phone:row.phone??'',email:row.email??'',contactName:'',city:row.city??'',address:row.address??'',postalCode:row.postalCode??'',industry:row.industry??'',employees:row.employees?Number(row.employees):null,employeeRange:country==='FR'?(franceEmployeeRange(row.employeeRange)||(row.employeeRange??'')):row.employeeRange??'',employeeRangeYear:row.employeeRangeYear??'',note:row.note??'',stage:row.stage||'Ny kunde',source,importSource:source,importId:row.externalId??'',assignedTo:actorRef(ctx.user),createdAt:now,updatedAt:now};statements.push(db.insert(companies).values(record));company=record as typeof known[number];known.push(company);result.customers++;changed=true;}
+  if(!company){await requireOwnRegistryAssignment(ctx,country,orgNumber);const record={id:id(),organizationId:ctx.organizationId,country,name:row.name!,orgNumber,phone:row.phone??'',email:row.email??'',contactName:'',city:row.city??'',address:row.address??'',postalCode:row.postalCode??'',industry:row.industry??'',employees:row.employees?Number(row.employees):null,employeeRange:country==='FR'?(franceEmployeeRange(row.employeeRange)||(row.employeeRange??'')):row.employeeRange??'',employeeRangeYear:row.employeeRangeYear??'',note:row.note??'',stage:row.stage||'Ny kunde',source,importSource:source,importId:row.externalId??'',assignedTo:actorRef(ctx.user),createdAt:now,updatedAt:now};statements.push(db.insert(companies).values(record));company=record as typeof known[number];known.push(company);result.customers++;changed=true;}
+  if(matches[0])await requireOutboundCompany(ctx,company.id);
   if(data.mode==='customers'&&row.externalId&&!company.importId){statements.push(db.update(companies).set({importId:row.externalId,importSource:source}).where(and(eq(companies.id,company.id),eq(companies.organizationId,ctx.organizationId))));company.importId=row.externalId;company.importSource=source;}
   const personName=contactImportName(row);
   if(personName&&data.mode!=='activities'){

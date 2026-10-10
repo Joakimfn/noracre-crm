@@ -7,6 +7,7 @@ import { AccessError, accessResponse, requireTenant } from "@/lib/tenant";
 import { requireModuleAccess } from "@/lib/module-access";
 import { Buffer } from "node:buffer";
 import {createCampaign,dispatchCampaign,campaignOutcome} from "@/lib/email-campaigns";
+import {requireOutboundCompaniesContact} from '@/lib/outbound-access';
 
 const runtime = env as unknown as { BUCKET: R2Bucket };
 const maxBytes = 10 * 1024 * 1024;
@@ -33,8 +34,10 @@ export async function POST(request: Request) {
     if (!subject || !message || subject.length > 250 || message.length > 100000 || /[\r\n]/.test(subject)) throw new AccessError(400, "Fyll inn emne (maks 250 tegn) og melding (maks 100 000 tegn).");
     const key = request.headers.get("idempotency-key") ?? "";
     if (!/^[a-zA-Z0-9-]{20,80}$/.test(key)) throw new AccessError(400, "Sendingsreferanse mangler. Oppdater siden.");
-    const db = getDb(), rows = await db.select().from(companies).where(and(eq(companies.organizationId, ctx.organizationId), inArray(companies.id, companyIds)));
+    const db = getDb(), rows:typeof companies.$inferSelect[]=[];
+    for(let i=0;i<companyIds.length;i+=75)rows.push(...await db.select().from(companies).where(and(eq(companies.organizationId, ctx.organizationId), inArray(companies.id, companyIds.slice(i,i+75)))));
     if (rows.length !== companyIds.length) throw new AccessError(404, "En av kundene finnes ikke.");
+    await requireOutboundCompaniesContact(ctx,rows);
     let recipients = rows.map(row => row.email.trim().toLowerCase());
     const contactId = Number(form.get("contactId"));
     if (!bulk && contactId) {

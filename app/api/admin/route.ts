@@ -1,3 +1,6 @@
+import {marketDefaults} from '@/lib/outbound-markets';
+import {normalizeRegistryId} from '@/lib/prospect-import';
+import {outboundRegistryExpression} from '@/lib/outbound-identity';
 import {parseHomeCountry} from '@/lib/home-countries';
 import {organizationLocale} from '@/lib/i18n/country';
 import {parseCountries} from "@/lib/operating-countries";
@@ -8,11 +11,14 @@ import { actorJson, actorRef } from "@/lib/actor-names";
 import {parsePricing, organizationPricing, confirmPrice} from "@/lib/pricing";
 import {disableAt} from "@/lib/deactivation";
 import { canManageModules } from "@/lib/module-access";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, notExists, sql } from "drizzle-orm";
 import { moduleCatalog } from "@/lib/module-catalog";
 import { getDb } from "@/db";
 import {
   auditLogs,
+  callListEntries,
+  outboundDeals,
+  outboundDealPayments,
   memberships,
   moduleLicenses,
   organizationModules,
@@ -144,7 +150,7 @@ export async function POST(request: Request) {
       const email = String(data.adminEmail ?? "")
         .trim()
         .toLowerCase(),
-        orgNumber = String(data.orgNumber ?? "").trim().replace(/\s/g, ""),
+        orgNumber = normalizeRegistryId(data.orgNumber,homeCountry),
         phone = String(data.adminPhone ?? "").trim(),
         requestedRole = String(data.adminRole ?? "Administrator"),
         role = requestedRole;
@@ -168,6 +174,9 @@ export async function POST(request: Request) {
           ...prices,
           homeCountry,
           operatingCountries: JSON.stringify(operatingCountries),
+          outboundEnabled: data.outboundEnabled === true,
+          outboundCurrency: marketDefaults(homeCountry).currency,
+          outboundTimezone: marketDefaults(homeCountry).timeZone,
           isPartner: role === "Partner",
           commissionBps,
           referredByPartnerId,
@@ -185,6 +194,15 @@ export async function POST(request: Request) {
           createdAt: now,
         })
         .returning();
+      // Link a won outbound lead to this newly provisioned customer
+      // only when the official registration ID and country match exactly.
+      if(orgNumber){
+        const [won]=await db.select({dealId:outboundDeals.id}).from(outboundDeals)
+          .innerJoin(callListEntries,and(eq(callListEntries.id,outboundDeals.entryId),eq(callListEntries.organizationId,ctx.organizationId)))
+          .where(and(eq(outboundDeals.organizationId,ctx.organizationId),eq(outboundDeals.pipeline,'Kunde'),eq(callListEntries.country,homeCountry),eq(outboundRegistryExpression(callListEntries.orgNumber,callListEntries.country),orgNumber)))
+          .orderBy(desc(outboundDeals.id)).limit(1);
+        if(won)await db.update(outboundDeals).set({customerOrganizationId:org.id,updatedAt:now}).where(and(eq(outboundDeals.id,won.dealId),eq(outboundDeals.organizationId,ctx.organizationId),notExists(db.select({id:outboundDealPayments.id}).from(outboundDealPayments).where(and(eq(outboundDealPayments.organizationId,ctx.organizationId),eq(outboundDealPayments.entryId,outboundDeals.entryId))))));
+      }
       await db.insert(memberships).values({
         organizationId: org.id,
         userId: `invite:${email}`,

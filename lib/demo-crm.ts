@@ -1,3 +1,4 @@
+import {createDemoOutbound} from './demo-outbound';
 import type { CrmRequest } from './crm-api';
 import catalog from './call-list-catalog.json';
 import {organizationForms} from './call-list-options';
@@ -34,6 +35,7 @@ export function createDemoRuntime(now = new Date()) {
     const companyRows = () => companies.map(c => ({ ...c, searchContacts: contacts.filter(p => p.companyId === c.id) }));
     const refreshNext = (companyId: number) => { const c = companies.find(c => c.id === companyId); if (!c)
         return; const next = activities.filter(a => a.companyId === companyId && !a.completedAt && a.dueAt).sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]; Object.assign(c, { nextAction: next?.note ?? '', nextActionDate: next?.dueAt ?? '', nextContactId: next?.contactId ?? null }); };
+    const outbound = createDemoOutbound(()=>calls,()=>members,now,()=>companies);
     const request: CrmRequest = async (input, init = {}) => {
         if (init.signal?.aborted)
             throw new DOMException('Aborted', 'AbortError');
@@ -52,6 +54,7 @@ export function createDemoRuntime(now = new Date()) {
             return json({ error: 'Ugyldige demodata.' }, 400);
         }
         const id = Number(data.id ?? url.searchParams.get('id')), companyId = Number(data.companyId ?? url.searchParams.get('companyId'));
+        if(path==='/api/outbound')return outbound(url,method,data);
         if (path === '/api/session' && ['GET', 'POST'].includes(method))
             return json({ user: { id: 'demo', displayName: profile.displayName, email: profile.contactEmail }, currentOrganizationId: -1, role: 'Administrator', organizations: [{ id: -1, name: 'Fjord Service AS · demo', isPartner: false }], acceptedTermsAt: stamp, acceptedTermsVersion: '2026-09-09', completedOnboardingAt: stamp });
         if (path === '/api/profile' && ['GET', 'POST'].includes(method)) {

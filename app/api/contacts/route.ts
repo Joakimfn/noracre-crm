@@ -1,3 +1,4 @@
+import {requireOutboundCompany} from "@/lib/outbound-company-access";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { activities, companies, contacts } from "@/db/schema";
@@ -12,12 +13,14 @@ function fields(data: Record<string, unknown>) {
 }
 export async function GET(request:Request){try{
  const ctx=await requireTenant(request),companyId=Number(new URL(request.url).searchParams.get("companyId")),db=getDb();
+ await requireOutboundCompany(ctx,companyId);
  let rows=await db.select().from(contacts).where(and(eq(contacts.organizationId,ctx.organizationId),eq(contacts.companyId,companyId)));
  if(!rows.length){const [legacy]=await db.select().from(companies).where(and(eq(companies.organizationId,ctx.organizationId),eq(companies.id,companyId))).limit(1);if(legacy?.contactName){const [created]=await db.insert(contacts).values({organizationId:ctx.organizationId,companyId,name:legacy.contactName,title:"",phone:legacy.phone,email:legacy.email,isPrimary:true,createdAt:new Date().toISOString()}).returning();rows=[created]}}
  return Response.json({contacts:rows});
 }catch(e){return accessResponse(e)}}
 export async function POST(request:Request){try{
  const ctx=await requireTenant(request),data=await request.json() as Record<string,unknown>,companyId=Number(data.companyId),db=getDb();
+ await requireOutboundCompany(ctx,companyId);
  const [company]=await db.select().from(companies).where(and(eq(companies.id,companyId),eq(companies.organizationId,ctx.organizationId))).limit(1);
  if(!company)throw new AccessError(404,"Bedriften finnes ikke");
  const [contact]=await db.insert(contacts).values({organizationId:ctx.organizationId,companyId,...fields(data),isPrimary:Boolean(data.isPrimary),createdAt:new Date().toISOString()}).returning();
@@ -27,6 +30,7 @@ export async function PATCH(request:Request){try{
  const ctx=await requireTenant(request),data=await request.json() as Record<string,unknown>,db=getDb();
  const [existing]=await db.select().from(contacts).where(and(eq(contacts.id,Number(data.id)),eq(contacts.organizationId,ctx.organizationId))).limit(1);
  if(!existing)throw new AccessError(404,"Kontaktpersonen finnes ikke");
+ await requireOutboundCompany(ctx,existing.companyId);
  const values=fields({...existing,...data});
  const [company]=await db.select().from(companies).where(and(eq(companies.id,existing.companyId),eq(companies.organizationId,ctx.organizationId))).limit(1);
  const summary=company && (existing.isPrimary || company.contactName===existing.name) ? {
@@ -42,6 +46,7 @@ export async function DELETE(request:Request){try{
  const ctx=await requireTenant(request),id=Number(new URL(request.url).searchParams.get("id")),db=getDb();
  const [existing]=await db.select().from(contacts).where(and(eq(contacts.id,id),eq(contacts.organizationId,ctx.organizationId))).limit(1);
  if(!existing)throw new AccessError(404,"Kontaktpersonen finnes ikke");
+ await requireOutboundCompany(ctx,existing.companyId);
  const peers=await db.select().from(contacts).where(and(eq(contacts.companyId,existing.companyId),eq(contacts.organizationId,ctx.organizationId)));
  const next=peers.find(c=>c.id!==id&&c.isPrimary)??peers.find(c=>c.id!==id);
  const [company]=await db.select().from(companies).where(and(eq(companies.id,existing.companyId),eq(companies.organizationId,ctx.organizationId))).limit(1);

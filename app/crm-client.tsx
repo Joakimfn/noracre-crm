@@ -7,6 +7,7 @@ import {useRegistryLookup} from '@/hooks/use-registry-lookup';
 import {useCrmApi} from "@/lib/crm-api";
 import {CommissionField} from "@/components/commission-field";
 import {SavedCallListManager} from "@/components/saved-call-list-manager";
+import {OutboundSalesDesk} from "@/components/outbound-sales-desk";
 import {locales,resolvePublishedLocale} from '@/lib/i18n/config';
 import {HomeCountryPicker} from '@/components/home-country-picker';
 import {franceEmployeeBands,franceRegions} from '@/lib/france-register-options';
@@ -230,6 +231,7 @@ type PriceFields = { crmPrice: string; ringPrice: string; marketingPrice: string
 type NewOrganization = PriceFields & {
   homeCountry: string;
   operatingCountries: RegisterCountry[];
+  outboundEnabled:boolean;
   name: string;
   orgNumber: string;
   address: string;
@@ -248,6 +250,7 @@ type NewOrganization = PriceFields & {
 const emptyNewOrganization: NewOrganization = {
   homeCountry: "NO",
   operatingCountries: ["NO"],
+  outboundEnabled:false,
   crmPrice: "", ringPrice: "", marketingPrice: "",
   name: "",
   orgNumber: "",
@@ -3567,6 +3570,9 @@ function CallLists({
   const [unitPrice,setUnitPrice] = useState(agreedPrice);
   const [purchaseBusy,setPurchaseBusy] = useState(false);
   useEffect(()=>setUnitPrice(agreedPrice),[agreedPrice]);
+  const [outboundEnabled,setOutboundEnabled]=useState(false);
+  const [showStandard,setShowStandard]=useState(false);
+  useEffect(()=>{setOutboundEnabled(false);setShowStandard(false)},[organizationId]);
   const [franceRegion,setFranceRegion]=useState(""),[franceBands,setFranceBands]=useState<string[]>([]);
   const [country,setCountry]=useState<RegisterCountry>("NO"),[selectedListId,setSelectedListId]=useState<number|null>(null),[listRefresh,setListRefresh]=useState(0),[listName,setListName]=useState(""),[internationalQuery,setInternationalQuery]=useState(""),[internationalLocation,setInternationalLocation]=useState(""),[internationalIndustry,setInternationalIndustry]=useState("");
   const [francePage,setFrancePage]=useSearchPage(JSON.stringify([organizationId,country,internationalQuery,internationalLocation,internationalIndustry,franceRegion,franceBands]));
@@ -3788,7 +3794,7 @@ function CallLists({
           "content-type": "application/json",
           "x-organization-id": String(organizationId),
         },
-        body: JSON.stringify({ type: "status", id: row.id, status, ...extra }),
+        body: JSON.stringify({ type: "status", id: row.id, status, requestId: crypto.randomUUID(), ...extra }),
       }),
       d = await r.json();
     if (!r.ok) {
@@ -3938,6 +3944,8 @@ function CallLists({
     );
   return (
     <div className="page-pad call-lists">
+      <OutboundSalesDesk key={organizationId} organizationId={organizationId} selectedListId={showStandard?selectedListId:null} legacyVisible={showStandard} onDataChanged={onDataChanged} onShowLegacy={()=>setShowStandard(v=>!v)} onEnabledChange={setOutboundEnabled}/>
+      {(!outboundEnabled||showStandard)&&<>
       <section className="surface">
         <div className="operations-head">
           <div>
@@ -4330,6 +4338,7 @@ function CallLists({
           </div>
         </DialogContent>
       </Dialog>
+      </>}
     </div>
   );
 }
@@ -4443,7 +4452,7 @@ function Prospects() {
     const r = await apiFetch("/api/prospects", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: "status", id: row.id, status }),
+      body: JSON.stringify({ type: "status", id: row.id, status, requestId: crypto.randomUUID() }),
     });
     if (!r.ok) toast.error(ui("Kunne ikke oppdatere prospektet"));
   }
@@ -5119,6 +5128,7 @@ function SuperadminSettings(p: {
           {p.newOrg.adminRole === "Partner" && <CommissionField value={p.newOrg.commissionPercent} onChange={commissionPercent=>p.setNewOrg({...p.newOrg,commissionPercent})}/>}
           <PartnerPicker organizationId={p.activeOrgId} refreshKey={p.refreshKey} value={p.newOrg.referredByPartnerId} onChange={referredByPartnerId=>p.setNewOrg({...p.newOrg,referredByPartnerId})}/>
           <NegotiatedPrices values={p.newOrg} change={(values) => p.setNewOrg({...p.newOrg,...values})} />
+          <label className="form-hint" style={{display:"flex",alignItems:"center",gap:10}}><input type="checkbox" checked={p.newOrg.outboundEnabled} onChange={e=>p.setNewOrg({...p.newOrg,outboundEnabled:e.target.checked})}/><UiText text="Denne kunden driver med outbound sales og skal ha salgsarbeidsflaten" /></label>
           <Button onClick={p.addOrg}><UiText text="Opprett kundeorganisasjon" /></Button>
         </div>
       </AdminCard>

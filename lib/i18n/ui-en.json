@@ -1178,5 +1178,6 @@
   "Kontaktpersonens navn mangler": "Contact's name is missing",
   "Aktivitetstekst mangler": "Activity text is missing",
   "Datoen finnes ikke i kalenderen.": "This date does not exist in the calendar.",
-  "Bruk datoformat ÅÅÅÅ-MM-DD eller DD.MM.ÅÅÅÅ, eventuelt med klokkeslett.": "Use YYYY-MM-DD or DD.MM.YYYY, optionally with a time."
+  "Bruk datoformat ÅÅÅÅ-MM-DD eller DD.MM.ÅÅÅÅ, eventuelt med klokkeslett.": "Use YYYY-MM-DD or DD.MM.YYYY, optionally with a time.",
+  "Denne kunden driver med outbound sales og skal ha salgsarbeidsflaten": "This customer uses outbound sales and needs the sales workspace"
 }
