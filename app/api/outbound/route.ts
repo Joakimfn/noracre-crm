@@ -1,4 +1,4 @@
-import {and,desc,eq,gte,inArray,isNull,or} from 'drizzle-orm';
+import {and,desc,eq,gte,inArray,isNull,or,sql} from 'drizzle-orm';
 import {getDb} from '@/db';
 import {callListEntries,callListAssignments,memberships,moduleLicenses,organizations,outboundLeadState,outboundCallLogs,outboundDeals,outboundDealPayments,outboundCompanyOwnership,outboundSuppression} from '@/db/schema';
 import {AccessError,accessResponse,requireTenant} from '@/lib/tenant';
@@ -35,7 +35,14 @@ async function ensureOwner(ctx:Context,entry:typeof callListEntries.$inferSelect
   if(owner?.assignedMembershipId!==requestedMemberId){
    if(!canTransfer)throw new AccessError(409,'Bedriften er allerede tildelt en annen selger i en ringeliste.');
    await db.update(outboundCompanyOwnership).set({assignedMembershipId:requestedMemberId,updatedAt:now}).where(key);
-   // Ownership of duplicates follows this company-level owner in every list.
+   // Keep any previously contacted copies in other lists assigned to the same person.
+   const matching=db.select({id:callListEntries.id}).from(callListEntries).where(and(
+    eq(callListEntries.organizationId,ctx.organizationId),eq(callListEntries.country,entry.country),
+    eq(sql`UPPER(REPLACE(${callListEntries.orgNumber}, ' ', ''))`,orgNumber)
+   ));
+   await db.update(outboundLeadState).set({assignedMembershipId:requestedMemberId,updatedAt:now}).where(and(
+    eq(outboundLeadState.organizationId,ctx.organizationId),inArray(outboundLeadState.entryId,matching)
+   ));
   }
  }
  await db.insert(outboundLeadState).values({organizationId:ctx.organizationId,entryId:entry.id,assignedMembershipId:requestedMemberId,createdAt:now,updatedAt:now}).onConflictDoNothing();
