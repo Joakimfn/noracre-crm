@@ -93,6 +93,12 @@ export const auditLogs = sqliteTable("audit_logs", {
 
 export const organizations = sqliteTable("organizations", {
   homeCountry: text("home_country").notNull().default("NO"),
+  outboundEnabled: integer("outbound_enabled",{mode:"boolean"}).notNull().default(false),
+  outboundCurrency: text("outbound_currency").notNull().default("NOK"),
+  outboundTimezone: text("outbound_timezone").notNull().default("Europe/Oslo"),
+  outboundCommissionBps: integer("outbound_commission_bps").notNull().default(0),
+  outboundPitch: text("outbound_pitch").notNull().default(""),
+
   operatingCountries: text("operating_countries").notNull().default('["NO"]'),
   commissionBps: integer("commission_bps"),
   isPartner: integer("is_partner", {mode:"boolean"}).notNull().default(false),
@@ -315,6 +321,67 @@ export const callListAssignments = sqliteTable("call_list_assignments", {
  createdAt: text("created_at").notNull(),
  acknowledgedAt: text("acknowledged_at").notNull().default(""),
 },t=>[uniqueIndex("idx_list_assignment_unique").on(t.listId,t.membershipId),index("idx_list_assignment_member").on(t.organizationId,t.membershipId)]);
+
+export const outboundLeadState = sqliteTable("outbound_lead_state",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  entryId:integer("entry_id").notNull(),
+  assignedMembershipId:integer("assigned_membership_id").notNull().default(0),
+  nextCallAt:text("next_call_at").notNull().default(""),
+  pipeline:text("pipeline").notNull().default("Prospekt"),
+  lastOutcome:text("last_outcome").notNull().default(""),
+  lastNote:text("last_note").notNull().default(""),
+  contactName:text("contact_name").notNull().default(""),
+  contactPhone:text("contact_phone").notNull().default(""),
+  attempts:integer("attempts").notNull().default(0),
+  doNotContact:integer("do_not_contact",{mode:"boolean"}).notNull().default(false),
+  createdAt:text("created_at").notNull(),
+  updatedAt:text("updated_at").notNull(),
+},t=>[
+  uniqueIndex("outbound_lead_entry_unique").on(t.entryId),
+  index("outbound_lead_owner").on(t.organizationId,t.assignedMembershipId),
+  index("outbound_lead_followup").on(t.organizationId,t.nextCallAt),
+]);
+
+export const outboundCallLogs = sqliteTable("outbound_call_logs",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  entryId:integer("entry_id").notNull(),
+  membershipId:integer("membership_id").notNull(),
+  outcome:text("outcome").notNull(),
+  note:text("note").notNull().default(""),
+  nextCallAt:text("next_call_at").notNull().default(""),
+  createdAt:text("created_at").notNull(),
+},t=>[index("outbound_calls_reporting").on(t.organizationId,t.createdAt),index("outbound_calls_lead").on(t.organizationId,t.entryId)]);
+
+export const outboundDeals = sqliteTable("outbound_deals",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  entryId:integer("entry_id").notNull(),
+  membershipId:integer("membership_id").notNull(),
+  customerOrganizationId:integer("customer_organization_id"),
+  pipeline:text("pipeline").notNull().default("Demo booket"),
+  monthlyAmountMinor:integer("monthly_amount_minor").notNull().default(0),
+  currency:text("currency").notNull().default("NOK"),
+  commissionBps:integer("commission_bps").notNull().default(0),
+  paymentReference:text("payment_reference").notNull().default(""),
+  paymentConfirmedAt:text("payment_confirmed_at").notNull().default(""),
+  note:text("note").notNull().default(""),
+  createdAt:text("created_at").notNull(),
+  updatedAt:text("updated_at").notNull(),
+},t=>[uniqueIndex("outbound_deal_entry_unique").on(t.entryId),index("outbound_deal_org").on(t.organizationId,t.membershipId)]);
+
+export const outboundSuppression = sqliteTable("outbound_suppression",{
+  id:integer("id").primaryKey({autoIncrement:true}),
+  organizationId:integer("organization_id").notNull(),
+  country:text("country").notNull(),
+  orgNumber:text("org_number").notNull(),
+  name:text("name").notNull().default(""),
+  createdByMembershipId:integer("created_by_membership_id").notNull(),
+  reason:text("reason").notNull().default(""),
+  createdAt:text("created_at").notNull(),
+},t=>[uniqueIndex("outbound_suppression_unique").on(t.organizationId,t.country,t.orgNumber)]);
+
 export const callListEntries = sqliteTable(
   "call_list_entries",
   {
