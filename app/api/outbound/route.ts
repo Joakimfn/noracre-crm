@@ -147,12 +147,13 @@ export async function POST(request:Request){
    if(typeof body.note!=='string'||body.note.length>1500)throw new AccessError(400,'Notatet kan være maks 1 500 tegn.');
    let nextAt=body.nextCallAt?isoDate(body.nextCallAt):'';
    if(body.nextCallAt&&!nextAt)throw new AccessError(400,'Ugyldig dato for neste samtale.');
-   if(!nextAt&&['Ikke svar','Sentralbord'].includes(outcome))nextAt=new Date(Date.now()+48*3600000).toISOString();
+   if(!nextAt&&['Ikke svar','Sentralbord','Interessert','Beslutningstaker kontaktet'].includes(outcome))nextAt=new Date(Date.now()+48*3600000).toISOString();
    if(['Reservert mot kontakt','Feil nummer','Ikke interessert'].includes(outcome))nextAt='';
    const closed=outcome==='Reservert mot kontakt';
    if(closed&&orgNumber)await db.insert(outboundSuppression).values({organizationId:ctx.organizationId,country:entry.country,orgNumber,name:entry.name,createdByMembershipId:ctx.membershipId,reason:clean(body.note,500),createdAt:now}).onConflictDoNothing();
-   const pipeline=outcome==='Møte booket'?'Demo booket':closed?'Tapt':state.pipeline;
-   const [updated]=await db.update(outboundLeadState).set({lastOutcome:outcome,lastNote:clean(body.note,1500),nextCallAt:nextAt,attempts:state.attempts+1,doNotContact:closed||state.doNotContact,pipeline,contactName:clean(body.contactName,120)||state.contactName,contactPhone:clean(body.contactPhone,40)||state.contactPhone,updatedAt:now}).where(eq(outboundLeadState.id,state.id)).returning();
+   const pipeline=outcome==='Møte booket'?'Demo booket':closed||outcome==='Ikke interessert'?'Tapt':state.pipeline;
+   const [updated]=await db.update(outboundLeadState).set({lastOutcome:outcome,lastNote:clean(body.note,1500),nextCallAt:nextAt,attempts:sql`${outboundLeadState.attempts}+1`,doNotContact:closed||state.doNotContact,pipeline,contactName:clean(body.contactName,120)||state.contactName,contactPhone:clean(body.contactPhone,40)||state.contactPhone,updatedAt:now}).where(eq(outboundLeadState.id,state.id)).returning();
+   if(outcome==='Møte booket')await db.insert(outboundDeals).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:ctx.membershipId,pipeline:'Demo booket',monthlyAmountMinor:0,currency:org.outboundCurrency,commissionBps:org.outboundCommissionBps,createdAt:now,updatedAt:now}).onConflictDoUpdate({target:outboundDeals.entryId,set:{pipeline:'Demo booket',updatedAt:now}});
    await db.insert(outboundCallLogs).values({organizationId:ctx.organizationId,entryId:entry.id,membershipId:ctx.membershipId,outcome,note:clean(body.note,1500),nextCallAt:nextAt,createdAt:now});
    await db.update(callListEntries).set({handledBy:ctx.user.displayName,updatedAt:now,status:closed?'Ikke aktuell':outcome==='Møte booket'?'Møte booket':outcome==='Ikke svar'?'Ringte – ikke svar':'Kontaktet'}).where(and(eq(callListEntries.id,entry.id),eq(callListEntries.organizationId,ctx.organizationId)));
    return publicJson({lead:updated});
