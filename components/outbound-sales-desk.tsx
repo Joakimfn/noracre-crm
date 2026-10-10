@@ -52,10 +52,10 @@ export function OutboundSalesDesk({organizationId,selectedListId,onShowLegacy,on
    const term=search.trim().toLowerCase();
    return !term||[r.name,r.city,r.industry,r.orgNumber].some(x=>String(x??"").toLowerCase().includes(term));
  }),[state.rows,search,showFuture,rep,now]);
- const selected=filtered.find(x=>x.id===activeId)??filtered[0]??null;
+ const selected=(tab==="dial"?filtered.find(x=>x.id===activeId)??filtered[0]:state.rows.find(x=>x.id===activeId)??filtered[0]??state.rows[0])??null;
  const chosenDeal=state.deals.find(d=>d.entryId===selected?.id);
  const chosenIndex=filtered.findIndex(x=>x.id===selected?.id);
- function selectLead(lead:Lead){setActiveId(lead.id);setOutcome("Ikke svar");setNote(lead.state?.lastNote??"");setCallback("");setContact(lead.state?.contactName??"");setPhone(lead.state?.contactPhone??lead.phone??"");setStage(chosenStage(lead,state.deals));setMonthly(String((state.deals.find(d=>d.entryId===lead.id)?.monthlyAmountMinor??0)/100));setPaymentChecked(false);setPaymentRef("");setPaidAmount("");}
+ function selectLead(lead:Lead){setActiveId(lead.id);setSelectedRep("");setOutcome("Ikke svar");setNote(lead.state?.lastNote??"");setCallback("");setContact(lead.state?.contactName??"");setPhone(lead.state?.contactPhone??lead.phone??"");setStage(chosenStage(lead,state.deals));setMonthly(String((state.deals.find(d=>d.entryId===lead.id)?.monthlyAmountMinor??0)/100));setPaymentChecked(false);setPaymentRef("");setPaidAmount("");}
  function chosenStage(lead:Lead,deals:Deal[]){return deals.find(d=>d.entryId===lead.id)?.pipeline??lead.state?.pipeline??"Prospekt";}
  useEffect(()=>{if(selected&&selected.id!==activeId)selectLead(selected);},[selected?.id,activeId]);
  async function submit(body:Record<string,unknown>,success:string){
